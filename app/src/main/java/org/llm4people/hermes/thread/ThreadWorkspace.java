@@ -1472,7 +1472,7 @@ public final class ThreadWorkspace implements AutoCloseable {
             if (!patch.ops.isEmpty()) {
                 screen.liveUiBar.present(patch);
             } else {
-                screen.liveUiBar.clear();
+                screen.liveUiBar.showReverted();
             }
             if (!patch.suggestedActions.isEmpty()) {
                 ThemePalette palette = ThemePalette.active(activity, account);

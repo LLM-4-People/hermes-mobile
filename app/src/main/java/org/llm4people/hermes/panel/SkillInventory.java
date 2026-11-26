@@ -4,7 +4,6 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.llm4people.hermes.PlainTextSanitizer;
-import org.llm4people.hermes.VisibleText;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -35,7 +34,7 @@ final class SkillInventory {
         this.hasSupportingFiles = hasSupportingFiles;
         StringBuilder searchable = new StringBuilder(name).append(' ').append(description).append(' ').append(category);
         for (String tag : tags) searchable.append(' ').append(tag);
-        searchText = fold(searchable.toString());
+        searchText = PlainTextSanitizer.foldAccents(searchable.toString());
     }
 
     SkillInventory withEnabled(boolean nextEnabled) {
@@ -51,7 +50,7 @@ final class SkillInventory {
             JSONObject row = rows.optJSONObject(i);
             if (row == null || !(row.opt("name") instanceof String name)) continue;
             // The name is a load identifier. Removing a control character would request a different skill.
-            if (VisibleText.isBlank(name) || name.codePoints().anyMatch(Character::isISOControl)) continue;
+            if (!PlainTextSanitizer.hasVisibleText(name) || name.codePoints().anyMatch(Character::isISOControl)) continue;
             String description = optionalText(row, "description");
             String category = optionalText(row, "category");
             if (description == null || category == null) continue;
@@ -82,14 +81,10 @@ final class SkillInventory {
         return row.opt(key) instanceof String text ? text : null;
     }
 
-    private static String fold(String value) {
-        return PlainTextSanitizer.foldAccents(value);
-    }
-
     static List<SkillInventory> search(List<SkillInventory> skills, String query) {
         String trimmed = query == null ? "" : query.trim();
         if (trimmed.isEmpty()) return new ArrayList<>(skills);
-        String[] words = WORDS.split(fold(trimmed));
+        String[] words = WORDS.split(PlainTextSanitizer.foldAccents(trimmed));
         List<SkillInventory> matches = new ArrayList<>();
         for (SkillInventory skill : skills) {
             boolean matchesAll = true;

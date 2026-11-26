@@ -17,7 +17,7 @@ import android.widget.*;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
-import org.llm4people.hermes.VisibleText;
+import org.llm4people.hermes.PlainTextSanitizer;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
 import org.llm4people.hermes.artifact.CodeReader;
@@ -128,10 +128,6 @@ public final class ThreadViews {
         remedyLp.topMargin = Ui.dp(activity, 6);
         notice.addView(status);
         notice.addView(remedy, remedyLp);
-    }
-
-    void inbox(Runnable create, Runnable refresh, Consumer<JSONObject> choose, Runnable next) {
-        inbox(create, refresh, choose, next, null);
     }
 
     void inbox(Runnable create, Runnable refresh, Consumer<JSONObject> choose, Runnable next,
@@ -703,7 +699,7 @@ public final class ThreadViews {
     }
 
     private void updateSend() {
-        send.setEnabled(!runActive && !importingPhoto && !VisibleText.isBlank(draft()));
+        send.setEnabled(!runActive && !importingPhoto && PlainTextSanitizer.hasVisibleText(draft()));
     }
 
     void busy(boolean active, boolean canStop) {

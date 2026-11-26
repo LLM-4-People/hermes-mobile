@@ -12,7 +12,7 @@ import org.json.JSONObject;
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
-import org.llm4people.hermes.VisibleText;
+import org.llm4people.hermes.PlainTextSanitizer;
 import org.llm4people.hermes.artifact.ArtifactDesk;
 import org.llm4people.hermes.artifact.DeviceReview;
 import org.llm4people.hermes.artifact.ThreadInstruments.Pin;
@@ -303,7 +303,7 @@ final class ThreadPlaces {
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
             if (!active.getAsBoolean() || !dialog.isShowing()) { dialog.dismiss(); return; }
             String area = field.getText().toString();
-            if (VisibleText.isBlank(area)) {
+            if (!PlainTextSanitizer.hasVisibleText(area)) {
                 field.setError(thread.activity.getString(R.string.places_enter_neighborhood));
                 return;
             }

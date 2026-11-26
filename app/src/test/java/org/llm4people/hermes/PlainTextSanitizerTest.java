@@ -101,7 +101,6 @@ public final class PlainTextSanitizerTest {
         };
         for (String sample : invisible) {
             assertFalse("Expected invisible sample to be rejected", PlainTextSanitizer.hasVisibleText(sample));
-            assertTrue("Expected VisibleText.isBlank parity", VisibleText.isBlank(sample));
         }
 
         String[] visible = {
@@ -114,7 +113,6 @@ public final class PlainTextSanitizerTest {
         };
         for (String sample : visible) {
             assertTrue("Expected visible sample to be accepted: " + sample, PlainTextSanitizer.hasVisibleText(sample));
-            assertFalse("Expected VisibleText.isBlank parity: " + sample, VisibleText.isBlank(sample));
         }
     }
 

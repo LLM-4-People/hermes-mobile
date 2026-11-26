@@ -25,11 +25,6 @@ import java.util.Objects;
 public final class InstrumentPreview {
     private InstrumentPreview() {}
 
-    /** Builds a transient, editable page with the same native controls and draft review as an installed page. */
-    public static View render(Activity activity, String pageJson, ArtifactDesk.Host host) {
-        return render(activity, pageJson, host, null, "thread");
-    }
-
     /** Builds a transient, editable page with profile-scoped theme and encrypted local tool state. */
     public static View render(Activity activity, String pageJson, ArtifactDesk.Host host,
                               org.llm4people.hermes.profile.Account account, String stateScope) {

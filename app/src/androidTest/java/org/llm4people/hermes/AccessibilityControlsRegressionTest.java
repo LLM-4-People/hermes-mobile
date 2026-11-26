@@ -29,6 +29,8 @@ import org.llm4people.hermes.ambient.NotificationAllowlist;
 import org.llm4people.hermes.artifact.ArtifactDesk;
 import org.llm4people.hermes.artifact.CodeReader;
 import org.llm4people.hermes.artifact.DataTableBlock;
+import org.llm4people.hermes.artifact.InstrumentStateStore;
+import org.llm4people.hermes.artifact.InteractiveControlsBlock;
 import org.llm4people.hermes.artifact.ThemePalette;
 import org.llm4people.hermes.artifact.ThreadInstruments;
 import org.llm4people.hermes.customization.AppCustomization;
@@ -2320,6 +2322,94 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
             @Override public void afterTextChanged(Editable s) {}
         });
         return count;
+    }
+
+    public void testR22InteractiveChipsAndVoiceLocaleCheckableState() throws Throwable {
+        Context context = getInstrumentation().getTargetContext();
+        AtomicReference<VoiceDrafts> voiceRef = new AtomicReference<>();
+        AtomicReference<AlertDialog> dialogRef = new AtomicReference<>();
+        try (WorkspaceAccountFixture fixture = new WorkspaceAccountFixture(context)) {
+            MainActivity activity = launchActivity(context.getPackageName(), MainActivity.class, null);
+            try {
+                runTestOnUiThread(() -> {
+                    try {
+                        // R22.5.2: InteractiveControlsBlock.addChips exposes checkable state via Ui.setCheckableState.
+                        InteractiveControlsBlock.Control ctrl = new InteractiveControlsBlock.Control(
+                                "filter", "Filter", "chips", "", "",
+                                false, 0, 0, 1, 0,
+                                Arrays.asList("Alpha", "Beta"), false, Collections.singletonList("Alpha"));
+                        LinearLayout group = Ui.column(activity);
+                        Map<String, Object> state = new java.util.LinkedHashMap<>();
+                        ThemePalette palette = ThemePalette.resolve(
+                                ThemePalette.OverrideSpec.defaults(), ThemePalette.isNight(activity));
+                        Method addChips = InteractiveControlsBlock.class.getDeclaredMethod(
+                                "addChips", LinearLayout.class, InteractiveControlsBlock.Control.class,
+                                Map.class, InstrumentStateStore.class, String.class, String.class,
+                                ThemePalette.class, boolean.class);
+                        addChips.setAccessible(true);
+                        addChips.invoke(null, group, ctrl, state, null, "scope", "surface", palette, true);
+
+                        List<Button> chipButtons = new ArrayList<>();
+                        collect(group, Button.class, chipButtons);
+                        assertEquals(2, chipButtons.size());
+                        assertCheckableNode(chipButtons.get(0), true);
+                        assertCheckableNode(chipButtons.get(1), false);
+
+                        chipButtons.get(1).performClick();
+                        assertCheckableNode(chipButtons.get(0), false);
+                        assertCheckableNode(chipButtons.get(1), true);
+
+                        // R22.4.2(a): VoiceDrafts locale chips use Ui.choiceChip/Ui.styleChoiceChip with checkable state.
+                        VoiceDrafts voice = new VoiceDrafts(activity);
+                        voiceRef.set(voice);
+                        voice.openOptionsDialog(null, false);
+                        Field optionsDialogField = VoiceDrafts.class.getDeclaredField("optionsDialog");
+                        optionsDialogField.setAccessible(true);
+                        AlertDialog optionsDialog = (AlertDialog) optionsDialogField.get(voice);
+                        dialogRef.set(optionsDialog);
+                        assertNotNull("Expected VoiceDrafts optionsDialog", optionsDialog);
+                        assertTrue(optionsDialog.isShowing());
+
+                        List<Button> allButtons = new ArrayList<>();
+                        collect(optionsDialog.getWindow().getDecorView(), Button.class, allButtons);
+                        int checkedLocales = 0;
+                        int uncheckedLocales = 0;
+                        for (Button btn : allButtons) {
+                            AccessibilityNodeInfo info = AccessibilityNodeInfo.obtain();
+                            try {
+                                btn.onInitializeAccessibilityNodeInfo(info);
+                                if (info.isCheckable()) {
+                                    if (info.isChecked()) checkedLocales++;
+                                    else uncheckedLocales++;
+                                }
+                            } finally {
+                                info.recycle();
+                            }
+                        }
+                        assertEquals("Expected exactly 1 selected voice locale chip", 1, checkedLocales);
+                        assertTrue("Expected unselected voice locale chips", uncheckedLocales >= 1);
+                    } catch (Exception err) {
+                        throw new AssertionError(err);
+                    }
+                });
+            } finally {
+                try {
+                    runTestOnUiThread(() -> {
+                        AlertDialog dlg = dialogRef.getAndSet(null);
+                        if (dlg != null && dlg.isShowing()) dlg.dismiss();
+                        VoiceDrafts voice = voiceRef.getAndSet(null);
+                        if (voice != null) {
+                            voice.reader().stop();
+                            voice.cancel();
+                        }
+                    });
+                } finally {
+                    ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
+                }
+            }
+        } finally {
+            Diagnostics.clear();
+        }
     }
 
     public void testR21MigratedChoiceChipsAndLiveRegionGuards() throws Throwable {

@@ -10,7 +10,7 @@ import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.HermesConfig;
 import org.llm4people.hermes.R;
-import org.llm4people.hermes.VisibleText;
+import org.llm4people.hermes.PlainTextSanitizer;
 import org.llm4people.hermes.ambient.CalendarContextReader;
 import org.llm4people.hermes.ambient.HermesNotificationListener;
 import org.llm4people.hermes.ambient.NotificationAllowlist;
@@ -77,7 +77,7 @@ final class ThreadRun {
 
     void send() {
         String text = ui.draft();
-        if (submitting || page.importingPhoto || journal.pending() != null || VisibleText.isBlank(text)) {
+        if (submitting || page.importingPhoto || journal.pending() != null || !PlainTextSanitizer.hasVisibleText(text)) {
             ui.stopDuplex();
             return;
         }

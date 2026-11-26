@@ -36,17 +36,12 @@ public final class DeviceReview {
         open(activity, host, source, new DeviceAction.PlaceSource(place));
     }
 
+    static void open(Activity activity, ArtifactDesk.Host host, View source, DeviceAction request) {
+        review(activity, host, source, request, null, null, null);
+    }
+
     public static void review(Activity activity, ArtifactDesk.Host host, View source, DeviceAction request,
                               Runnable onCompleted, Runnable onCancelled, Runnable onUnavailable) {
-        open(activity, host, source, request, onCompleted, onCancelled, onUnavailable);
-    }
-
-    static void open(Activity activity, ArtifactDesk.Host host, View source, DeviceAction request) {
-        open(activity, host, source, request, null, null, null);
-    }
-
-    private static void open(Activity activity, ArtifactDesk.Host host, View source, DeviceAction request,
-                             Runnable onCompleted, Runnable onCancelled, Runnable onUnavailable) {
         AtomicBoolean settled = new AtomicBoolean(false);
         AtomicBoolean handlingPositive = new AtomicBoolean(false);
         Runnable fireCompleted = () -> { if (settled.compareAndSet(false, true) && onCompleted != null) onCompleted.run(); };

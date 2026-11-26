@@ -110,10 +110,6 @@ public final class DataTableBlock {
             }
         }
 
-        public void setFilter(String query) {
-            setFilter(query, Locale.getDefault());
-        }
-
         public void setFilter(String query, Locale locale) {
             if (!filterable) return;
             Locale effective = locale == null ? Locale.getDefault() : locale;

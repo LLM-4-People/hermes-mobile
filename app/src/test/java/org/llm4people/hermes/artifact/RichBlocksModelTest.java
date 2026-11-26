@@ -60,7 +60,7 @@ public final class RichBlocksModelTest {
         assertEquals(Arrays.asList("Bêta", "Gamma", "Alpha"), firstCol(table.visibleRows()));
 
         // Case-insensitive filter
-        table.setFilter("gam");
+        table.setFilter("gam", java.util.Locale.ROOT);
         assertEquals(1, table.visibleRows().size());
         assertEquals("Gamma", table.visibleRows().get(0).get(0));
 

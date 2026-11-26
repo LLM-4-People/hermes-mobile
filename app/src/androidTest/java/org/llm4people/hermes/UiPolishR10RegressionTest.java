@@ -509,7 +509,7 @@ public final class UiPolishR10RegressionTest extends InstrumentationTestCase {
                             "Summarize", "Summarize this.", null, null);
                     ViewGroup strip = (ViewGroup) LiveUiPatchBar.suggestedActionsStrip(
                             activity, Collections.singletonList(suggestion), oppositePalette,
-                            s -> {}, s -> {}, s -> {});
+                            s -> {}, s -> {}, s -> {}, null);
                     TextView stripHeading = (TextView) strip.getChildAt(0);
                     int hostPaper = activity.getColor(R.color.paper);
                     int hostMuted = activity.getColor(R.color.muted);

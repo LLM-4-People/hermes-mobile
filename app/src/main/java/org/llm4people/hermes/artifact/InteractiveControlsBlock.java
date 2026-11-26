@@ -414,6 +414,7 @@ public final class InteractiveControlsBlock {
                 states.addState(new int[]{}, enabledBg);
                 b.setBackground(Ui.roundedRipple(c, Ui.BUTTON_CORNER_DP, states));
                 b.setSelected(active);
+                Ui.setCheckableState(b, active);
                 b.setContentDescription(c.getString(active
                         ? R.string.ws_ctrl_chip_selected
                         : R.string.ws_ctrl_chip_unselected, option));

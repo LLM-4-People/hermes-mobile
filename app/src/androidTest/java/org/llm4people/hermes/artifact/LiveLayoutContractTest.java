@@ -4,7 +4,7 @@ import android.content.Context;
 import android.test.InstrumentationTestCase;
 import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.R;
-import org.llm4people.hermes.VisibleText;
+import org.llm4people.hermes.PlainTextSanitizer;
 import org.llm4people.hermes.places.NearbyCategory;
 import java.io.IOException;
 import java.util.Arrays;
@@ -115,12 +115,12 @@ public class LiveLayoutContractTest extends InstrumentationTestCase {
             answers.put("file","src/Parser.java");
             answers.put("notes",blank);
             assertFalse(DraftForm.compose(form,answers).contains("Notes"));
-            assertTrue(VisibleText.isBlank(blank));
+            assertFalse(PlainTextSanitizer.hasVisibleText(blank));
         }
         String visible = "\u00a0résumé\u2003\u2708\ufe0f字" + supplemental;
         answers.put("file",visible);
         assertTrue(DraftForm.compose(form,answers).contains(visible));
-        assertFalse(VisibleText.isBlank(visible));
+        assertTrue(PlainTextSanitizer.hasVisibleText(visible));
     }
 
     private void assertMissing(WorkspaceLayout.Block form, Map<String,String> answers, String id) {

@@ -109,7 +109,7 @@ public class LivePageJourneyTest extends InstrumentationTestCase {
             try {
                 runTestOnUiThread(() -> {
                     String raw = LiveLayoutContractTest.REVIEW;
-                    View page = InstrumentPreview.render(activity, raw, host);
+                    View page = InstrumentPreview.render(activity, raw, host, null, "thread");
                     assertFalse(page instanceof android.widget.ScrollView);
                     activity.setContentView(page);
                     List<View> text = views(page, v -> v instanceof EditText);
@@ -144,7 +144,7 @@ public class LivePageJourneyTest extends InstrumentationTestCase {
                     String fieldChanged = activity.getString(org.llm4people.hermes.R.string.ws_diff_field_changed);
                     assertEquals(1, views(changed, v -> v instanceof TextView && ((TextView)v).getText()
                             .toString().contains(fieldChanged)).size());
-                    View invalid = InstrumentPreview.render(activity, "{}", host);
+                    View invalid = InstrumentPreview.render(activity, "{}", host, null, "thread");
                     assertTrue(views(invalid, v -> v instanceof Button).isEmpty());
                     assertTrue(PageLayouts.titles(account.account, true).isEmpty());
                 });

@@ -235,17 +235,12 @@ public final class VoiceDrafts {
             VoiceLocale option = locales[i];
             boolean current = option == selectedLocale;
             String label = activity.getString(option.labelRes);
-            Button choice = Ui.button(activity, label, v -> {
+            Button choice = Ui.choiceChip(activity, label, v -> {
                 setLocale(option);
                 if (optionsDialog != null) optionsDialog.dismiss();
             });
             choice.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
-            choice.setSelected(current);
-            choice.setTextColor(activity.getColor(current ? R.color.accent : R.color.ink));
-            choice.setBackground(Ui.roundedRipple(activity, Ui.BUTTON_CORNER_DP,
-                    current ? Ui.shape(activity, Ui.BUTTON_CORNER_DP, R.color.accent_surface, R.color.accent, 1)
-                            : Ui.shape(activity, Ui.BUTTON_CORNER_DP, R.color.surface, R.color.line, 1)));
-            Ui.pad(choice, 14, 10);
+            Ui.styleChoiceChip(choice, current);
             if (current) choice.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
             LinearLayout.LayoutParams choiceLp = new LinearLayout.LayoutParams(-1, -2);
             choiceLp.topMargin = Ui.dp(activity, i == 0 ? 8 : 6);

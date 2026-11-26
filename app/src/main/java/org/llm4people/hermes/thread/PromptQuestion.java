@@ -20,7 +20,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
-import org.llm4people.hermes.VisibleText;
+import org.llm4people.hermes.PlainTextSanitizer;
 import org.llm4people.hermes.voice.VoiceDrafts;
 
 import java.util.ArrayList;
@@ -47,7 +47,7 @@ final class PromptQuestion {
             if (!(choices.opt(i) instanceof String choice)) continue;
             boolean recommended = choice.endsWith(RECOMMENDED);
             String value = recommended ? choice.substring(0, choice.length() - RECOMMENDED.length()).trim() : choice;
-            if (VisibleText.isBlank(value)) continue;
+            if (!PlainTextSanitizer.hasVisibleText(value)) continue;
             String label = recommended
                     ? card.getContext().getString(R.string.prompt_choice_recommended, value) : choice;
             displayed.add(label);
@@ -122,7 +122,7 @@ final class PromptQuestion {
 
     private String selectedAnswer() {
         String draft = input.getText().toString();
-        if (VisibleText.isBlank(draft)) draft = "";
+        if (!PlainTextSanitizer.hasVisibleText(draft)) draft = "";
         if (!multiple) return draft;
         JSONArray selected = new JSONArray();
         for (CheckBox check : checks) if (check.isChecked()) selected.put(check.getTag());

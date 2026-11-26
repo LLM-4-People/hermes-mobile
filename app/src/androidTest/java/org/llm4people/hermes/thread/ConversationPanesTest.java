@@ -29,7 +29,7 @@ public final class ConversationPanesTest extends InstrumentationTestCase {
         try {
             runTestOnUiThread(() -> {
                 ThreadViews index = new ThreadViews(activity);
-                index.inbox(() -> {}, () -> {}, row -> {}, () -> {});
+                index.inbox(() -> {}, () -> {}, row -> {}, () -> {}, null);
                 ThreadViews chat = new ThreadViews(activity);
                 chat.chat("Brouillon à garder", text -> {}, () -> fail("Unexpected send"), () -> {}, () -> {});
                 InstrumentViewport viewport = chat.attachInstrumentViewport();

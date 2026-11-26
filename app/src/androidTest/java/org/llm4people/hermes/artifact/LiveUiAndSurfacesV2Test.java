@@ -252,7 +252,8 @@ public final class LiveUiAndSurfacesV2Test extends InstrumentationTestCase {
                         new LiveUiPatch.QuickAction("qa_open", "Suivi", null, "page/tableau-suivi")),
                 null,
                 text -> staged[0] = text,
-                page -> opened[0] = page);
+                page -> opened[0] = page,
+                null);
         View draftChip = strip.findViewWithTag("quick-action-qa_draft");
         View pageChip = strip.findViewWithTag("quick-action-qa_open");
         assertNotNull(draftChip);
@@ -272,7 +273,8 @@ public final class LiveUiAndSurfacesV2Test extends InstrumentationTestCase {
                 null,
                 text -> staged[0] = text,
                 page -> opened[0] = page,
-                act -> actionTriggered[0] = act);
+                act -> actionTriggered[0] = act,
+                null);
         View s0 = suggestions.findViewWithTag("suggested-action-0");
         View s1 = suggestions.findViewWithTag("suggested-action-1");
         assertNotNull(s0);
