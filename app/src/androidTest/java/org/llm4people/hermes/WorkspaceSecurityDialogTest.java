@@ -12,9 +12,13 @@ import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.view.inspector.WindowInspector;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.LinearLayout;
+import android.widget.RadioButton;
+import android.widget.TextView;
 
 import org.llm4people.hermes.profile.ProfileGate;
+import org.llm4people.hermes.profile.ProfileLockPolicy;
 import org.llm4people.hermes.profile.WorkspaceAccountFixture;
 
 import java.lang.reflect.Constructor;
@@ -72,7 +76,37 @@ public final class WorkspaceSecurityDialogTest extends InstrumentationTestCase {
                     View childWindow = waitForWindowContaining(childSaveLabel, 3000L);
                     assertNotNull("Expected Change lock mode child dialog window", childWindow);
                     assertNotSame(parentWindow, childWindow);
-                    runTestOnUiThread(() -> assertWindowSecure(childWindow));
+                    runTestOnUiThread(() -> {
+                        assertWindowSecure(childWindow);
+                        // R22.6.1: Validation error keeps dialog open, preserves inputs, and shows specific inline error.
+                        RadioButton pinRadio = findRadioWithTag(childWindow, ProfileLockPolicy.Mode.PIN);
+                        assertNotNull("Expected PIN RadioButton in Change lock mode dialog", pinRadio);
+                        pinRadio.performClick();
+                        List<EditText> inputs = collectViews(childWindow, EditText.class);
+                        assertEquals("Expected first + confirm EditTexts", 2, inputs.size());
+                        inputs.get(0).setText("123456");
+                        inputs.get(1).setText("654321");
+                        Button saveBtn = findButton(childWindow, childSaveLabel);
+                        assertNotNull(saveBtn);
+                        saveBtn.performClick();
+                        assertEquals("Mismatched PIN must keep first input intact",
+                                "123456", inputs.get(0).getText().toString());
+                        assertEquals("Mismatched PIN must keep confirm input intact",
+                                "654321", inputs.get(1).getText().toString());
+                        TextView mismatchNote = findTextView(childWindow, activity.getString(R.string.lock_pin_mismatch));
+                        assertNotNull("Expected inline PIN mismatch error in dialog", mismatchNote);
+                        assertEquals(View.ACCESSIBILITY_LIVE_REGION_POLITE, mismatchNote.getAccessibilityLiveRegion());
+
+                        inputs.get(0).setText("123");
+                        inputs.get(1).setText("123");
+                        saveBtn.performClick();
+                        assertEquals("123", inputs.get(0).getText().toString());
+                        assertNotNull("Expected distinct short-PIN error in dialog",
+                                findTextView(childWindow, activity.getString(R.string.lock_setup_missing_pin)));
+                    });
+                    getInstrumentation().waitForIdleSync();
+                    assertNotNull("Dialog must remain open after validation error",
+                            waitForWindowContaining(childSaveLabel, 1000L));
 
                     // Synchronously close handle (as MainActivity.dismissOverlays() does on lock/destroy).
                     runTestOnUiThread(() -> {
@@ -235,5 +269,37 @@ public final class WorkspaceSecurityDialogTest extends InstrumentationTestCase {
             if (v instanceof Button b && b.isShown()) return b;
         }
         return null;
+    }
+
+    private static TextView findTextView(View root, String text) {
+        ArrayList<View> matches = new ArrayList<>();
+        root.findViewsWithText(matches, text, View.FIND_VIEWS_WITH_TEXT);
+        for (View v : matches) {
+            if (v instanceof TextView tv && !(v instanceof Button) && tv.isShown()) return tv;
+        }
+        return null;
+    }
+
+    private static RadioButton findRadioWithTag(View root, Object tag) {
+        for (RadioButton rb : collectViews(root, RadioButton.class)) {
+            if (tag.equals(rb.getTag())) return rb;
+        }
+        return null;
+    }
+
+    private static <T extends View> List<T> collectViews(View node, Class<T> type) {
+        List<T> out = new ArrayList<>();
+        collectInto(node, type, out);
+        return out;
+    }
+
+    private static <T extends View> void collectInto(View node, Class<T> type, List<T> out) {
+        if (node == null) return;
+        if (type.isInstance(node)) out.add(type.cast(node));
+        if (node instanceof ViewGroup group) {
+            for (int i = 0; i < group.getChildCount(); i++) {
+                collectInto(group.getChildAt(i), type, out);
+            }
+        }
     }
 }

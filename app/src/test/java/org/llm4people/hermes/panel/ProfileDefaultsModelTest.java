@@ -42,10 +42,16 @@ public final class ProfileDefaultsModelTest {
         model.setToolsetEnabled("terminal", true);
         assertTrue(model.isDirty());
         assertEquals(3, model.enabledToolsetCount());
-        model.markSaved();
+        model.markSaved(model.currentSnapshot());
         assertFalse(model.isDirty());
         assertEquals("anthropic", model.savedSnapshot().provider());
         assertTrue(model.savedSnapshot().enabledToolsets().contains("terminal"));
+
+        // R22.5.1: Live-region transition guard silences initial load and unchanged full-render rebuilds.
+        assertFalse(ProfileDefaultsPanel.shouldAnnounceTransition(null, "Saved"));
+        assertFalse(ProfileDefaultsPanel.shouldAnnounceTransition("Saved", "Saved"));
+        assertFalse(ProfileDefaultsPanel.shouldAnnounceTransition("Saved", null));
+        assertTrue(ProfileDefaultsPanel.shouldAnnounceTransition("Saved", "Unsaved changes"));
     }
 
     @Test

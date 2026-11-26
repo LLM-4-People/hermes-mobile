@@ -320,7 +320,6 @@ public final class TemplatesPanel {
         field.setHint(hint);
         field.setTextSize(16);
         Ui.styleDialogInput(activity, field);
-        field.setMinHeight(Ui.dp(activity, 48));
         if (multiline) {
             field.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
                     | InputType.TYPE_TEXT_FLAG_MULTI_LINE);

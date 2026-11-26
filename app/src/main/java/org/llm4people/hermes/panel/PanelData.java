@@ -78,16 +78,6 @@ final class PanelData {
                 + measure(session, "cache_write_tokens");
     }
 
-    static double cacheRatio(JSONObject session) {
-        double prompt = promptTokens(session);
-        return prompt > 0 ? measure(session, "cache_read_tokens") / prompt : Double.NaN;
-    }
-
-    static double endToEndRate(JSONObject row) {
-        double elapsed = measure(row, "elapsed_ms"), tokens = measure(row, "output_tokens");
-        return elapsed > 0 ? tokens * 1000d / elapsed : Double.NaN;
-    }
-
     static Set<String> enabledMembers(Map<String, ? extends Collection<String>> sets, JSONArray allowed) {
         Set<String> selected = new LinkedHashSet<>();
         if (allowed != null) for (int i = 0; i < allowed.length(); i++) selected.add(allowed.optString(i));
