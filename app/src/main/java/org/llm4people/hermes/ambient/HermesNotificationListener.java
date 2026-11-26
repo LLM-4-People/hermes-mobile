@@ -44,7 +44,7 @@ public final class HermesNotificationListener extends NotificationListenerServic
 
     /** Sanitize an untrusted quick-reply draft so confirmation UI matches what {@link #sendReviewedReply} sends. */
     public static String sanitizeReplyDraft(String rawDraft) {
-        return NotificationPrivacyGuard.sanitizeText(rawDraft, MAX_REPLY_CHARS);
+        return org.llm4people.hermes.PlainTextSanitizer.collapseWithEllipsis(rawDraft, MAX_REPLY_CHARS);
     }
 
     public enum ReplyOutcome {

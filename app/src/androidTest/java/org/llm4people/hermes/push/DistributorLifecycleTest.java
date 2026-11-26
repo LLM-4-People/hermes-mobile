@@ -214,7 +214,7 @@ public final class DistributorLifecycleTest extends InstrumentationTestCase {
             PushStore.Device uploading = store.forProfile(owner.profile);
             String event = UUID.randomUUID().toString().replace("-", "");
             long now = System.currentTimeMillis();
-            store.defer(uploading, event, "reminder", now + 60_000, now);
+            store.defer(uploading, event, "reminder", DeliveryItem.Urgency.NORMAL, now + 60_000, now);
             outgoing.clear();
             new DistributorPackageReceiver().onReceive(context, new Intent(Intent.ACTION_PACKAGE_DATA_CLEARED,
                     Uri.fromParts("package", fixture.getPackageName(), null)));

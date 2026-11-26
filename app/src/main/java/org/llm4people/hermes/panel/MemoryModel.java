@@ -36,10 +36,10 @@ public final class MemoryModel {
 
         public List<Entry> filter(String query) {
             if (query == null || query.trim().isEmpty()) return entries;
-            String needle = fold(query.trim());
+            String needle = PlainTextSanitizer.foldAccents(query.trim());
             List<Entry> matched = new ArrayList<>();
             for (Entry entry : entries) {
-                if (fold(entry.text()).contains(needle)) matched.add(entry);
+                if (PlainTextSanitizer.foldAccents(entry.text()).contains(needle)) matched.add(entry);
             }
             return Collections.unmodifiableList(matched);
         }
@@ -146,9 +146,5 @@ public final class MemoryModel {
             }
         }
         return false;
-    }
-
-    private static String fold(String value) {
-        return PlainTextSanitizer.foldAccents(value);
     }
 }

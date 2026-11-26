@@ -28,8 +28,10 @@ public final class SearchAndSkillStudioModelTest {
         assertEquals(R.string.ws_role_tool, SearchResultModel.roleLabelRes("tool"));
         assertEquals(0, SearchResultModel.roleLabelRes("unknown"));
         assertEquals("bonjour monde", SearchResultModel.normalizeQuery("  bonjour\u0000 monde  "));
-        assertFalse(SearchResultModel.formatTimestamp("2026-11-22T14:30:00Z", ZoneId.of("America/Toronto")).isEmpty());
-        assertEquals("", SearchResultModel.formatTimestamp("not-a-date", ZoneId.of("UTC")));
+        assertEquals("bonjour monde", SearchResultModel.normalizeQuery("bon\u202E\u2067\u200Bjour\u00A0\u3000monde\uD800"));
+        assertEquals("", SearchResultModel.normalizeQuery("\u3164\u200B\u202E"));
+        assertFalse(SearchResultModel.formatTimestamp("2026-11-22T14:30:00Z", ZoneId.of("America/Toronto"), java.util.Locale.US).isEmpty());
+        assertEquals("", SearchResultModel.formatTimestamp("not-a-date", ZoneId.of("UTC"), java.util.Locale.US));
     }
 
     @Test

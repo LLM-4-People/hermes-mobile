@@ -172,8 +172,8 @@ public class HermesOsPrivacyAndWidgetTest {
         assertEquals(2, store.instancesForWidget("kpi_morning").size());
         assertEquals("Matinée", store.specForInstance(101).title);
         assertEquals("#225C50", store.specForInstance(101).accentHex);
-        assertEquals("Montre mes rappels du jour", store.draftForAction("kpi_morning", 0));
-        assertNull(store.draftForAction("kpi_morning", 9));
+        assertEquals("Montre mes rappels du jour", store.draftForAction("kpi_morning", 0, null));
+        assertNull(store.draftForAction("kpi_morning", 9, null));
 
         // Live update propagates to all bound instances.
         HermesWidgetSpec v2 = new HermesWidgetSpec(

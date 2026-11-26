@@ -78,7 +78,7 @@ public final class OnboardingModels {
 
         public AdminSettings {
             defaultLanguage = normalizeLanguage(defaultLanguage);
-            defaultModel = cleanText(defaultModel, 128);
+            defaultModel = PlainTextSanitizer.collapseBounded(defaultModel, 128);
             maxConcurrentRuns = clamp(maxConcurrentRuns, MIN_CONCURRENT_RUNS, MAX_CONCURRENT_RUNS);
             perProfileConcurrentLimit = clamp(perProfileConcurrentLimit,
                     MIN_PER_PROFILE_RUNS, Math.min(MAX_PER_PROFILE_RUNS, maxConcurrentRuns));
@@ -177,14 +177,14 @@ public final class OnboardingModels {
 
     public static PairingTicket parsePairingTicketMap(Map<String, Object> map) {
         if (map == null || map.isEmpty()) throw new IllegalArgumentException("Missing pairing ticket");
-        String ticketId = cleanText(str(map.get("ticket_id")), 96);
+        String ticketId = PlainTextSanitizer.collapseBounded(str(map.get("ticket_id")), 96);
         String code = str(map.get("code")).trim();
         long expiresAt = parseEpochSeconds(map.get("expires_at"));
         Object rawTtl = map.containsKey("ttl_seconds") ? map.get("ttl_seconds") : map.get("ttl_remaining_seconds");
         int ttl = JsonValues.parseNonNegativeInt(rawTtl, 0);
         String deepLink = str(map.get("deep_link")).trim();
         String slug = safeSlug(str(map.get("profile_slug")));
-        String displayName = cleanText(str(map.get("display_name")), 64);
+        String displayName = PlainTextSanitizer.collapseBounded(str(map.get("display_name")), 64);
         String mode = normalizeMode(str(map.get("mode")));
         if (ticketId.isEmpty() && code.isEmpty()) {
             throw new IllegalArgumentException("Pairing ticket missing identifier");
@@ -239,7 +239,7 @@ public final class OnboardingModels {
         String serverUrl = GatewayAddress.normalize(chosenUrl);
         String baseHost = rawBaseHost.isEmpty() ? serverUrl : GatewayAddress.normalize(rawBaseHost);
         String slug = safeSlug(str(map.get("profile_slug")));
-        String displayName = cleanText(str(map.get("display_name")), 64);
+        String displayName = PlainTextSanitizer.collapseBounded(str(map.get("display_name")), 64);
         String mode = normalizeMode(str(map.get("mode")));
         long expiresAt = parseEpochSeconds(map.get("expires_at"));
         Object rawTtl = map.containsKey("ttl_remaining_seconds")
@@ -257,13 +257,13 @@ public final class OnboardingModels {
         if (map == null || map.isEmpty()) throw new IllegalArgumentException("Missing pairing claim response");
         String serverUrl = GatewayAddress.normalize(str(map.get("server_url")));
         String slug = safeSlug(str(map.get("profile_slug")));
-        String displayName = cleanText(str(map.get("display_name")), 64);
+        String displayName = PlainTextSanitizer.collapseBounded(str(map.get("display_name")), 64);
         String apiKey = str(map.get("api_key")).trim();
         if (!PairingLinkParser.isValidApiKey(apiKey)) {
             throw new IllegalArgumentException("Invalid API key in claim response");
         }
         String language = normalizeLanguage(str(map.get("preferred_language")));
-        String defaultModel = cleanText(str(map.get("default_model")), 128);
+        String defaultModel = PlainTextSanitizer.collapseBounded(str(map.get("default_model")), 128);
         int caps = extractCapabilityCount(map.get("capabilities_summary"));
         OnboardingStatus onboarding = null;
         Object rawOnboarding = map.get("onboarding");
@@ -284,7 +284,7 @@ public final class OnboardingModels {
             return new OnboardingStatus(false, "", 0, 0, "auto", "", "", false, false, Collections.emptyList());
         }
         boolean ready = bool(map.get("ready"), false);
-        String activeModel = cleanText(str(map.get("active_model")), 128);
+        String activeModel = PlainTextSanitizer.collapseBounded(str(map.get("active_model")), 128);
         int activeCapabilities = JsonValues.parseNonNegativeInt(map.get("active_capabilities"), 0);
         int endpointCount = JsonValues.parseNonNegativeInt(map.get("endpoint_count"), 0);
         String language = normalizeLanguage(str(map.get("language")));
@@ -296,14 +296,14 @@ public final class OnboardingModels {
         Object rawProfile = map.get("profile");
         if (rawProfile instanceof Map<?, ?> pm) {
             slug = safeSlug(str(pm.get("slug")));
-            displayName = cleanText(str(pm.get("display_name")), 64);
+            displayName = PlainTextSanitizer.collapseBounded(str(pm.get("display_name")), 64);
             if (pm.get("is_admin") instanceof Boolean b) profileIsAdmin = b;
             else if ("admin".equalsIgnoreCase(str(pm.get("role")))) profileIsAdmin = Boolean.TRUE;
         } else if (rawProfile instanceof String s) {
             slug = safeSlug(s);
         }
         if (slug.isEmpty()) slug = safeSlug(str(map.get("profile_slug")));
-        if (displayName.isEmpty()) displayName = cleanText(str(map.get("display_name")), 64);
+        if (displayName.isEmpty()) displayName = PlainTextSanitizer.collapseBounded(str(map.get("display_name")), 64);
         boolean isAdmin;
         if (map.get("is_admin") instanceof Boolean b) {
             isAdmin = b;
@@ -323,17 +323,17 @@ public final class OnboardingModels {
                 if (starters.size() >= 8) break;
                 idx++;
                 if (entry instanceof Map<?, ?> sm) {
-                    String sid = cleanText(str(sm.get("id")), 48);
-                    String title = cleanText(str(sm.get("title")), 80);
-                    String prompt = cleanText(str(sm.containsKey("prompt") ? sm.get("prompt") : sm.get("draft")), 400);
-                    String category = cleanText(str(sm.get("category")), 32);
+                    String sid = PlainTextSanitizer.collapseBounded(str(sm.get("id")), 48);
+                    String title = PlainTextSanitizer.collapseBounded(str(sm.get("title")), 80);
+                    String prompt = PlainTextSanitizer.collapseBounded(str(sm.containsKey("prompt") ? sm.get("prompt") : sm.get("draft")), 400);
+                    String category = PlainTextSanitizer.collapseBounded(str(sm.get("category")), 32);
                     if (title.isEmpty()) title = prompt;
                     if (prompt.isEmpty()) prompt = title;
                     if (!prompt.isEmpty()) {
                         starters.add(new StarterPrompt(sid.isEmpty() ? "starter_" + idx : sid, title, prompt, category));
                     }
                 } else if (entry instanceof String text) {
-                    String clean = cleanText(text, 400);
+                    String clean = PlainTextSanitizer.collapseBounded(text, 400);
                     if (!clean.isEmpty()) {
                         starters.add(new StarterPrompt("starter_" + idx, clean, clean, ""));
                     }
@@ -358,7 +358,7 @@ public final class OnboardingModels {
         Map<String, Object> summary = map.get("summary") instanceof Map<?, ?> nestedSummary
                 ? (Map<String, Object>) nestedSummary : map;
         String defaultLanguage = normalizeLanguage(str(settings.get("default_language")));
-        String defaultModel = cleanText(str(settings.get("default_model")), 128);
+        String defaultModel = PlainTextSanitizer.collapseBounded(str(settings.get("default_model")), 128);
         int maxConcurrent = JsonValues.parseInt(settings.get("max_concurrent_runs"), 32);
         int perProfile = JsonValues.parseInt(settings.get("per_profile_concurrent_limit"), 12);
         int pairingTtl = JsonValues.parseInt(settings.get("pairing_ttl_seconds"), 300);
@@ -400,11 +400,11 @@ public final class OnboardingModels {
         String slug = safeSlug(str(src.get("slug")));
         if (slug.isEmpty()) slug = safeSlug(str(src.get("profile_slug")));
         if (slug.isEmpty()) return null;
-        String displayName = cleanText(str(src.get("display_name")), 64);
+        String displayName = PlainTextSanitizer.collapseBounded(str(src.get("display_name")), 64);
         if (displayName.isEmpty()) displayName = slug;
         String lang = normalizeLanguage(str(src.containsKey("preferred_language")
                 ? src.get("preferred_language") : src.get("language")));
-        String model = cleanText(str(src.get("default_model")), 128);
+        String model = PlainTextSanitizer.collapseBounded(str(src.get("default_model")), 128);
         String badgeColor = safeHexColor(str(src.get("badge_color")));
         int activeRuns = JsonValues.parseNonNegativeInt(src.get("active_runs"), 0);
         int threadCount = JsonValues.parseNonNegativeInt(src.get("thread_count"), 0);
@@ -476,10 +476,6 @@ public final class OnboardingModels {
 
     private static long parseEpochSeconds(Object value) {
         return org.llm4people.hermes.EpochTimestamps.parseEpochSeconds(value);
-    }
-
-    private static String cleanText(String raw, int maxChars) {
-        return PlainTextSanitizer.collapseBounded(raw, maxChars);
     }
 
     private static String str(Object value) {

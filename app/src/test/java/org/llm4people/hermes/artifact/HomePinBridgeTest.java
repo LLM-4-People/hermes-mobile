@@ -92,7 +92,7 @@ public final class HomePinBridgeTest {
         };
 
         RouteRegistry registry = BrainStudioRoutes.register(new RouteRegistry(), brain);
-        DeliveryRouter.registerRoutes(registry, deliveriesOpened::incrementAndGet, policyOpened::incrementAndGet);
+        DeliveryRouter.registerRoutes(registry, null, deliveriesOpened::incrementAndGet, policyOpened::incrementAndGet);
 
         assertTrue(registry.dispatch(BrainStudioRoutes.ROUTE_MEMORY));
         assertTrue(registry.dispatch(DeliveryRouter.ROUTE_DELIVERIES));

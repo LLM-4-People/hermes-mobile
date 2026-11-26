@@ -98,7 +98,7 @@ public final class InfiniteChatTest {
         assertEquals(Long.valueOf(440L), window.newestId());
 
         // 4. Snap to latest + O(1) after_id live delta append (3 new messages arrive).
-        window.snapToLatest(range(99_961L, 100_000L), true, 99_961L, 100_000L, (int) totalMessages);
+        window.replaceLatest(range(99_961L, 100_000L), true, 99_961L, 100_000L, (int) totalMessages);
         assertTrue(window.atLiveTail());
         assertEquals("limit=40&order=oldest&after_id=100000", window.newerQueryParams(40));
 

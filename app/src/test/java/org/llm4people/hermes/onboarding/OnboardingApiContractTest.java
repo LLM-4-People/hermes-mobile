@@ -434,7 +434,7 @@ public final class OnboardingApiContractTest {
             // 1. Unauthenticated POST /api/mobile/pairing/inspect -> 410 Gone (no Authorization, no-store)
             Thread t0 = serveSingle(server, 410, "Gone", "", "", observedRequestLine, observedHeaders);
             try {
-                HermesApi.inspectPairing(base, "pair_AbCdEf1234567890");
+                HermesApi.inspectPairing(base, "pair_AbCdEf1234567890", HermesApi.Limits.defaults());
                 fail("Expected HttpError 410");
             } catch (HermesApi.HttpError err) {
                 assertEquals(410, err.status);
@@ -449,7 +449,7 @@ public final class OnboardingApiContractTest {
             // 1b. Unauthenticated POST /api/mobile/pairing/claim -> 410 Gone with Retry-After
             Thread t1 = serveSingle(server, 410, "Gone", "Retry-After: 45\r\n", "", observedRequestLine, observedHeaders);
             try {
-                HermesApi.claimPairing(base, "pair_AbCdEf1234567890");
+                HermesApi.claimPairing(base, "pair_AbCdEf1234567890", HermesApi.Limits.defaults());
                 fail("Expected HttpError 410");
             } catch (HermesApi.HttpError err) {
                 assertEquals(410, err.status);
@@ -496,7 +496,7 @@ public final class OnboardingApiContractTest {
             // 5. activePairings(false) hits /api/mobile/pairing/active; activePairings(true) appends ?all=1
             Thread t4 = serveSingle(server, 403, "Forbidden", "", "", observedRequestLine, observedHeaders);
             try {
-                api.activePairings();
+                api.activePairings(false);
                 fail("Expected HttpError 403");
             } catch (HermesApi.HttpError err) {
                 assertEquals(403, err.status);
@@ -522,13 +522,13 @@ public final class OnboardingApiContractTest {
     @Test
     public void claimPairingRejectsCleartextRemoteHostAndShortCodeBeforeNetwork() {
         try {
-            HermesApi.claimPairing("http://example.com", "pair_AbCdEf1234567890");
+            HermesApi.claimPairing("http://example.com", "pair_AbCdEf1234567890", HermesApi.Limits.defaults());
             fail("Expected cleartext host rejection");
         } catch (IllegalArgumentException | IOException expected) {
             assertTrue(expected instanceof IllegalArgumentException);
         }
         try {
-            HermesApi.claimPairing("https://hermes.example.com", "short");
+            HermesApi.claimPairing("https://hermes.example.com", "short", HermesApi.Limits.defaults());
             fail("Expected short code rejection");
         } catch (IllegalArgumentException | IOException expected) {
             assertTrue(expected instanceof IllegalArgumentException);

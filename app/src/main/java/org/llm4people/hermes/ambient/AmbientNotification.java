@@ -31,13 +31,13 @@ public final class AmbientNotification {
             String replyLabel) {
         this.key = Objects.requireNonNull(key, "key");
         this.packageName = Objects.requireNonNull(packageName, "packageName");
-        this.appLabel = NotificationPrivacyGuard.sanitizeText(appLabel, NotificationPrivacyGuard.MAX_LABEL_CHARS);
-        this.sender = NotificationPrivacyGuard.sanitizeText(sender, NotificationPrivacyGuard.MAX_SENDER_CHARS);
-        this.title = NotificationPrivacyGuard.sanitizeText(title, NotificationPrivacyGuard.MAX_TITLE_CHARS);
-        this.text = NotificationPrivacyGuard.sanitizeText(text, NotificationPrivacyGuard.MAX_TEXT_CHARS);
+        this.appLabel = org.llm4people.hermes.PlainTextSanitizer.collapseWithEllipsis(appLabel, NotificationPrivacyGuard.MAX_LABEL_CHARS);
+        this.sender = org.llm4people.hermes.PlainTextSanitizer.collapseWithEllipsis(sender, NotificationPrivacyGuard.MAX_SENDER_CHARS);
+        this.title = org.llm4people.hermes.PlainTextSanitizer.collapseWithEllipsis(title, NotificationPrivacyGuard.MAX_TITLE_CHARS);
+        this.text = org.llm4people.hermes.PlainTextSanitizer.collapseWithEllipsis(text, NotificationPrivacyGuard.MAX_TEXT_CHARS);
         this.postedAtMillis = Math.max(0L, postedAtMillis);
         this.replyable = replyable;
-        this.replyLabel = NotificationPrivacyGuard.sanitizeText(replyLabel, 64);
+        this.replyLabel = org.llm4people.hermes.PlainTextSanitizer.collapseWithEllipsis(replyLabel, 64);
     }
 
     public String displaySource() {

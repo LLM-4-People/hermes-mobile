@@ -1,6 +1,7 @@
 package org.llm4people.hermes.templates;
 
 import android.content.Context;
+import org.llm4people.hermes.PlainTextSanitizer;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.SecretPatterns;
 
@@ -70,12 +71,12 @@ public final class WorkflowTemplate {
         if (trimmed.length() > maxChars) {
             throw new IOException("Template text exceeds limit");
         }
-        for (int i = 0; i < trimmed.length(); ) {
-            int cp = trimmed.codePointAt(i);
-            if (Character.isISOControl(cp) || Character.getType(cp) == Character.SURROGATE) {
-                throw new IOException("Control character rejected in template metadata");
-            }
-            i += Character.charCount(cp);
+        if (PlainTextSanitizer.hasUnsafeSingleLineCodePoint(trimmed)) {
+            throw new IOException("Control character rejected in template metadata");
+        }
+        if (!PlainTextSanitizer.hasVisibleText(trimmed)) {
+            if (required) throw new IOException("Required template text blank");
+            return "";
         }
         if (SecretPatterns.containsCredential(trimmed)) throw new SecretRejectedException();
         return trimmed;

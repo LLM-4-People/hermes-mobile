@@ -69,10 +69,10 @@ public final class MediaContextBridge {
             long durationMs) {
         public NowPlaying {
             packageName = packageName == null ? "" : packageName.trim();
-            appLabel = NotificationPrivacyGuard.sanitizeText(appLabel, NotificationPrivacyGuard.MAX_LABEL_CHARS);
-            title = NotificationPrivacyGuard.sanitizeText(title, NotificationPrivacyGuard.MAX_TITLE_CHARS);
-            artist = NotificationPrivacyGuard.sanitizeText(artist, NotificationPrivacyGuard.MAX_SENDER_CHARS);
-            album = NotificationPrivacyGuard.sanitizeText(album, NotificationPrivacyGuard.MAX_TITLE_CHARS);
+            appLabel = org.llm4people.hermes.PlainTextSanitizer.collapseWithEllipsis(appLabel, NotificationPrivacyGuard.MAX_LABEL_CHARS);
+            title = org.llm4people.hermes.PlainTextSanitizer.collapseWithEllipsis(title, NotificationPrivacyGuard.MAX_TITLE_CHARS);
+            artist = org.llm4people.hermes.PlainTextSanitizer.collapseWithEllipsis(artist, NotificationPrivacyGuard.MAX_SENDER_CHARS);
+            album = org.llm4people.hermes.PlainTextSanitizer.collapseWithEllipsis(album, NotificationPrivacyGuard.MAX_TITLE_CHARS);
             playbackKind = playbackKind == null ? PlaybackKind.UNKNOWN : playbackKind;
             positionMs = Math.max(0L, positionMs);
             durationMs = Math.max(0L, durationMs);

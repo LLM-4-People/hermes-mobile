@@ -47,7 +47,7 @@ public final class RunPreviewTest extends InstrumentationTestCase {
     public void testOpenDiffAndItsLineSurviveCheckpointRestartAndCloseAtTheOriginalFence() throws Exception {
         AtomicReference<String> saved = new AtomicReference<>();
         ThreadJournal journal = new ThreadJournal("chat", "owner", null, saved::set);
-        journal.stage(ThreadData.body("chat", "demande", null), 10, 1, 60, true);
+        journal.stage(ThreadData.body("chat", "demande", null), 10, 1, 60, true, null);
         journal.setRunId("run");
         RunPreview first = new RunPreview(journal.pending());
         first.append("~~~~diff\n+" + repeat("code ", 25_000));

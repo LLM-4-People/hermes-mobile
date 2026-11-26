@@ -182,11 +182,6 @@ public final class ConnectionDoctor implements AutoCloseable {
         return evaluateCapabilityFlags(flags, expectedForkCapabilities);
     }
 
-    /** Pure-Java capability flag evaluator (SSoT for fork detection and host JVM testing). */
-    public static CapabilitiesProbe evaluateCapabilityFlags(Map<String, Boolean> flags) {
-        return evaluateCapabilityFlags(flags, HermesConfig.DEFAULT_EXPECTED_FORK_CAPABILITIES);
-    }
-
     /** Pure-Java capability flag evaluator using a configured expected-capability baseline. */
     public static CapabilitiesProbe evaluateCapabilityFlags(Map<String, Boolean> flags, int expectedForkCapabilities) {
         int baseline = Math.max(1, expectedForkCapabilities);

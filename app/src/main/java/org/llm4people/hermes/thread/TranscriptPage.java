@@ -592,7 +592,7 @@ final class TranscriptPage {
         if (bracket < 0 || bracket >= to) return;
         Matcher matcher = MD_LINK.matcher(source).region(bracket, to);
         while (matcher.find()) {
-            String label = matcher.group(1).trim();
+            String label = org.llm4people.hermes.PlainTextSanitizer.collapseBounded(matcher.group(1), 160);
             String rawUrl = matcher.group(2).trim();
             SafeLinks.Validated safe = SafeLinks.validate(rawUrl);
             if (safe == null) {

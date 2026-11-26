@@ -132,7 +132,7 @@ public final class NearbyTurnTest extends TestCase {
         assertEquals("Bonjour", draft.draft());
         assertFalse(disk.get().contains("latitude"));
         draft.nearbyDraft("omit", null);
-        draft.stage(ThreadData.body("thread", draft.draft(), null), 40L, 1, 60L, true);
+        draft.stage(ThreadData.body("thread", draft.draft(), null), 40L, 1, 60L, true, null);
         draft.finish();
         assertNull(draft.nearbyDraft());
         assertFalse(disk.get().contains("nearby"));

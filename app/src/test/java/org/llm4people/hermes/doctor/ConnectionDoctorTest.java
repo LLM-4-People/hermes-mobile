@@ -106,7 +106,7 @@ public final class ConnectionDoctorTest {
         }
         fullFeatures.put("smart_notes", Boolean.TRUE);
 
-        ConnectionDoctor.CapabilitiesProbe full = ConnectionDoctor.evaluateCapabilityFlags(fullFeatures);
+        ConnectionDoctor.CapabilitiesProbe full = ConnectionDoctor.evaluateCapabilityFlags(fullFeatures, org.llm4people.hermes.HermesConfig.DEFAULT_EXPECTED_FORK_CAPABILITIES);
         assertTrue(full.fetched());
         assertTrue(full.companionForkDetected());
         assertFalse(full.upstreamNonFork());
@@ -117,18 +117,18 @@ public final class ConnectionDoctorTest {
         partialFlags.put("smart_notes", Boolean.TRUE);
         partialFlags.put("memory_api", Boolean.TRUE);
         partialFlags.put("disabled_feature", Boolean.FALSE);
-        ConnectionDoctor.CapabilitiesProbe partial = ConnectionDoctor.evaluateCapabilityFlags(partialFlags);
+        ConnectionDoctor.CapabilitiesProbe partial = ConnectionDoctor.evaluateCapabilityFlags(partialFlags, org.llm4people.hermes.HermesConfig.DEFAULT_EXPECTED_FORK_CAPABILITIES);
         assertTrue(partial.companionForkDetected());
         assertFalse(partial.upstreamNonFork());
         assertEquals(2, partial.enabledCount());
 
-        ConnectionDoctor.CapabilitiesProbe upstream = ConnectionDoctor.evaluateCapabilityFlags(Collections.emptyMap());
+        ConnectionDoctor.CapabilitiesProbe upstream = ConnectionDoctor.evaluateCapabilityFlags(Collections.emptyMap(), org.llm4people.hermes.HermesConfig.DEFAULT_EXPECTED_FORK_CAPABILITIES);
         assertTrue(upstream.fetched());
         assertTrue(upstream.upstreamNonFork());
         assertFalse(upstream.companionForkDetected());
         assertEquals(0, upstream.enabledCount());
 
-        ConnectionDoctor.CapabilitiesProbe nullPayload = ConnectionDoctor.evaluateCapabilityFlags(null);
+        ConnectionDoctor.CapabilitiesProbe nullPayload = ConnectionDoctor.evaluateCapabilityFlags(null, org.llm4people.hermes.HermesConfig.DEFAULT_EXPECTED_FORK_CAPABILITIES);
         assertTrue(nullPayload.upstreamNonFork());
         assertFalse(nullPayload.companionForkDetected());
 
@@ -138,7 +138,7 @@ public final class ConnectionDoctorTest {
             expandedFeatures.put("feature_" + i, Boolean.TRUE);
         }
         expandedFeatures.put("smart_notes", Boolean.TRUE);
-        ConnectionDoctor.CapabilitiesProbe expanded = ConnectionDoctor.evaluateCapabilityFlags(expandedFeatures);
+        ConnectionDoctor.CapabilitiesProbe expanded = ConnectionDoctor.evaluateCapabilityFlags(expandedFeatures, org.llm4people.hermes.HermesConfig.DEFAULT_EXPECTED_FORK_CAPABILITIES);
         assertTrue(expanded.companionForkDetected());
         assertFalse(expanded.upstreamNonFork());
         assertEquals(56, expanded.enabledCount());

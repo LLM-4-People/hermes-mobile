@@ -23,10 +23,6 @@ final class ThreadContext {
         return -1;
     }
 
-    static long messageCount(long total, int rawPageSize, int distinctRowsLoaded) {
-        return messageCount(total, rawPageSize, distinctRowsLoaded, ThreadData.PAGE);
-    }
-
     static long messageCount(long total, int rawPageSize, int distinctRowsLoaded, int pageSize) {
         if (total >= 0) return total;
         int effectivePage = pageSize > 0 ? pageSize : ThreadData.PAGE;

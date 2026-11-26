@@ -228,13 +228,6 @@ public final class HermesWidgetStore {
         return HermesWidgetSpec.validWidgetId(widgetId) ? widgetId : null;
     }
 
-    public synchronized String draftForAction(String widgetId, int itemIndex) {
-        HermesWidgetSpec found = spec(widgetId);
-        if (found == null || itemIndex < 0 || itemIndex >= found.items.size()) return null;
-        String draft = found.items.get(itemIndex).actionDraft();
-        return draft.isEmpty() ? null : draft;
-    }
-
     /** Fail-closed profile-scoped draft lookup: blocks cross-profile draft injection. */
     public synchronized String draftForAction(String widgetId, int itemIndex, String activeProfileId) {
         HermesWidgetSpec found = spec(widgetId);

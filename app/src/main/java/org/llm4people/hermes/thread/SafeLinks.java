@@ -1,5 +1,7 @@
 package org.llm4people.hermes.thread;
 
+import org.llm4people.hermes.PlainTextSanitizer;
+
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Locale;
@@ -20,9 +22,14 @@ public final class SafeLinks {
         if (raw == null) return null;
         String trimmed = raw.trim();
         if (trimmed.isEmpty() || trimmed.length() > MAX_URL_LENGTH) return null;
-        for (int i = 0; i < trimmed.length(); i++) {
-            char c = trimmed.charAt(i);
-            if (c <= 0x20 || c == 0x7f || c == '\\' || Character.isISOControl(c)) return null;
+        if (PlainTextSanitizer.hasUnsafeSingleLineCodePoint(trimmed)) return null;
+        for (int i = 0; i < trimmed.length(); ) {
+            int cp = trimmed.codePointAt(i);
+            if (cp <= 0x20 || cp == 0x7f || cp == '\\'
+                    || Character.isWhitespace(cp) || Character.isSpaceChar(cp)) {
+                return null;
+            }
+            i += Character.charCount(cp);
         }
         if (!trimmed.regionMatches(true, 0, "https://", 0, 8)) return null;
         URI uri;

@@ -109,11 +109,6 @@ public final class NotificationPrivacyGuard {
         return false;
     }
 
-    /** True when title or text looks like an OTP/2FA code, recovery phrase, temporary password, or API/JWT secret. */
-    public static boolean containsOtpOrSecret(String title, String text) {
-        return containsOtpOrSecret(null, title, text);
-    }
-
     /** True when sender, title, or text (individually or combined) looks like an OTP/2FA code or secret. */
     public static boolean containsOtpOrSecret(String sender, String title, String text) {
         if (matchesSensitive(sender) || matchesSensitive(title) || matchesSensitive(text)) {
@@ -172,9 +167,9 @@ public final class NotificationPrivacyGuard {
         if (allowlistedPackages == null || !allowlistedPackages.contains(pkg)) {
             return Decision.BLOCK_NOT_ALLOWLISTED;
         }
-        String cleanSender = sanitizeText(candidate.sender(), MAX_SENDER_CHARS);
-        String cleanTitle = sanitizeText(candidate.title(), MAX_TITLE_CHARS);
-        String cleanText = sanitizeText(candidate.text(), MAX_TEXT_CHARS);
+        String cleanSender = PlainTextSanitizer.collapseWithEllipsis(candidate.sender(), MAX_SENDER_CHARS);
+        String cleanTitle = PlainTextSanitizer.collapseWithEllipsis(candidate.title(), MAX_TITLE_CHARS);
+        String cleanText = PlainTextSanitizer.collapseWithEllipsis(candidate.text(), MAX_TEXT_CHARS);
         if (cleanTitle.isEmpty() && cleanText.isEmpty()) {
             return Decision.BLOCK_EMPTY;
         }
@@ -183,10 +178,5 @@ public final class NotificationPrivacyGuard {
             return Decision.BLOCK_OTP_OR_SECRET;
         }
         return Decision.ALLOW;
-    }
-
-    /** Strip format/surrogate chars, collapse controls & Unicode whitespace, and truncate safely. */
-    public static String sanitizeText(String raw, int maxChars) {
-        return PlainTextSanitizer.collapseWithEllipsis(raw, maxChars);
     }
 }

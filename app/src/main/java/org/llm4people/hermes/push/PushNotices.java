@@ -93,10 +93,6 @@ final class PushNotices {
         }
     }
 
-    static void post(Context context, PushStore.Device owner, String event, String kind) {
-        post(context, owner, event, kind, DeliveryItem.Urgency.NORMAL);
-    }
-
     static void post(Context context, PushStore.Device owner, String event, String kind,
                      DeliveryItem.Urgency urgency) {
         LocalTime now = LocalTime.now();

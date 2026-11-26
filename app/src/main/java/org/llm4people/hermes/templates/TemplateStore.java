@@ -46,17 +46,6 @@ public final class TemplateStore {
         });
     }
 
-    /** Wipes custom templates stored inside the profile vault (called on profile forget or explicit reset). */
-    public static void wipe(Account account) {
-        if (account == null) return;
-        try {
-            account.remove(STORAGE_KEY);
-            logEvent("wiped");
-        } catch (IllegalStateException lockedOrClosed) {
-            logWarning("wipe_skipped_locked");
-        }
-    }
-
     public synchronized List<WorkflowTemplate> listCustom() throws IOException {
         String raw;
         try {
@@ -115,11 +104,6 @@ public final class TemplateStore {
         persist(current);
         logEvent("deleted");
         return true;
-    }
-
-    public synchronized void wipe() {
-        backing.remove(STORAGE_KEY);
-        logEvent("wiped");
     }
 
     private void persist(List<WorkflowTemplate> list) throws IOException {
