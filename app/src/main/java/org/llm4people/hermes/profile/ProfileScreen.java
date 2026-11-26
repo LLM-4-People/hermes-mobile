@@ -129,6 +129,7 @@ final class ProfileScreen {
         edit.setInputType(type);
         edit.setTypeface(Typeface.DEFAULT);
         Ui.styleDialogInput(activity, edit);
+        edit.setMinHeight(Ui.dp(activity, 48));
         Ui.pad(edit, 14, 12);
         edit.setHint(hint);
         edit.setSaveEnabled(false);
