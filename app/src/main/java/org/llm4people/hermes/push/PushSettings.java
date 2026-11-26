@@ -6,6 +6,7 @@ import android.app.AlertDialog;
 import android.app.TimePickerDialog;
 import android.content.ActivityNotFoundException;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.database.DataSetObserver;
 import android.content.pm.PackageManager;
@@ -110,11 +111,47 @@ final class PushSettings {
         show(true);
     }
 
+    enum ResumeAction { NONE, DISCOVER_TRANSPORT, REFRESH_SETTINGS }
+
+    static ResumeAction resolveResumeAction(
+            boolean dialogShowing,
+            boolean showingPermissionRecovery,
+            boolean showingMainSettings,
+            boolean displayedAllowed,
+            boolean nowAllowed) {
+        if (!dialogShowing) return ResumeAction.NONE;
+        if (showingPermissionRecovery && nowAllowed) return ResumeAction.DISCOVER_TRANSPORT;
+        if (showingMainSettings && displayedAllowed != nowAllowed) return ResumeAction.REFRESH_SETTINGS;
+        return ResumeAction.NONE;
+    }
+
+    static boolean isBlockedSettingsDialog(PushStore.Device device, boolean allowed) {
+        return device != null
+                && !PushStore.REMOVING.equals(device.state)
+                && (PushStore.ACTIVE.equals(device.state) || pendingRepair(device))
+                && !allowed;
+    }
+
+    static boolean shouldRequestRuntimePermissionInRecovery(int sdkInt, PermissionCenter.State state) {
+        return sdkInt >= 33
+                && (state == PermissionCenter.State.NOT_REQUESTED || state == PermissionCenter.State.DENIED);
+    }
+
+    private static void keepOpenOnPositiveClick(AlertDialog target, Runnable action) {
+        if (target == null) return;
+        Button positive = target.getButton(DialogInterface.BUTTON_POSITIVE);
+        if (positive != null) positive.setOnClickListener(v -> action.run());
+    }
+
     private void show(boolean triggerReconcile) {
         if (!current()) return;
         PushStore.Device device = PushStore.get(activity).forProfile(account.id);
         boolean allowed = PushNotices.allowed(activity);
-        if (display(settingsDialog(device, allowed)) != null) {
+        AlertDialog shown = display(settingsDialog(device, allowed));
+        if (shown != null) {
+            if (isBlockedSettingsDialog(device, allowed)) {
+                keepOpenOnPositiveClick(shown, this::systemSettings);
+            }
             showingMainSettings = true;
             displayedAllowed = allowed;
             observeState(device);
@@ -126,14 +163,18 @@ final class PushSettings {
     }
 
     void refreshPermissionState() {
-        if (!current() || dialog == null || !dialog.isShowing()) return;
+        if (!current()) return;
         boolean allowed = PushNotices.allowed(activity);
-        if (showingPermissionRecovery && allowed) {
+        ResumeAction action = resolveResumeAction(
+                dialog != null && dialog.isShowing(),
+                showingPermissionRecovery,
+                showingMainSettings,
+                displayedAllowed,
+                allowed);
+        if (action == ResumeAction.DISCOVER_TRANSPORT) {
             showingPermissionRecovery = false;
             discoverTransport();
-            return;
-        }
-        if (showingMainSettings && displayedAllowed != allowed) {
+        } else if (action == ResumeAction.REFRESH_SETTINGS) {
             show(false);
         }
     }
@@ -150,7 +191,7 @@ final class PushSettings {
                 String android = activity.getString(R.string.push_settings_blocked_message);
                 builder.setTitle(R.string.push_settings_blocked_title)
                         .setMessage(device.repair == PushStore.NO_REPAIR ? android : android + "\n\n" + activeMessage(device))
-                        .setPositiveButton(R.string.push_settings_android_settings, (d,w) -> systemSettings())
+                        .setPositiveButton(R.string.push_settings_android_settings, null)
                         .setNegativeButton(R.string.push_settings_disable, (d,w) -> remove(device));
             } else if (device.repair != PushStore.NO_REPAIR) {
                 builder.setTitle(R.string.push_settings_distributor_connecting).setMessage(activeMessage(device))
@@ -558,16 +599,21 @@ final class PushSettings {
 
     private void showNotificationPermissionRecovery() {
         PermissionCenter.State state = PermissionCenter.state(activity, PermissionCenter.Key.NOTIFICATIONS);
+        boolean requestRuntime = shouldRequestRuntimePermissionInRecovery(Build.VERSION.SDK_INT, state);
         AlertDialog.Builder recovery = new AlertDialog.Builder(activity)
                 .setTitle(R.string.push_settings_allow_title)
                 .setMessage(R.string.push_settings_allow_body)
                 .setNegativeButton(R.string.ws_close, null);
-        if (Build.VERSION.SDK_INT >= 33 && state != PermissionCenter.State.PERMANENTLY_DENIED) {
+        if (requestRuntime) {
             recovery.setPositiveButton(R.string.perm_action_allow, (d, w) -> begin());
         } else {
-            recovery.setPositiveButton(R.string.perm_action_open_notification_settings, (d, w) -> systemSettings());
+            recovery.setPositiveButton(R.string.perm_action_open_notification_settings, null);
         }
-        if (display(recovery) != null) {
+        AlertDialog shown = display(recovery);
+        if (shown != null) {
+            if (!requestRuntime) {
+                keepOpenOnPositiveClick(shown, this::systemSettings);
+            }
             showingPermissionRecovery = true;
         }
     }

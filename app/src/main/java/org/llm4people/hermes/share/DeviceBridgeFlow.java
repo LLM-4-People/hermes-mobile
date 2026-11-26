@@ -127,37 +127,6 @@ public final class DeviceBridgeFlow {
         dialog.setOnDismissListener(d -> openPrompts.remove(entry));
     }
 
-    /** Build the bounded per-run device_capabilities list strictly within Fork PR #15's allowlist. */
-    public static List<String> advertisedCapabilities(
-            boolean cameraAvailable, boolean locationGranted, boolean mapsAvailable, boolean alarmAvailable) {
-        List<String> caps = new ArrayList<>();
-        if (cameraAvailable) caps.add("camera");
-        if (locationGranted) {
-            caps.add("location_coarse");
-            caps.add("nearby_osm");
-        }
-        caps.add("calendar_draft");
-        if (alarmAvailable) caps.add("alarm_timer");
-        if (mapsAvailable) caps.add("maps_handoff");
-        caps.add("share_sheet");
-        caps.add("clipboard_read");
-        caps.add("dial_draft");
-        caps.add("email_draft");
-        caps.add("contacts_pick");
-        caps.add("ui_surfaces_v2");
-        return Collections.unmodifiableList(caps);
-    }
-
-    /**
-     * Exact subset of Fork PR #15 + PR #18 capabilities backed by a real DeviceReview handoff or wired Executor
-     * in ThreadWorkspace — never advertises a capability that would unconditionally return UNAVAILABLE.
-     */
-    public static List<String> executableCapabilities(
-            boolean mapsAvailable, boolean alarmAvailable, boolean clipboardReadSupported) {
-        return executableCapabilities(mapsAvailable, alarmAvailable, clipboardReadSupported,
-                NotificationAllowlist.Settings.ALL_OFF, false, false, false);
-    }
-
     /** Fail-closed subset of PR #18 ambient capabilities ready on this profile and device right now. */
     public static List<String> ambientExecutableCapabilities(
             NotificationAllowlist.Settings settings,

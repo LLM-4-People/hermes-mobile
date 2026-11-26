@@ -38,24 +38,6 @@ public final class CalendarContextReaderTest {
     }
 
     @Test
-    public void computesFreeSlotsAcrossTimedEventsWhileIgnoringAllDayEvents() {
-        long start = 1_700_000_000_000L;
-        long end = start + 8 * HOUR;
-        List<CalendarContextReader.AgendaEvent> events = List.of(
-                new CalendarContextReader.AgendaEvent("Congé", start, end, true),
-                new CalendarContextReader.AgendaEvent("Standup", start + HOUR, start + 2 * HOUR, false),
-                new CalendarContextReader.AgendaEvent("Overlap", start + HOUR + HOUR / 2, start + 3 * HOUR, false),
-                new CalendarContextReader.AgendaEvent("Revue", start + 5 * HOUR, start + 6 * HOUR, false)
-        );
-        List<CalendarContextReader.FreeSlot> slots = CalendarContextReader.computeFreeSlots(
-                start, end, events, HOUR);
-        assertEquals(3, slots.size());
-        assertEquals(new CalendarContextReader.FreeSlot(start, start + HOUR), slots.get(0));
-        assertEquals(new CalendarContextReader.FreeSlot(start + 3 * HOUR, start + 5 * HOUR), slots.get(1));
-        assertEquals(new CalendarContextReader.FreeSlot(start + 6 * HOUR, end), slots.get(2));
-    }
-
-    @Test
     public void mediaSelectsPlayingSessionAndFailsClosedOnMissingTarget() {
         MediaContextBridge.NowPlaying paused = new MediaContextBridge.NowPlaying(
                 "com.example.podcast", "Podcasts", "Episode 1", "Host", "",

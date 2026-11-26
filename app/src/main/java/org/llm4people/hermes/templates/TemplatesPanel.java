@@ -34,7 +34,6 @@ import java.util.function.Consumer;
  */
 public final class TemplatesPanel {
     public static final String ROUTE_ID = "workflow_templates";
-    public static final int MAX_STARTER_CHIPS = 4;
 
     private final Activity activity;
     private final TemplateStore store;
@@ -69,41 +68,6 @@ public final class TemplatesPanel {
                 false,
                 null,
                 open));
-    }
-
-    /**
-     * Compact horizontal starter chip strip for empty discussions.
-     * Tapping a chip strictly stages an editable draft — never sends automatically.
-     */
-    public static View starterStrip(Context context, List<WorkflowTemplate> templates, Consumer<String> stageDraft) {
-        Objects.requireNonNull(context, "context");
-        HorizontalScrollView scroller = new HorizontalScrollView(context);
-        scroller.setHorizontalScrollBarEnabled(false);
-        LinearLayout row = Ui.row(context);
-        Ui.pad(row, 14, 6);
-        int count = templates == null ? 0 : Math.min(MAX_STARTER_CHIPS, templates.size());
-        int gap = Ui.dp(context, 8);
-        for (int i = 0; i < count; i++) {
-            WorkflowTemplate tpl = templates.get(i);
-            if (tpl == null) continue;
-            Button chip = Ui.button(context, tpl.title, v -> {
-                if (stageDraft != null) {
-                    Diagnostics.event("templates", "starter_staged");
-                    stageDraft.accept(tpl.draft);
-                }
-            });
-            chip.setContentDescription(context.getString(R.string.templates_chip_cd, tpl.title));
-            chip.setBackground(Ui.roundedRipple(context, Ui.BUTTON_CORNER_DP,
-                    Ui.shape(context, Ui.BUTTON_CORNER_DP, R.color.accent_surface, R.color.line, 1)));
-            Ui.pad(chip, 14, 8);
-            chip.setMinimumHeight(Ui.dp(context, 48));
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
-            if (i > 0) lp.setMarginStart(gap);
-            row.addView(chip, lp);
-        }
-        scroller.addView(row);
-        scroller.setVisibility(count == 0 ? View.GONE : View.VISIBLE);
-        return scroller;
     }
 
     public View buildView() {

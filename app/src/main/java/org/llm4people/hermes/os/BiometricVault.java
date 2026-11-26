@@ -284,7 +284,14 @@ public final class BiometricVault {
         Arrays.fill(rawPayload, (byte) 0);
         // Stage enrollment under a fresh keystore alias so cancel/failure never corrupts an existing enrollment.
         String stagingAlias = KEY_PREFIX + profileId + "." + UUID.randomUUID();
-        AtomicBoolean settled = new AtomicBoolean(false);
+        AtomicReference<Session> sessionRef = new AtomicReference<>();
+        EnrollmentAttempt attempt = new EnrollmentAttempt(
+                payloadCopy,
+                () -> deleteKeyAlias(stagingAlias),
+                () -> {
+                    Session active = sessionRef.get();
+                    if (active != null) active.markSettled();
+                });
         try {
             boolean combined = Build.VERSION.SDK_INT >= 30
                     && mode == Availability.STRONG
@@ -293,17 +300,10 @@ public final class BiometricVault {
             String modeKey = combined ? MODE_COMBINED : (strongCrypto ? MODE_STRONG : MODE_CREDENTIAL);
             SecretKey key = generateKey(stagingAlias, modeKey);
             CancellationSignal signal = new CancellationSignal();
-            Session session = Session.of(signal, () -> {
-                if (settled.compareAndSet(false, true)) {
-                    Arrays.fill(payloadCopy, (byte) 0);
-                    deleteKeyAlias(stagingAlias);
-                }
-            });
+            Session session = Session.of(signal, () -> attempt.settleAborted(false));
+            sessionRef.set(session);
             Runnable cleanupCancel = () -> {
-                Arrays.fill(payloadCopy, (byte) 0);
-                deleteKeyAlias(stagingAlias);
-                if (settled.compareAndSet(false, true)) {
-                    session.markSettled();
+                if (attempt.settleAborted(true)) {
                     callback.onCancelled();
                 }
             };
@@ -313,14 +313,11 @@ public final class BiometricVault {
                     modeKey, cleanupCancel);
             BiometricPrompt.AuthenticationCallback auth = new BiometricPrompt.AuthenticationCallback() {
                 @Override public void onAuthenticationSucceeded(BiometricPrompt.AuthenticationResult result) {
-                    // A success already queued on the executor must not seal secrets after lock/cancel.
-                    if (session.isCanceled() || !settled.compareAndSet(false, true)) {
-                        settled.set(true);
-                        Arrays.fill(payloadCopy, (byte) 0);
-                        deleteKeyAlias(stagingAlias);
+                    // A success already queued on the executor must not seal secrets after lock/cancel,
+                    // and a losing callback must never delete a committed alias.
+                    if (!attempt.claimSuccess(session.isCanceled())) {
                         return;
                     }
-                    session.markSettled();
                     try {
                         Cipher cipher = strongCrypto && result.getCryptoObject() != null
                                 ? result.getCryptoObject().getCipher()
@@ -343,10 +340,7 @@ public final class BiometricVault {
                 }
 
                 @Override public void onAuthenticationError(int errorCode, CharSequence errString) {
-                    Arrays.fill(payloadCopy, (byte) 0);
-                    deleteKeyAlias(stagingAlias);
-                    if (!settled.compareAndSet(false, true)) return;
-                    session.markSettled();
+                    if (!attempt.settleAborted(true)) return;
                     if (isUserCancel(errorCode)) callback.onCancelled();
                     else {
                         Diagnostics.warning("biometric", "enroll_auth_error");
@@ -362,11 +356,44 @@ public final class BiometricVault {
             }
             return session;
         } catch (GeneralSecurityException | IOException | RuntimeException error) {
-            Arrays.fill(payloadCopy, (byte) 0);
-            deleteKeyAlias(stagingAlias);
             Diagnostics.warning("biometric", "enroll_init_failed");
-            if (settled.compareAndSet(false, true)) callback.onError();
+            if (attempt.settleAborted(false)) callback.onError();
             return null;
+        }
+    }
+
+    /**
+     * Single-settlement guard for an enrollment attempt so trailing cancel/error callbacks after
+     * {@code onAuthenticationSucceeded} commits can never wipe or delete the committed keystore alias.
+     */
+    static final class EnrollmentAttempt {
+        private final AtomicBoolean settled = new AtomicBoolean(false);
+        private final byte[] payloadCopy;
+        private final Runnable deleteStagingKey;
+        private final Runnable markSessionSettled;
+
+        EnrollmentAttempt(byte[] payloadCopy, Runnable deleteStagingKey, Runnable markSessionSettled) {
+            this.payloadCopy = payloadCopy;
+            this.deleteStagingKey = deleteStagingKey;
+            this.markSessionSettled = markSessionSettled;
+        }
+
+        boolean settleAborted(boolean markSettled) {
+            if (!settled.compareAndSet(false, true)) return false;
+            Arrays.fill(payloadCopy, (byte) 0);
+            deleteStagingKey.run();
+            if (markSettled && markSessionSettled != null) markSessionSettled.run();
+            return true;
+        }
+
+        boolean claimSuccess(boolean sessionCanceled) {
+            if (sessionCanceled) {
+                settleAborted(false);
+                return false;
+            }
+            if (!settled.compareAndSet(false, true)) return false;
+            if (markSessionSettled != null) markSessionSettled.run();
+            return true;
         }
     }
 

@@ -10,12 +10,16 @@ import android.view.View;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.llm4people.hermes.ambient.NotificationAllowlist;
 import org.llm4people.hermes.artifact.ArtifactDesk;
 import org.llm4people.hermes.artifact.DeviceAction;
 import org.llm4people.hermes.artifact.DeviceReview;
 import org.llm4people.hermes.camera.ThreadCameraCapture;
+import org.llm4people.hermes.presence.PresencePolicy;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 
@@ -105,7 +109,7 @@ public final class DeviceBridgeContractTest extends InstrumentationTestCase {
         restored.save(resaved);
         assertEquals(slotStr, resaved.getString("camera_slot"));
 
-        Intent intent = ThreadCameraCapture.captureIntentFor(Uri.parse(slotStr));
+        Intent intent = ThreadCameraCapture.buildCaptureIntent(Uri.parse(slotStr));
         assertNotNull(intent.getClipData());
         assertEquals(Uri.parse(slotStr), intent.getClipData().getItemAt(0).getUri());
         assertTrue((intent.getFlags() & Intent.FLAG_GRANT_WRITE_URI_PERMISSION) != 0);
@@ -119,8 +123,16 @@ public final class DeviceBridgeContractTest extends InstrumentationTestCase {
             @Override public CharSequence readPrimaryText() { return "Notes importantes"; }
         });
         DeviceBridgeFlow.Executor executor = DeviceBridgeFlow.clipboardExecutor(pill);
-        List<String> caps = DeviceBridgeFlow.executableCapabilities(true, true, true);
+        PresencePolicy defaults = PresencePolicy.defaults();
+        Set<String> deepCaps = new HashSet<>(DeviceBridgeFlow.deepExecutableCapabilities(defaults));
+        List<String> caps = DeviceBridgeFlow.executableCapabilities(
+                true, true, true, NotificationAllowlist.Settings.ALL_OFF, false, false, false, defaults);
         for (String cap : caps) {
+            if (deepCaps.contains(cap)) {
+                assertTrue("Deep capability must be registered in SUPPORTED_ACTIONS: " + cap,
+                        DeviceBridgeFlow.SUPPORTED_ACTIONS.contains(cap));
+                continue;
+            }
             JSONObject params = switch (cap) {
                 case "calendar_draft" -> new JSONObject()
                         .put("title", "Réunion").put("start", "2026-11-23T10:00:00Z").put("end", "2026-11-23T11:00:00Z");

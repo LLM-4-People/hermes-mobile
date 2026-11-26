@@ -13,28 +13,9 @@ import static org.junit.Assert.assertTrue;
 
 public final class ThreadInboxFilterTest {
     @Test
-    public void filtersLocalInboxRowsForAllPinnedAndShared() {
-        List<ThreadInboxFilter.Entry> inbox = List.of(
-                new ThreadInboxFilter.Entry("t-1", "General", false, false, "", "", ""),
-                new ThreadInboxFilter.Entry("t-2", "Pinned A", true, false, "", "", ""),
-                new ThreadInboxFilter.Entry("t-3", "Pinned B", true, false, "", "", ""));
-
-        List<ThreadInboxFilter.Entry> all = ThreadInboxFilter.filterEntries(inbox, ThreadInboxFilter.Filter.ALL);
-        assertEquals(3, all.size());
-
-        List<ThreadInboxFilter.Entry> pinned = ThreadInboxFilter.filterEntries(inbox, ThreadInboxFilter.Filter.PINNED);
-        assertEquals(2, pinned.size());
-        assertEquals("t-2", pinned.get(0).id());
-        assertEquals("t-3", pinned.get(1).id());
-
-        assertTrue(ThreadInboxFilter.isPinnedMap(Map.of("pinned", true)));
-        assertTrue(ThreadInboxFilter.isPinnedMap(Map.of("is_pinned", true)));
-        assertFalse(ThreadInboxFilter.isPinnedMap(Map.of("pinned", false)));
-        assertFalse(ThreadInboxFilter.isPinnedMap(null));
-
-        List<ThreadInboxFilter.Entry> sharedLocal = ThreadInboxFilter.filterEntries(inbox, ThreadInboxFilter.Filter.SHARED);
-        assertTrue(sharedLocal.isEmpty());
-        assertTrue(ThreadInboxFilter.filterEntries(null, ThreadInboxFilter.Filter.PINNED).isEmpty());
+    public void nullRowsFailClosedForPinnedAndSharedChecks() {
+        assertFalse(ThreadInboxFilter.isPinned(null));
+        assertFalse(ThreadInboxFilter.isSharedRow(null));
     }
 
     @Test
@@ -107,16 +88,6 @@ public final class ThreadInboxFilterTest {
                 Map.of("role", "assistant", "content", "Answer"))));
         assertEquals("You:\nQuestion\n\nHermes:\nAnswer",
                 ThreadInboxFilter.extractSharedContentMap(nested, "You", "Hermes"));
-
-        assertFalse(ThreadInboxFilter.isPinnedMap(Map.of("pinned", 1)));
-        assertFalse(ThreadInboxFilter.isPinnedMap(Map.of("is_pinned", "true")));
-        assertFalse(ThreadInboxFilter.isPinnedMap(Map.of("pinned", 0)));
-
-        java.util.ArrayList<ThreadInboxFilter.Entry> withNull = new java.util.ArrayList<>();
-        withNull.add(null);
-        withNull.add(new ThreadInboxFilter.Entry("t-ok", "Ok", true, false, "", "", ""));
-        assertEquals(1, ThreadInboxFilter.filterEntries(withNull, null).size());
-        assertEquals(1, ThreadInboxFilter.filterEntries(withNull, ThreadInboxFilter.Filter.PINNED).size());
 
         java.util.ArrayList<Object> noisyShares = new java.util.ArrayList<>();
         noisyShares.add(null);

@@ -51,11 +51,6 @@ public final class ThreadInboxFilter {
         return row.optBoolean("pinned", false) || row.optBoolean("is_pinned", false);
     }
 
-    public static boolean isPinnedMap(Map<?, ?> row) {
-        if (row == null) return false;
-        return Boolean.TRUE.equals(row.get("pinned")) || Boolean.TRUE.equals(row.get("is_pinned"));
-    }
-
     public static boolean isSharedRow(JSONObject row) {
         return row != null && row.optBoolean(KEY_SHARED, false);
     }
@@ -70,25 +65,6 @@ public final class ThreadInboxFilter {
 
     public static String permission(JSONObject row) {
         return ThreadData.string(row, KEY_PERMISSION);
-    }
-
-    /** Pure-JVM filter over inbox entries for {@link Filter#ALL}, {@link Filter#PINNED}, and {@link Filter#SHARED}. */
-    public static List<Entry> filterEntries(List<Entry> rows, Filter filter) {
-        if (rows == null || rows.isEmpty()) return Collections.emptyList();
-        Filter active = filter == null ? Filter.ALL : filter;
-        if (active == Filter.ALL) {
-            List<Entry> clean = new ArrayList<>(rows.size());
-            for (Entry row : rows) {
-                if (row != null) clean.add(row);
-            }
-            return Collections.unmodifiableList(clean);
-        }
-        if (active == Filter.SHARED) return Collections.emptyList();
-        List<Entry> pinned = new ArrayList<>();
-        for (Entry row : rows) {
-            if (row != null && row.pinned()) pinned.add(row);
-        }
-        return Collections.unmodifiableList(pinned);
     }
 
     /** Filters Android runtime {@link JSONArray} inbox rows according to {@code filter}. */

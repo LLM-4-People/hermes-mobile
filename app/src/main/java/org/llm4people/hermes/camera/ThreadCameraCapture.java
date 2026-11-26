@@ -89,7 +89,7 @@ public final class ThreadCameraCapture {
         state.putBoolean(STATE_READY, readyToImport);
     }
 
-    static Intent buildCaptureIntent(Uri slot) {
+    public static Intent buildCaptureIntent(Uri slot) {
         Intent capture = new Intent(MediaStore.ACTION_IMAGE_CAPTURE)
                 .putExtra(MediaStore.EXTRA_OUTPUT, slot)
                 .addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION | Intent.FLAG_GRANT_READ_URI_PERMISSION);
@@ -141,10 +141,6 @@ public final class ThreadCameraCapture {
 
     public boolean isReady() {
         return readyToImport && pendingSlot != null;
-    }
-
-    public static Intent captureIntentFor(Uri slot) {
-        return buildCaptureIntent(slot);
     }
 
     /**

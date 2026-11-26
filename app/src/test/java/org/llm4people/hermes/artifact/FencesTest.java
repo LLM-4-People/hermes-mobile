@@ -54,11 +54,11 @@ public class FencesTest {
         String incomplete = "```hermes-workspace\nstill typing";
         String source = "Avant\r\n" + code + empty + first + second + "Après\n" + incomplete;
         assertEquals("Avant\r\n" + code + empty + second + "Après\n" + incomplete,
-                Fences.without(source, Map.of(0, "value = 1", 1, "example", 3, "still typing")));
-        assertSame(source, Fences.without(source, Map.of(4, "unknown")));
-        assertSame(source, Fences.without(source, Map.of(1, "other")));
-        assertSame(source, Fences.without(source, Map.of(1, "examplE")));
-        assertEquals("", Fences.without(first.stripTrailing(), Map.of(0, "example")));
+                Fences.described(source, Map.of(0, "value = 1", 1, "example", 3, "still typing"), ignored -> ""));
+        assertSame(source, Fences.described(source, Map.of(4, "unknown"), ignored -> ""));
+        assertSame(source, Fences.described(source, Map.of(1, "other"), ignored -> ""));
+        assertSame(source, Fences.described(source, Map.of(1, "examplE"), ignored -> ""));
+        assertEquals("", Fences.described(first.stripTrailing(), Map.of(0, "example"), ignored -> ""));
     }
 
     @Test public void readerUsesBoundedFirstLineNamingFromSourceOffset() {
