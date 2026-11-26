@@ -120,8 +120,10 @@ class PhoneActionsTransitionTest(unittest.TestCase):
         ui = Screen(device, Mock(), lang="en")
         ui.hierarchy = Mock(side_effect=lambda: next(hierarchies))
 
+        clock = (10.0 + 3.0 * index for index in range(20))
         with (
             patch("verification.unifiedpush.stack.time.sleep"),
+            patch("verification.unifiedpush.ui.monotonic", side_effect=clock),
             patch.object(phone_actions, "capture_fields", return_value=(["Atelier de dessin le 12 avril à Laval."], "deadbeef")),
             patch.object(phone_actions, "leave_receiver"),
         ):

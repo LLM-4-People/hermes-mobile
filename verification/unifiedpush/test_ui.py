@@ -87,7 +87,11 @@ class ScreenUiTest(unittest.TestCase):
         ui.hierarchy = Mock(side_effect=[offscreen, first_visible, second_visible, opened])
         ui.scroll = Mock()
         ui.tap_node = Mock()
-        with patch("verification.unifiedpush.stack.time.sleep"):
+        step = TAP_RETRY_COOLDOWN_SECONDS + 0.5
+        clock = [10.0 + step * index for index in range(5)]
+        with patch("verification.unifiedpush.stack.time.sleep"), patch(
+            "verification.unifiedpush.ui.monotonic", side_effect=clock
+        ):
             result = ui.tap_until(
                 "Vérifier le partage",
                 lambda r: ui.node("Choisir une application", r) is not None,
@@ -96,6 +100,58 @@ class ScreenUiTest(unittest.TestCase):
         self.assertTrue(result)
         ui.scroll.assert_called_once_with(offscreen)
         self.assertEqual(ui.tap_node.call_count, 2)
+
+    def test_tap_until_debounces_consecutive_polls_by_default_and_retries_after_cooldown(self):
+        ui = Screen(Mock(), Mock())
+        trigger = tree({"text": "Open distributor", "bounds": "[20,100][300,150]"})
+        ready_tree = tree({"text": "Subscribed topics", "bounds": "[20,80][300,130]"})
+        ui.hierarchy = Mock(side_effect=[trigger, trigger, trigger, trigger, ready_tree])
+        ui.tap_node = Mock()
+        # Rapid polls within TAP_RETRY_COOLDOWN_SECONDS must NOT double-tap; retry fires only once cooldown elapses.
+        clock = [10.0, 10.1, 10.0 + TAP_RETRY_COOLDOWN_SECONDS - 0.1, 10.0 + TAP_RETRY_COOLDOWN_SECONDS]
+        with patch("verification.unifiedpush.stack.time.sleep"), patch(
+            "verification.unifiedpush.ui.monotonic", side_effect=clock
+        ):
+            result = ui.tap_until(
+                "Open distributor",
+                lambda r: ui.node("Subscribed topics", r) is not None,
+            )
+        self.assertTrue(result)
+        self.assertEqual(ui.tap_node.call_count, 2)
+
+    def test_tap_until_handles_permission_prompt_without_scrolling_and_adds_focused_window_note_on_timeout(self):
+        ui = Screen(Mock(), Mock())
+        prompt = tree({"resource-id": PERMISSION_ALLOW_IDS[0], "scrollable": "true", "bounds": "[1,1][9,9]"})
+        ready_tree = tree({"text": "Subscribed topics", "bounds": "[20,80][300,130]"})
+        ui.hierarchy = Mock(side_effect=[prompt, prompt, ready_tree])
+        ui.tap_node = Mock()
+        ui.scroll = Mock()
+        with patch("verification.unifiedpush.stack.time.sleep"), patch(
+            "verification.unifiedpush.ui.monotonic", side_effect=[10.0, 10.1, 10.2]
+        ):
+            self.assertTrue(
+                ui.tap_until(
+                    "Open distributor",
+                    lambda r: ui.node("Subscribed topics", r) is not None,
+                    scroll=True,
+                    notification_permission=True,
+                )
+            )
+        ui.tap_node.assert_called_once()
+        ui.scroll.assert_not_called()
+
+        device = Mock()
+        device.shell.return_value = "  mCurrentFocus=Window{def456 u0 io.heckel.ntfy/io.heckel.ntfy.ui.MainActivity}\n"
+        stuck_ui = Screen(device, Mock())
+        stuck_ui.hierarchy = Mock(return_value=tree({"text": "Other screen", "bounds": "[0,0][10,10]"}))
+        with patch("verification.unifiedpush.ui.eventually", side_effect=AssertionError("Timed out waiting for ntfy")):
+            with self.assertRaises(AssertionError) as ctx:
+                stuck_ui.tap_until("Open distributor", lambda r: False)
+        notes = getattr(ctx.exception, "__notes__", [])
+        self.assertTrue(
+            any("io.heckel.ntfy/io.heckel.ntfy.ui.MainActivity" in note for note in notes),
+            notes,
+        )
 
     def test_tap_until_respects_max_taps_and_permission_prompt(self):
         ui = Screen(Mock(), Mock())
@@ -135,7 +191,11 @@ class ScreenUiTest(unittest.TestCase):
                 ui.hierarchy = Mock(side_effect=[push_dialog, workspace, settings_screen, chooser, connect, save_form, save_form, opened_ws])
                 ui.tap_node = Mock()
                 ui.field = Mock()
-                with patch("verification.unifiedpush.stack.time.sleep"):
+                step = TAP_RETRY_COOLDOWN_SECONDS + 0.5
+                clock = [10.0 + step * index for index in range(10)]
+                with patch("verification.unifiedpush.stack.time.sleep"), patch(
+                    "verification.unifiedpush.ui.monotonic", side_effect=clock
+                ):
                     start_account(ui, "Alt", "https://example.test", "secret-key", "correct-horse-battery")
                 # 4 navigation taps (close, settings, lock_now, add_action) + 2 save taps (1st swallowed, 2nd succeeds).
                 self.assertEqual(ui.tap_node.call_count, 6)
@@ -170,7 +230,11 @@ class ScreenUiTest(unittest.TestCase):
                     node.get("resource-id") or node.get("text") or node.get("content-desc")
                 ))
                 ui.field = Mock()
-                with patch("verification.unifiedpush.stack.time.sleep"):
+                step = TAP_RETRY_COOLDOWN_SECONDS + 0.5
+                clock = [10.0 + step * index for index in range(10)]
+                with patch("verification.unifiedpush.stack.time.sleep"), patch(
+                    "verification.unifiedpush.ui.monotonic", side_effect=clock
+                ):
                     start_account(ui, "Alt", "https://example.test", "secret-key", "correct-horse-battery")
                 self.assertEqual(tapped, [
                     TOP_SETTINGS_ID,

@@ -113,23 +113,28 @@ class Screen:
         notification_permission=False,
         description=None,
         max_taps=None,
-        retry_interval=0.0,
+        retry_interval=TAP_RETRY_COOLDOWN_SECONDS,
     ):
         # Labels are static test controls. Never log field contents.
         print("Tap " + label, file=sys.stderr, flush=True)
         taps = 0
         last_tap = None
+        last_permission_tap = None
 
         def attempt():
-            nonlocal taps, last_tap
+            nonlocal taps, last_tap, last_permission_tap
             root = self.hierarchy()
             result = ready(root)
             if result:
                 return (result,)
             node = self.node(label, root)
             if node is None:
-                if notification_permission:
-                    self.allow_if_prompted(root)
+                if notification_permission and self.permission_allow_node(root) is not None:
+                    now = monotonic()
+                    if last_permission_tap is None or now - last_permission_tap >= TAP_RETRY_COOLDOWN_SECONDS:
+                        if self.allow_if_prompted(root):
+                            last_permission_tap = now
+                    return None
                 if scroll:
                     self.scroll(root)
                 return None
@@ -142,7 +147,17 @@ class Screen:
                 last_tap = now
             return None
 
-        return eventually(description or ("state after tapping " + label), attempt)[0]
+        try:
+            return eventually(description or ("state after tapping " + label), attempt)[0]
+        except AssertionError as failure:
+            window = None
+            if self.device is not None:
+                try:
+                    window = focused_window(self.device)
+                except Exception:
+                    window = None
+            failure.add_note(f"tap_until({label!r}): taps={taps}, focused_window={window!r}")
+            raise
 
     def scroll(self, root):
         for item in root.iter("node"):
@@ -457,7 +472,6 @@ def enroll(ui):
             or ui.permission_allow_node(root) is not None
         ),
         description="Push enrollment prompt or transport chooser after tapping " + enable,
-        retry_interval=TAP_RETRY_COOLDOWN_SECONDS,
     )
     choose_ntfy(ui)
 

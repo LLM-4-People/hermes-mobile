@@ -230,6 +230,7 @@ def run(args):
                 open_distributor,
                 lambda root: ui.node("Subscribed topics", root) is not None,
                 scroll=True,
+                notification_permission=True,
                 description="ntfy subscribed topics screen after tapping " + open_distributor,
             )
             wait_for_ntfy_subscriber(root, topic)
