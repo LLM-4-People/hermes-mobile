@@ -116,7 +116,9 @@ class HardcodedUiStringsGuardTest(unittest.TestCase):
                         screen.field("Field title text", "Field hint text", "Field helper text");
                         screen.profileRow("Profile row title", "Profile row subtitle");
                         ProfileScreen.styledField(ctx, 1, "Styled hint text", "Styled error text");
-                        ProfileScreen.choiceRow(ctx, "Biometric lock choice", chips);
+                        ProfileScreen.choiceRow(ctx, new String[]{"Biometric lock choice", "Second choice label"}, 0, null);
+                        builder.setItems(new CharSequence[]{"First option", "Second option"}, null);
+                        builder.setSingleChoiceItems(new String[]{"Light theme", "Dark theme"}, 0, null);
                         screen.setNote(noteView, "Updated note text");
                         toast("Toast helper alert");
                         this.toast("Qualified toast alert");
@@ -171,6 +173,11 @@ class HardcodedUiStringsGuardTest(unittest.TestCase):
                 "Styled hint text",
                 "Styled error text",
                 "Biometric lock choice",
+                "Second choice label",
+                "First option",
+                "Second option",
+                "Light theme",
+                "Dark theme",
                 "Updated note text",
                 "Toast helper alert",
                 "Qualified toast alert",
@@ -206,7 +213,9 @@ class HardcodedUiStringsGuardTest(unittest.TestCase):
                         BrainUi.badge(ctx, ctx.getString(R.string.ok), false);
                         BrainUi.liveNote(panel, box, panel.t(R.string.ok));
                         screen.setNote(noteView, ctx.getString(R.string.ok));
-                        ProfileScreen.choiceRow(ctx, ctx.getString(R.string.ok), chips);
+                        ProfileScreen.choiceRow(ctx, new String[]{ctx.getString(R.string.ok), ctx.getString(R.string.ok)}, 0, null);
+                        builder.setItems(new CharSequence[]{ctx.getString(R.string.ok), ctx.getString(R.string.ok)}, null);
+                        builder.setSingleChoiceItems(new String[]{ctx.getString(R.string.ok), ctx.getString(R.string.ok)}, 0, null);
                         toast(ctx.getString(R.string.ok));
                         view.setAccessibilityPaneTitle(ctx.getString(R.string.ok));
                         popup.getMenu().add(ctx.getString(R.string.ok));

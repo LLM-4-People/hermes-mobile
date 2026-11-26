@@ -315,22 +315,42 @@ def _split_call_args(tokens: list[Token], open_paren_idx: int) -> list[list[Toke
     """Split tokens inside `(...)` starting at open_paren_idx into top-level argument token lists."""
     args: list[list[Token]] = []
     cur: list[Token] = []
-    depth = 1
+    paren_depth = 1
+    brace_depth = 0
+    bracket_depth = 0
     i = open_paren_idx + 1
     n = len(tokens)
-    while i < n and depth > 0:
+    while i < n and paren_depth > 0:
         tok = tokens[i]
         if tok.kind == "PUNCT" and tok.value == "(":
-            depth += 1
+            paren_depth += 1
             cur.append(tok)
         elif tok.kind == "PUNCT" and tok.value == ")":
-            depth -= 1
-            if depth == 0:
+            paren_depth -= 1
+            if paren_depth == 0:
                 if cur:
                     args.append(cur)
                 break
             cur.append(tok)
-        elif tok.kind == "PUNCT" and tok.value == "," and depth == 1:
+        elif tok.kind == "PUNCT" and tok.value == "{":
+            brace_depth += 1
+            cur.append(tok)
+        elif tok.kind == "PUNCT" and tok.value == "}":
+            brace_depth = max(0, brace_depth - 1)
+            cur.append(tok)
+        elif tok.kind == "PUNCT" and tok.value == "[":
+            bracket_depth += 1
+            cur.append(tok)
+        elif tok.kind == "PUNCT" and tok.value == "]":
+            bracket_depth = max(0, bracket_depth - 1)
+            cur.append(tok)
+        elif (
+            tok.kind == "PUNCT"
+            and tok.value == ","
+            and paren_depth == 1
+            and brace_depth == 0
+            and bracket_depth == 0
+        ):
             args.append(cur)
             cur = []
         else:

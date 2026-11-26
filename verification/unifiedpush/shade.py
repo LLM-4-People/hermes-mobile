@@ -13,7 +13,6 @@ SYSTEM_UI = "com.android.systemui"
 STACK = SYSTEM_UI + ":id/notification_stack_scroller"
 ROW = SYSTEM_UI + ":id/expandableNotificationRow"
 APP_LABEL = "Hermes Mobile"
-BODY = "Ouvrez votre profil pour voir les détails."
 
 
 def bounds(node):

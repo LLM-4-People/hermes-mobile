@@ -161,7 +161,11 @@ class ScreenUiTest(unittest.TestCase):
         ui.hierarchy = Mock(side_effect=[prompt, button_tree, button_tree, done])
         ui.allow_if_prompted = Mock()
         ui.tap_node = Mock()
-        with patch("verification.unifiedpush.stack.time.sleep"):
+        step = TAP_RETRY_COOLDOWN_SECONDS + 0.5
+        clock = [10.0 + step * index for index in range(10)]
+        with patch("verification.unifiedpush.stack.time.sleep"), patch(
+            "verification.unifiedpush.ui.monotonic", side_effect=clock
+        ):
             self.assertTrue(
                 ui.tap_until(
                     "Activer",
