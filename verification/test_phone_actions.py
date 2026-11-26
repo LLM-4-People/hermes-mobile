@@ -200,14 +200,24 @@ class PhoneActionsTransitionTest(unittest.TestCase):
                     sheet,     # tap_until(try_in_thread) attempt 2 -> sheet visible
                     sheet,     # ui.wait(label, scroll=True)
                 ])
+                taps = []
                 device = Mock()
-                device.shell.side_effect = lambda *args: MAIN_ACTIVITY if args == ("dumpsys", "activity", "activities") else ""
+                device.shell.side_effect = lambda *args: (
+                    MAIN_ACTIVITY
+                    if args == ("dumpsys", "activity", "activities")
+                    else (taps.append(args[2:]) or "") if args[:2] == ("input", "tap") else ""
+                )
                 ui = Screen(device, Mock(), lang=lang)
                 ui.hierarchy = Mock(side_effect=lambda: next(hierarchies))
                 ui.field = Mock()
-                with patch("verification.unifiedpush.stack.time.sleep"):
+                clock = (10.0 + 3.0 * index for index in range(20))
+                with patch("verification.unifiedpush.stack.time.sleep"), patch(
+                    "verification.unifiedpush.ui.monotonic", side_effect=clock
+                ):
                     phone_actions.back_to_page(ui, "Actions123", "secretphrase", s["ws_dev_map_review"])
                 ui.field.assert_called_once_with(s["profile_passphrase_label"], "secretphrase")
+                # 2 taps on account_name (1 swallowed + 1 retry) + 1 tap on unlock + 1 tap on try_in_thread.
+                self.assertEqual(len(taps), 4)
 
     def test_inbound_drafts_retries_swallowed_profile_chooser_and_confirm_taps(self):
         account = "Actionsabc"
@@ -245,8 +255,26 @@ class PhoneActionsTransitionTest(unittest.TestCase):
                 ui = Screen(device, Mock(), lang=lang)
                 ui.hierarchy = Mock(side_effect=lambda: next(hierarchies))
                 ui.field = Mock()
-                with patch("verification.unifiedpush.stack.time.sleep"):
+                tapped = []
+                ui.tap_node = Mock(side_effect=lambda node: tapped.append(node.get("text")))
+                clock = (10.0 + 3.0 * index for index in range(30))
+                with patch("verification.unifiedpush.stack.time.sleep"), patch(
+                    "verification.unifiedpush.ui.monotonic", side_effect=clock
+                ):
                     results = phone_actions.inbound_drafts(ui, account, "secretphrase", session)
+                self.assertEqual(
+                    tapped,
+                    [
+                        account,
+                        account,
+                        s["profile_unlock_action"],
+                        s["share_add_to_draft"],
+                        s["share_add_to_draft"],
+                        account,
+                        s["profile_unlock_action"],
+                        s["share_add_to_draft"],
+                    ],
+                )
                 self.assertEqual(
                     results,
                     [

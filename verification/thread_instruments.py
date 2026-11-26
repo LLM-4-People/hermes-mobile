@@ -15,12 +15,12 @@ import re
 import secrets
 import sys
 import tempfile
-import time
 
 from conversation_cards import admission
 from device.app_strings import AppStrings
 from device.installed import installed_apk_sha256
 from device.run import APP, DEVICE_DIR, DRIVER, Emulator, android_png_size, cleanup_all, collect_captures
+from device.viewport import restore_display, set_viewport as _apply_viewport
 from gateway_fixture import Gateway, PINNED_REVISION, check_source
 from live_api import transcript
 from instrument_walkthrough import write_walkthrough
@@ -155,75 +155,24 @@ def verify_history(gateway, provider, create_request=CREATE):
     return receipts
 
 
-def await_viewport(device, *, expected_rotation, required_tokens, label, timeout=20):
-    deadline = time.monotonic() + timeout
-    last_config = ""
-    last_rotation = ""
-    while time.monotonic() < deadline:
-        last_config = device.shell("am", "get-config")
-        last_rotation = device.shell("wm", "user-rotation")
-        if last_rotation == expected_rotation and all(token in last_config for token in required_tokens):
-            return
-        time.sleep(0.05)
-    raise AssertionError(
-        f"The emulator did not apply {label} (expected rotation={expected_rotation!r}, "
-        f"tokens={list(required_tokens)!r}; saw rotation={last_rotation!r}, config={last_config!r})"
-    )
-
-
 def set_viewport(device, *, wide):
     rotation = "1" if wide else "0"
     width, height = (1200, 720) if wide else (320, 640)
-    device.shell("wm", "size", f"{min(width, height)}x{max(width, height)}")
-    device.shell("wm", "density", "160")
-    device.shell("settings", "put", "system", "user_rotation", rotation)
-    device.shell("wm", "user-rotation", "lock", rotation)
-    await_viewport(device, expected_rotation="lock " + rotation,
-                   required_tokens=(f"-w{width}dp-h{height}dp-",),
-                   label=f"the requested {width}×{height} viewport")
+    _apply_viewport(
+        device,
+        width,
+        height,
+        density=160,
+        rotation=rotation,
+        description=f"the requested {width}×{height} viewport",
+    )
 
 
 @contextmanager
 def viewport(device):
-    overrides = {}
-    for setting in ("size", "density"):
-        old = device.shell("wm", setting)
-        override = re.search(r"^Override (?:size|density): ([\dx]+)$", old, re.MULTILINE)
-        overrides[setting] = override.group(1) if override else "reset"
-    rotation = device.shell("wm", "user-rotation").split()
-    saved_rotation = device.shell("settings", "get", "system", "user_rotation")
-    if not re.fullmatch(r"free|lock [0-3]", " ".join(rotation)):
-        raise ValueError("Unrecognized current Android display rotation")
-    saved_config = device.shell("am", "get-config")
-    saved_orientation = next((token for token in ("-port-", "-land-") if token in saved_config), None)
-    size_match = re.search(r"-w\d+dp-h\d+dp-", saved_config)
-    expected_tokens = tuple(token for token in (size_match.group(0) if size_match else None, saved_orientation) if token)
-    if rotation[0] == "lock":
-        target_rotation = rotation[1]
-    elif saved_rotation in {"0", "1", "2", "3"}:
-        target_rotation = saved_rotation
-    else:
-        target_rotation = "1" if saved_orientation == "-land-" else "0"
-
-    def restore_orientation():
-        if rotation == ["free"]:
-            # Returning directly from `lock 1` to `free` can leave a headless emulator in landscape
-            # with user_rotation=1; drive rotation back explicitly before releasing the lock.
-            device.shell("wm", "user-rotation", "lock", target_rotation)
-            await_viewport(device, expected_rotation="lock " + target_rotation,
-                           required_tokens=expected_tokens, label="the restored display orientation")
-
-    try:
+    with restore_display(device):
         set_viewport(device, wide=False)
         yield
-    finally:
-        cleanup_all(lambda: device.shell("wm", "size", overrides["size"]),
-                    lambda: device.shell("wm", "density", overrides["density"]),
-                    restore_orientation,
-                    lambda: device.setting("user_rotation", saved_rotation),
-                    lambda: device.shell("wm", "user-rotation", *rotation),
-                    lambda: await_viewport(device, expected_rotation=" ".join(rotation),
-                                           required_tokens=expected_tokens, label="the original display viewport"))
 
 
 def journey(args, gateway, *, device=None, create_request=CREATE):

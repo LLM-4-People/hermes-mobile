@@ -72,7 +72,7 @@ class FakeDevice:
 class ViewportRestorationTest(unittest.TestCase):
     def test_free_portrait_emulator_is_driven_back_to_portrait_before_freeing(self):
         device = FakeDevice(rotation="free", user_rotation="null")
-        with patch("thread_instruments.time.sleep"):
+        with patch("device.viewport.time.sleep"):
             with viewport(device):
                 set_viewport(device, wide=True)
                 self.assertEqual(device.orientation, "-land-")
@@ -96,7 +96,7 @@ class ViewportRestorationTest(unittest.TestCase):
             rotation="lock 0",
             user_rotation="0",
         )
-        with patch("thread_instruments.time.sleep"):
+        with patch("device.viewport.time.sleep"):
             with viewport(device):
                 set_viewport(device, wide=True)
         self.assertEqual(device.rotation, "lock 0")
@@ -107,8 +107,8 @@ class ViewportRestorationTest(unittest.TestCase):
     def test_failed_portrait_settlement_raises_diagnostic_while_still_restoring_free_mode(self):
         device = FakeDevice(rotation="free", user_rotation="null", settle_portrait=False)
         ticks = iter(range(0, 1000, 15))
-        with patch("thread_instruments.time.sleep"), patch("thread_instruments.time.monotonic",
-                                                           side_effect=lambda: float(next(ticks))):
+        with patch("device.viewport.time.sleep"), patch("device.viewport.time.monotonic",
+                                                        side_effect=lambda: float(next(ticks))):
             with self.assertRaises(ExceptionGroup) as group:
                 with viewport(device):
                     # Enter with wide=False already portrait, then switch to wide=True so restore stays stuck in land.
