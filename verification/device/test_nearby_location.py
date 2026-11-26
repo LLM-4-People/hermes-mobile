@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 import xml.etree.ElementTree as ET
 
 from verification.device.app_strings import AppStrings
@@ -303,7 +304,12 @@ class NearbyLocationTest(unittest.TestCase):
                     def tap_node(self, node):
                         taps.append(node.get("text"))
 
-                choose_consent(StubScreen(), use_location)
+                clock = (10.0 + 3.0 * index for index in range(10))
+                with (
+                    patch("verification.unifiedpush.stack.time.sleep"),
+                    patch("verification.unifiedpush.ui.monotonic", side_effect=clock),
+                ):
+                    choose_consent(StubScreen(), use_location)
                 self.assertEqual(taps, [use_location, use_location])
 
     def test_open_consent_dismisses_ime_and_retries_send_tap_until_disclosure_dialog_appears(self):

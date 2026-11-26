@@ -160,7 +160,12 @@ class NearbyJourneyConsentTest(unittest.TestCase):
                 ui.tap_node = Mock(side_effect=lambda node: tapped.append(node.get("text")))
                 fix = Mock()
 
-                with patch("verification.unifiedpush.stack.time.sleep"), redirect_stderr(io.StringIO()):
+                clock = (10.0 + 3.0 * index for index in range(10))
+                with (
+                    patch("verification.unifiedpush.stack.time.sleep"),
+                    patch("verification.unifiedpush.ui.monotonic", side_effect=clock),
+                    redirect_stderr(io.StringIO()),
+                ):
                     nearby_journey.stage_public_location(ui, fix, system_prompt=False, remember=True)
 
                 fix.publish.assert_called_once()
