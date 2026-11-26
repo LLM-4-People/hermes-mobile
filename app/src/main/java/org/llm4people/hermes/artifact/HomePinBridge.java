@@ -242,11 +242,6 @@ public final class HomePinBridge {
         }
     }
 
-    /** Applies a Hermes-pushed widget_update delivery into HermesWidgetStore and refreshes the launcher widget. */
-    public static boolean applyDeliveryWidgetUpdate(Context context, JSONObject payload) {
-        return applyDeliveryWidgetUpdate(context, payload, null);
-    }
-
     /** Applies a Hermes-pushed widget_update delivery bound to an owner profile into HermesWidgetStore. */
     public static boolean applyDeliveryWidgetUpdate(Context context, JSONObject payload, String ownerProfileId) {
         if (context == null || payload == null) return false;

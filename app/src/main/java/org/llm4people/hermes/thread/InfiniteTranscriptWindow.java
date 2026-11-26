@@ -124,12 +124,6 @@ public final class InfiniteTranscriptWindow<T> {
         return new PageResult(added, 0, added, trimmedTop, 0, 0);
     }
 
-    /** Alias for {@link #replaceLatest} when user snaps back to live tail from deep history. */
-    public synchronized PageResult snapToLatest(List<T> latestChronological, boolean hasOlder,
-                                                Long cursorOldestId, Long cursorNewestId, int totalCount) {
-        return replaceLatest(latestChronological, hasOlder, cursorOldestId, cursorNewestId, totalCount);
-    }
-
     /**
      * Prepends an older chronological page at the top of the window.
      * Automatically trims excess rows from the bottom ({@code hasNewer = true}) so memory stays O(1).

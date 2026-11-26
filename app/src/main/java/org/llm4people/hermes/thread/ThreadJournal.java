@@ -224,10 +224,6 @@ final class ThreadJournal {
         catch (Account.UnreadableRecord damaged) { throw new DiscussionPhoto.Unavailable(); }
     }
 
-    JSONObject stage(JSONObject body, long elapsed, int boot, long ttl, boolean durable) {
-        return stage(body, elapsed, boot, ttl, durable, null);
-    }
-
     JSONObject stage(JSONObject body, long elapsed, int boot, long ttl, boolean durable, JSONObject guideArea) {
         if (pending() != null || !ThreadData.validId(ThreadData.string(body, "session_id"))) throw new IllegalStateException("Invalid admission");
         JSONObject run = new JSONObject();
@@ -297,8 +293,6 @@ final class ThreadJournal {
             throw error;
         }
     }
-
-    void checkpoint(long seq, String text) { checkpoint(seq, text, RunPreview.Origin.FIRST, 0); }
 
     void checkpoint(long seq, String text, RunPreview.Origin origin, int highSurrogate) {
         ThreadData.put(pending(), "seq", seq);

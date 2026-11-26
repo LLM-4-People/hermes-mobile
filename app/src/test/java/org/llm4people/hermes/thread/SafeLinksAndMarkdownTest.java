@@ -33,6 +33,13 @@ public final class SafeLinksAndMarkdownTest {
                 "https://evil.example.org\\@trusted.example.org",
                 "https://example.org/with space",
                 "https://example.org/\nnewline",
+                "https://example.org/\u00A0nbsp",
+                "https://example.org/\u3000ideographic",
+                "https://example.org/spoof\u202Etxt",
+                "https://example.org/isolate\u2067end",
+                "https://example.org/zero\u200Bwidth",
+                "https://example.org/filler\u3164hide",
+                "https://example.org/bad\uD800surrogate",
                 "https:///missing-host",
                 "https://..invalid..",
                 "https://example.org:0/zero-port",
@@ -75,6 +82,14 @@ public final class SafeLinksAndMarkdownTest {
         assertEquals("https://docs.example.org/a", page.links.get(0).url);
         assertEquals("docs.example.org", page.links.get(0).host);
         assertEquals(3, page.rejectedLinks);
+
+        // Link labels strip bidi/zero-width/unpaired-surrogate/control chars and fall back to host when blank.
+        String spoofed = "Voir [Safe\u202E\u2067\u200B\uD800  Doc](https://docs.example.org/clean) et "
+                + "[\u3164\u200B\u202E](https://fallback.example.org/path).";
+        TranscriptPage sanitized = new TranscriptPage(spoofed, new TranscriptPage.Cursor(), true, TranscriptPage.PAGE_CHARS);
+        assertEquals(2, sanitized.links.size());
+        assertEquals("Safe Doc", sanitized.links.get(0).label);
+        assertEquals("fallback.example.org", sanitized.links.get(1).label);
     }
 
     @Test public void blockquotesAndNestedListsPreserveHierarchy() {

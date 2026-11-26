@@ -49,9 +49,9 @@ public class ThreadContextTest extends TestCase {
         JSONObject page = new JSONObject("{session_id:'tip',thread_title:'Continuité',pagination:{visible_only:true,total:83,returned:40}}");
         assertEquals("Continuité", ThreadContext.title(page, "thread_title", "Conversation"));
         long total = ThreadContext.visibleTotal(page);
-        assertEquals(83L, ThreadContext.messageCount(total, 40, 40));
-        assertEquals(83L, ThreadContext.messageCount(total, 40, 79));
-        assertEquals(83L, ThreadContext.messageCount(total, 3, 82));
+        assertEquals(83L, ThreadContext.messageCount(total, 40, 40, ThreadData.PAGE));
+        assertEquals(83L, ThreadContext.messageCount(total, 40, 79, ThreadData.PAGE));
+        assertEquals(83L, ThreadContext.messageCount(total, 3, 82, ThreadData.PAGE));
         page.put("thread_title", JSONObject.NULL);
         assertEquals("Aperçu du premier message", ThreadContext.title(page, "thread_title", "Aperçu du premier message"));
     }
@@ -59,10 +59,10 @@ public class ThreadContextTest extends TestCase {
     public void testLegacyPaginationWaitsForLastPageAndUsesDistinctRows() throws Exception {
         JSONObject page = new JSONObject("{session_id:'tip',pagination:{returned:40}}");
         assertEquals(-1L, ThreadContext.visibleTotal(page));
-        assertEquals(-1L, ThreadContext.messageCount(-1, 40, 40));
-        assertEquals(43L, ThreadContext.messageCount(-1, 4, 43));
-        assertEquals(0L, ThreadContext.messageCount(-1, 0, 0));
-        assertEquals(3L, ThreadContext.messageCount(-1, 3, 3));
+        assertEquals(-1L, ThreadContext.messageCount(-1, 40, 40, ThreadData.PAGE));
+        assertEquals(43L, ThreadContext.messageCount(-1, 4, 43, ThreadData.PAGE));
+        assertEquals(0L, ThreadContext.messageCount(-1, 0, 0, ThreadData.PAGE));
+        assertEquals(3L, ThreadContext.messageCount(-1, 3, 3, ThreadData.PAGE));
         assertEquals(-1L, ThreadContext.messageCount(-1, 20, 20, 20));
         assertEquals(19L, ThreadContext.messageCount(-1, 19, 19, 20));
         assertEquals(40L, ThreadContext.messageCount(-1, 40, 40, 60));

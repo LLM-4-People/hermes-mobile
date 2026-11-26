@@ -149,10 +149,6 @@ final class MessageText {
         return text;
     }
 
-    static void updateLive(TextView target, LiveTranscript stream, String source) {
-        updateLive(target, stream, source, RunPreview.Origin.FIRST);
-    }
-
     static void updateLive(TextView target, LiveTranscript stream, String source, RunPreview.Origin origin) {
         long previousStart = stream.windowStart();
         if (!stream.update(source, origin)) return;

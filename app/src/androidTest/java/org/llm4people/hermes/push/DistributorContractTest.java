@@ -218,9 +218,9 @@ public final class DistributorContractTest extends InstrumentationTestCase {
         for (String type : new String[]{"question", "approval"}) {
             for (boolean first : new boolean[]{true, false}) {
                 String event = UUID.randomUUID().toString().replace("-", "");
-                if (!first) store.defer(pending, event, type + "_requested", now + 60_000, now);
-                store.defer(pending, event, type + "_settled", now - 1, now);
-                store.defer(pending, event, type + "_requested", now + 60_000, now);
+                if (!first) store.defer(pending, event, type + "_requested", DeliveryItem.Urgency.NORMAL, now + 60_000, now);
+                store.defer(pending, event, type + "_settled", DeliveryItem.Urgency.NORMAL, now - 1, now);
+                store.defer(pending, event, type + "_requested", DeliveryItem.Urgency.NORMAL, now + 60_000, now);
                 try (android.database.Cursor rows = store.getReadableDatabase().rawQuery(
                         "SELECT kind FROM deferred WHERE installation=? AND event=?", new String[]{pending.installation, event})) {
                     assertTrue(rows.moveToFirst());
@@ -243,13 +243,13 @@ public final class DistributorContractTest extends InstrumentationTestCase {
         store.updateSubscription(device, "{}");
         PushStore.Device first = store.forProfile(device.profile);
         long now = System.currentTimeMillis();
-        store.defer(first, EVENT, "reminder", now + 60_000, now);
+        store.defer(first, EVENT, "reminder", DeliveryItem.Urgency.NORMAL, now + 60_000, now);
         store.updateSubscription(first, "{\"v\":2}");
         PushStore.Device next = store.forProfile(device.profile);
         store.enable(first);
         store.drain(context, first);
         assertNull(store.knownKind(device.installation, EVENT));
-        store.defer(next, EVENT, "reminder", now - 1, now - 2000);
+        store.defer(next, EVENT, "reminder", DeliveryItem.Urgency.NORMAL, now - 1, now - 2000);
         store.enable(next);
         try (PushStore reopened = new PushStore(context, "push.db")) {
             reopened.drain(context, next);

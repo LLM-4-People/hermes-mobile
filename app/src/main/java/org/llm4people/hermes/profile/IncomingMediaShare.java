@@ -76,15 +76,6 @@ public final class IncomingMediaShare {
         return null;
     }
 
-    static String pendingIdFromPrefs(SharedPreferences prefs, long nowMs) {
-        return pendingIdFromPrefs(prefs, nowMs, null, null);
-    }
-
-    static String pendingIdFromPrefs(SharedPreferences prefs, long nowMs,
-                                     java.util.function.Consumer<String> onDeleteBlob) {
-        return pendingIdFromPrefs(prefs, nowMs, onDeleteBlob, null);
-    }
-
     static String pendingIdFromPrefs(SharedPreferences prefs, long nowMs,
                                      java.util.function.Consumer<String> onDeleteBlob,
                                      Runnable onCorruptSweep) {

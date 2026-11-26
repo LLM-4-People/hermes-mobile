@@ -14,7 +14,7 @@ public final class RunActionTest extends TestCase {
     private long observation = 1;
 
     private void admit(String id) {
-        journal.stage(ThreadData.body("chat", "message", null), 10, 1, 60, true);
+        journal.stage(ThreadData.body("chat", "message", null), 10, 1, 60, true, null);
         journal.setRunId(id);
     }
 

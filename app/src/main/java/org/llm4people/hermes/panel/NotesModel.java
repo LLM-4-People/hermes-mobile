@@ -158,11 +158,11 @@ public final class NotesModel {
             }
             return Collections.unmodifiableList(clean);
         }
-        String needle = fold(query.trim());
+        String needle = PlainTextSanitizer.foldAccents(query.trim());
         List<Note> matched = new ArrayList<>();
         for (Note note : notes) {
             if (note == null) continue;
-            if (fold(note.title() + " " + note.body() + " " + String.join(" ", note.tags())).contains(needle)) {
+            if (PlainTextSanitizer.foldAccents(note.title() + " " + note.body() + " " + String.join(" ", note.tags())).contains(needle)) {
                 matched.add(note);
             }
         }
@@ -240,10 +240,6 @@ public final class NotesModel {
             case "calendar", "schedule", "reminder" -> R.string.ws_habit_draft_calendar;
             default -> friendlyHabitLabelRes(category, action);
         };
-    }
-
-    private static String fold(String value) {
-        return PlainTextSanitizer.foldAccents(value);
     }
 
     private static String safe(String value) {

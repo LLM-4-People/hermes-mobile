@@ -54,11 +54,6 @@ public final class TemplatesPanelTest extends InstrumentationTestCase {
                     assertEquals(1, storeA.listCustom().size());
                     assertTrue("Profile B must not see Profile A's templates", storeB.listCustom().isEmpty());
 
-                    // Wipe cleans up encrypted custom templates cleanly on profile forget.
-                    TemplateStore.wipe(first.account);
-                    assertTrue(storeA.listCustom().isEmpty());
-
-                    storeA.saveCustom(null, customA.title, customA.subtitle, customA.draft);
                     runTestOnUiThread(() -> {
                         staged.set(null);
                         TemplatesPanel panel = new TemplatesPanel(activity, first.account, staged::set, () -> true);

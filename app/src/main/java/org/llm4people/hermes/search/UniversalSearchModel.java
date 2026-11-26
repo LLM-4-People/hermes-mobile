@@ -392,7 +392,7 @@ public final class UniversalSearchModel {
             if (body.isEmpty()) body = JsonValues.mapText(row, "content");
             String owner = JsonValues.mapText(row, "owner_profile");
             String permission = JsonValues.mapText(row, "permission");
-            String subtitle = excerpt(body, 140);
+            String subtitle = PlainTextSanitizer.collapseWithEllipsis(body, 140);
             out.add(new Result(
                     "note:" + id,
                     Category.NOTES,
@@ -530,10 +530,6 @@ public final class UniversalSearchModel {
                 : !result.actionId().isEmpty() ? result.actionId()
                 : fold(result.title());
         return result.category().name().toLowerCase(Locale.ROOT) + ":" + id;
-    }
-
-    private static String excerpt(String raw, int maxChars) {
-        return PlainTextSanitizer.collapseWithEllipsis(raw, maxChars);
     }
 
     private static String safe(String value) {

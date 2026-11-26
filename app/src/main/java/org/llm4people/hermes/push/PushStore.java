@@ -494,10 +494,6 @@ final class PushStore extends SQLiteOpenHelper {
     }
 
     // Only opaque receipts for a known, unconfirmed binding enter this queue.
-    void defer(Device owner, String event, String kind, long expires, long now) {
-        defer(owner, event, kind, DeliveryItem.Urgency.NORMAL, expires, now);
-    }
-
     void defer(Device owner, String event, String kind, DeliveryItem.Urgency urgency, long expires, long now) {
         DeliveryItem.Urgency effective = urgency == null ? DeliveryItem.Urgency.NORMAL : urgency;
         if (effective == DeliveryItem.Urgency.SILENT) return;

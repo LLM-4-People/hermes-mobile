@@ -71,11 +71,6 @@ public final class DeliveryRouter {
         this.actions = actions == null ? new Actions() {} : actions;
     }
 
-    /** Plug delivery and notification-policy routes into the shared RouteRegistry. */
-    public static void registerRoutes(RouteRegistry registry, Runnable openInbox, Runnable openPolicy) {
-        registerRoutes(registry, null, openInbox, openPolicy);
-    }
-
     /** Localized overload plugging delivery and notification-policy routes into the shared RouteRegistry. */
     public static void registerRoutes(RouteRegistry registry, Context context,
                                       Runnable openInbox, Runnable openPolicy) {

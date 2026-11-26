@@ -38,7 +38,7 @@ public final class CalendarContextReader {
 
     public record AgendaEvent(String title, long startMillis, long endMillis, boolean allDay) {
         public AgendaEvent {
-            title = NotificationPrivacyGuard.sanitizeText(title, MAX_TITLE_CHARS);
+            title = org.llm4people.hermes.PlainTextSanitizer.collapseWithEllipsis(title, MAX_TITLE_CHARS);
             if (endMillis < startMillis) endMillis = startMillis;
         }
 

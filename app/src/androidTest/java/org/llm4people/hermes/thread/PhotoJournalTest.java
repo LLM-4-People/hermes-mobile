@@ -40,7 +40,7 @@ public final class PhotoJournalTest extends InstrumentationTestCase {
         assertFalse(store.load("changed credential").photoOwned());
         assertEquals("Quelle ligne ?", restored.draft());
         JSONObject body = ThreadData.body("compacted_tip", restored.draft(), new JSONObject().put("model", "vision"));
-        JSONObject receipt = restored.stage(body, 100, 2, 600, true);
+        JSONObject receipt = restored.stage(body, 100, 2, 600, true, null);
         assertNull(restored.photo());
         assertFalse(store.state.contains(PIXELS));
         ThreadJournal retry = store.load("owner");
@@ -57,7 +57,7 @@ public final class PhotoJournalTest extends InstrumentationTestCase {
         assertEquals("Quelle ligne ?\nPrécision.", retry.draft());
         assertEquals(PIXELS, store.pixels);
         assertNotNull(store.load("owner").photo());
-        retry.stage(body, 110, 2, 600, true);
+        retry.stage(body, 110, 2, 600, true, null);
         retry.setRunId("id");
         retry.observe("autre");
         retry.finish();

@@ -77,15 +77,7 @@ public final class SearchResultModel {
     private SearchResultModel() {}
 
     public static String normalizeQuery(String raw) {
-        if (raw == null) return "";
-        String trimmed = raw.trim();
-        if (trimmed.length() > MAX_QUERY_LENGTH) trimmed = trimmed.substring(0, MAX_QUERY_LENGTH).trim();
-        StringBuilder clean = new StringBuilder(trimmed.length());
-        for (int i = 0; i < trimmed.length(); i++) {
-            char ch = trimmed.charAt(i);
-            if (!Character.isISOControl(ch)) clean.append(ch);
-        }
-        return clean.toString().trim();
+        return org.llm4people.hermes.PlainTextSanitizer.collapseBounded(raw, MAX_QUERY_LENGTH);
     }
 
     public static String validateRoleFilter(String role) {
@@ -142,10 +134,6 @@ public final class SearchResultModel {
             spans.add(new Span(markStart, out.length()));
         }
         return new HighlightedSnippet(out.toString().trim(), adjustSpansAfterTrim(out.toString(), spans));
-    }
-
-    public static String formatTimestamp(String rawTimestamp, ZoneId zone) {
-        return formatTimestamp(rawTimestamp, zone, Locale.getDefault());
     }
 
     public static String formatTimestamp(String rawTimestamp, ZoneId zone, Locale locale) {

@@ -19,28 +19,28 @@ public final class ThreadInstrumentPresentationTest extends InstrumentationTestC
             LiveTranscript stream = new LiveTranscript();
             TextView body = new TextView(context);
             String partial = "Un essai.\n~~~hermes-workspace\n{pas du JSON";
-            MessageText.updateLive(body, stream, partial);
+            MessageText.updateLive(body, stream, partial, RunPreview.Origin.FIRST);
             String marker = context.getString(R.string.instrument_stream_source);
             assertEquals("Un essai.\n" + marker, body.getText().toString());
             assertTrue(stream.foldedWorkspace);
             assertEquals(partial, stream.source());
 
             String complete = partial + "\n~~~\nEnsuite\n```python\nprint(2)\n```";
-            MessageText.updateLive(body, stream, complete);
+            MessageText.updateLive(body, stream, complete, RunPreview.Origin.FIRST);
             assertEquals("Un essai.\n" + marker + "\nEnsuite\nprint(2)\n", body.getText().toString());
             TranscriptPage reader = new TranscriptPage(stream.source(), stream.readerStart(), true, 6000);
             assertTrue(MessageText.styled(context, reader).toString().contains("{pas du JSON"));
 
             String longFence = "~~~hermes-workspace\n" + "x".repeat(3 * LiveTranscript.PAGE_CHARS);
-            MessageText.updateLive(body, stream, longFence);
+            MessageText.updateLive(body, stream, longFence, RunPreview.Origin.FIRST);
             assertEquals("…\n" + marker, body.getText().toString());
             assertEquals(longFence, stream.source());
 
             String ordinary = "Un exemple\n````python\n```hermes-workspace\nlittéral\n````\n";
-            MessageText.updateLive(body, stream, ordinary);
+            MessageText.updateLive(body, stream, ordinary, RunPreview.Origin.FIRST);
             assertFalse(stream.foldedWorkspace);
             assertTrue(body.getText().toString().contains("```hermes-workspace\nlittéral"));
-            MessageText.updateLive(body, stream, "");
+            MessageText.updateLive(body, stream, "", RunPreview.Origin.FIRST);
             assertFalse(stream.foldedWorkspace);
         });
     }

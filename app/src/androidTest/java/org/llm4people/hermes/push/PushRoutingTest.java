@@ -183,20 +183,20 @@ public final class PushRoutingTest extends InstrumentationTestCase {
                 PushNotices.title(context, PushNotices.QUESTION));
         PushStore.Device owner = store.forInstallation(device.installation);
         String late = "00000000000000000000000000000001";
-        PushNotices.post(context, owner, late, PushNotices.DISMISS_QUESTION);
-        PushNotices.post(context, owner, late, PushNotices.QUESTION);
+        PushNotices.post(context, owner, late, PushNotices.DISMISS_QUESTION, DeliveryItem.Urgency.NORMAL);
+        PushNotices.post(context, owner, late, PushNotices.QUESTION, DeliveryItem.Urgency.NORMAL);
         assertNull(store.knownKind(device.installation, late));
-        PushNotices.post(context, owner, event, PushNotices.QUESTION);
+        PushNotices.post(context, owner, event, PushNotices.QUESTION, DeliveryItem.Urgency.NORMAL);
         assertEquals(PushNotices.QUESTION, MobilePush.target(context, tapIntent()).kind);
         waitForQuestion(true);
-        PushNotices.post(context, owner, event, PushNotices.DISMISS_QUESTION);
+        PushNotices.post(context, owner, event, PushNotices.DISMISS_QUESTION, DeliveryItem.Urgency.NORMAL);
         waitForQuestion(false);
         assertFalse(store.remember(device.installation, event, PushNotices.QUESTION));
     }
 
     public void testApprovalWithdrawalBeforeRequestSuppressesOnlyItsInstallationAndId() {
         PushStore.Device owner = store.forInstallation(device.installation);
-        PushNotices.post(context, owner, event, PushNotices.DISMISS_APPROVAL);
+        PushNotices.post(context, owner, event, PushNotices.DISMISS_APPROVAL, DeliveryItem.Urgency.NORMAL);
         assertFalse(store.remember(device.installation, event, PushNotices.APPROVAL));
         assertTrue(store.remember(device.installation, "00000000000000000000000000000003", PushNotices.APPROVAL));
         assertTrue(PushNotices.isPrompt(PushNotices.APPROVAL));

@@ -92,7 +92,7 @@ public final class MainActivityThemeAndRoutingRegressionTest {
         RouteRegistry registry = new RouteRegistry();
         AtomicInteger inboxHits = new AtomicInteger();
         AtomicInteger policyHits = new AtomicInteger();
-        DeliveryRouter.registerRoutes(registry, inboxHits::incrementAndGet, policyHits::incrementAndGet);
+        DeliveryRouter.registerRoutes(registry, null, inboxHits::incrementAndGet, policyHits::incrementAndGet);
 
         List<RouteRegistry.Destination> notesTasks = registry.destinationsIn(RouteRegistry.Section.NOTES_TASKS, null);
         assertEquals(1, notesTasks.size());

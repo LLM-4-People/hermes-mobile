@@ -246,10 +246,6 @@ public final class HermesApi {
      * Unauthenticated non-consuming pairing ticket inspection ({@code POST /api/mobile/pairing/inspect}).
      * Verifies ticket validity and returns safe metadata without burning the ticket or returning any API key.
      */
-    public static JSONObject inspectPairing(String baseUrl, String code) throws IOException {
-        return inspectPairing(baseUrl, code, Limits.defaults());
-    }
-
     public static JSONObject inspectPairing(String baseUrl, String code, Limits limits) throws IOException {
         return postPairingCode(baseUrl, "/api/mobile/pairing/inspect", code, limits, "pairing_inspect_failed");
     }
@@ -259,10 +255,6 @@ public final class HermesApi {
      * Enforces HTTPS/loopback via {@link Endpoint}, {@code Cache-Control: no-store}, and active
      * {@code Accept-Language} / {@code X-Hermes-Lang} headers without sending any bearer token.
      */
-    public static JSONObject claimPairing(String baseUrl, String code) throws IOException {
-        return claimPairing(baseUrl, code, Limits.defaults());
-    }
-
     public static JSONObject claimPairing(String baseUrl, String code, Limits limits) throws IOException {
         return postPairingCode(baseUrl, "/api/mobile/pairing/claim", code, limits, "pairing_claim_failed");
     }
@@ -301,11 +293,6 @@ public final class HermesApi {
     /** Mint a short-lived single-use pairing ticket for another device or invited user. */
     public JSONObject createPairing(JSONObject body) throws IOException {
         return post("/api/mobile/pairing/create", body == null ? new JSONObject() : body);
-    }
-
-    /** List active non-expired pairing ticket metadata for the caller profile (never returns secret codes). */
-    public JSONObject activePairings() throws IOException {
-        return activePairings(false);
     }
 
     /**

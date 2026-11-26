@@ -82,7 +82,7 @@ public final class SecretPatternsTest {
             assertEquals("HermesWidgetSpec.sanitizeDraft leaked: " + secret,
                     "", HermesWidgetSpec.sanitizeDraft(secret));
             assertTrue("NotificationPrivacyGuard missed: " + secret,
-                    NotificationPrivacyGuard.containsOtpOrSecret("Notice", secret));
+                    NotificationPrivacyGuard.containsOtpOrSecret(null, "Notice", secret));
             assertEquals("NotificationPrivacyGuard.evaluate allowed: " + secret,
                     NotificationPrivacyGuard.Decision.BLOCK_OTP_OR_SECRET,
                     NotificationPrivacyGuard.evaluate(
@@ -149,7 +149,7 @@ public final class SecretPatternsTest {
         };
         for (String[] pair : obfuscatedCases) {
             assertTrue("containsOtpOrSecret missed: " + pair[0] + " / " + pair[1],
-                    NotificationPrivacyGuard.containsOtpOrSecret(pair[0], pair[1]));
+                    NotificationPrivacyGuard.containsOtpOrSecret(null, pair[0], pair[1]));
             assertEquals("evaluate allowed: " + pair[0] + " / " + pair[1],
                     NotificationPrivacyGuard.Decision.BLOCK_OTP_OR_SECRET,
                     NotificationPrivacyGuard.evaluate(
@@ -176,9 +176,9 @@ public final class SecretPatternsTest {
                         Set.of("com.slack")));
 
         // Ordinary words and accented French strings must not false-positive.
-        assertFalse(NotificationPrivacyGuard.containsOtpOrSecret("Alice", "Nice footprint on the trail"));
-        assertFalse(NotificationPrivacyGuard.containsOtpOrSecret("Order", "Ref BG-123456 confirmed"));
-        assertFalse(NotificationPrivacyGuard.containsOtpOrSecret("Café", "Voici le résumé du café"));
-        assertFalse(NotificationPrivacyGuard.containsOtpOrSecret("Notice", "éotp hécvv"));
+        assertFalse(NotificationPrivacyGuard.containsOtpOrSecret(null, "Alice", "Nice footprint on the trail"));
+        assertFalse(NotificationPrivacyGuard.containsOtpOrSecret(null, "Order", "Ref BG-123456 confirmed"));
+        assertFalse(NotificationPrivacyGuard.containsOtpOrSecret(null, "Café", "Voici le résumé du café"));
+        assertFalse(NotificationPrivacyGuard.containsOtpOrSecret(null, "Notice", "éotp hécvv"));
     }
 }

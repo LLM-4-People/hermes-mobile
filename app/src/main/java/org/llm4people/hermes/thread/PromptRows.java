@@ -23,14 +23,10 @@ final class PromptRows {
 
     PromptRows(ThreadViews ui) {
         this.ui = ui;
-        ui.list.addOnLayoutChangeListener((view, l, t, r, b, ol, ot, or, ob) -> checkViewport());
+        ui.list.addOnLayoutChangeListener((view, l, t, r, b, ol, ot, or, ob) -> onScroll());
     }
 
     void onScroll() {
-        checkViewport();
-    }
-
-    private void checkViewport() {
         if (owner == null || !visible() || checkingViewport) return;
         checkingViewport = true;
         ui.list.postOnAnimation(() -> {

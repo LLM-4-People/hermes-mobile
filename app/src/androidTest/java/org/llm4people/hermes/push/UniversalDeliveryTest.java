@@ -267,7 +267,7 @@ public final class UniversalDeliveryTest extends InstrumentationTestCase {
         assertNull(DeliveryRouter.parseSafeDeviceAction(new JSONObject().put("kind", "shell_exec")));
 
         RouteRegistry registry = new RouteRegistry();
-        DeliveryRouter.registerRoutes(registry, () -> {}, () -> {});
+        DeliveryRouter.registerRoutes(registry, null, () -> {}, () -> {});
         assertEquals(1, registry.destinationsIn(RouteRegistry.Section.NOTES_TASKS, null).size());
         assertEquals(1, registry.destinationsIn(RouteRegistry.Section.SETTINGS, null).size());
         assertNotNull(registry.destination(DeliveryRouter.ROUTE_DELIVERIES));

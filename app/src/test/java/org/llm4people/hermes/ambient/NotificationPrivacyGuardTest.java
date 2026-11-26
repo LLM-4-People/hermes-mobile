@@ -79,7 +79,7 @@ public final class NotificationPrivacyGuardTest {
         };
         for (String[] pair : sensitiveSamples) {
             assertTrue("Expected OTP/secret detection for: " + pair[1],
-                    NotificationPrivacyGuard.containsOtpOrSecret(pair[0], pair[1]));
+                    NotificationPrivacyGuard.containsOtpOrSecret(null, pair[0], pair[1]));
             assertEquals("Expected BLOCK_OTP_OR_SECRET for: " + pair[1],
                     NotificationPrivacyGuard.Decision.BLOCK_OTP_OR_SECRET,
                     NotificationPrivacyGuard.evaluate(candidate(SIGNAL, pair[0], pair[1]), ALLOWLIST));
@@ -121,25 +121,25 @@ public final class NotificationPrivacyGuardTest {
 
     @Test
     public void allowsOrdinaryAllowlistedMessageAndSanitizesControlCharsAndLength() {
-        assertFalse(NotificationPrivacyGuard.containsOtpOrSecret("Marie", "On se retrouve à 18 h devant le café ?"));
-        assertFalse(NotificationPrivacyGuard.containsOtpOrSecret("Paul", "Réunion à 14h30 salle 402 pour le bilan"));
-        assertFalse(NotificationPrivacyGuard.containsOtpOrSecret("Notes",
+        assertFalse(NotificationPrivacyGuard.containsOtpOrSecret(null, "Marie", "On se retrouve à 18 h devant le café ?"));
+        assertFalse(NotificationPrivacyGuard.containsOtpOrSecret(null, "Paul", "Réunion à 14h30 salle 402 pour le bilan"));
+        assertFalse(NotificationPrivacyGuard.containsOtpOrSecret(null, "Notes",
                 Normalizer.normalize("Résumé du café et footprint sur le sentier", Normalizer.Form.NFD)));
         assertEquals(NotificationPrivacyGuard.Decision.ALLOW,
                 NotificationPrivacyGuard.evaluate(
                         candidate(SIGNAL, "Marie", "On se retrouve à 18 h devant le café ?"), ALLOWLIST));
 
-        String cleaned = NotificationPrivacyGuard.sanitizeText("  Bonjour\n\t\u0007  tout   le monde  ", 16);
+        String cleaned = org.llm4people.hermes.PlainTextSanitizer.collapseWithEllipsis("  Bonjour\n\t\u0007  tout   le monde  ", 16);
         assertEquals("Bonjour tout le…", cleaned);
         assertEquals(16, cleaned.length());
 
         // R10.2.3: sanitizeText strips format/bidi/Plane 14 tags, normalizes NBSP, and never splits surrogates.
-        assertEquals("Bonjour monde", NotificationPrivacyGuard.sanitizeText("Bon\u202E\uDB40\uDC20jour\u00A0monde", 32));
-        assertEquals("ab…", NotificationPrivacyGuard.sanitizeText("ab😀cd", 4));
+        assertEquals("Bonjour monde", org.llm4people.hermes.PlainTextSanitizer.collapseWithEllipsis("Bon\u202E\uDB40\uDC20jour\u00A0monde", 32));
+        assertEquals("ab…", org.llm4people.hermes.PlainTextSanitizer.collapseWithEllipsis("ab😀cd", 4));
 
         // R19.2.1: Long invisible-only Hangul filler / variation selector payloads never fabricate "…" and stay BLOCK_EMPTY.
-        assertEquals("", NotificationPrivacyGuard.sanitizeText("\u3164".repeat(520), 500));
-        assertEquals("", NotificationPrivacyGuard.sanitizeText("\uFE0F".repeat(520), 500));
+        assertEquals("", org.llm4people.hermes.PlainTextSanitizer.collapseWithEllipsis("\u3164".repeat(520), 500));
+        assertEquals("", org.llm4people.hermes.PlainTextSanitizer.collapseWithEllipsis("\uFE0F".repeat(520), 500));
         assertEquals(NotificationPrivacyGuard.Decision.BLOCK_EMPTY,
                 NotificationPrivacyGuard.evaluate(candidate(SIGNAL, "\u3164".repeat(200), "\uFE0F".repeat(520)), ALLOWLIST));
     }

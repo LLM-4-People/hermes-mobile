@@ -125,15 +125,16 @@ public final class Android16OsIntegrationTest extends InstrumentationTestCase {
             assertEquals("Tableau Hermes", fromJson.title);
             assertEquals(HermesWidgetSpec.Template.QUICK_ACTIONS, fromJson.template);
             assertEquals("Crée une note", fromJson.items.get(0).actionDraft());
-            store.upsertSpec(safe);
+            store.upsertSpec(safe, "profile-a");
             store.bindInstance(987654, id);
             assertEquals("Tableau Hermes", store.specForInstance(987654).title);
-            assertEquals("Crée une note", store.draftForAction(id, 0));
+            assertEquals("Crée une note", store.draftForAction(id, 0, "profile-a"));
+            assertNull(store.draftForAction(id, 0, "profile-b"));
 
             // Cross-feature delivery widget bridge enforces home_screen_safe: true and persists into HermesWidgetStore.
             org.json.JSONObject validDelivery = new org.json.JSONObject()
                     .put("widget", safe.toJson());
-            assertTrue(org.llm4people.hermes.artifact.HomePinBridge.applyDeliveryWidgetUpdate(context, validDelivery));
+            assertTrue(org.llm4people.hermes.artifact.HomePinBridge.applyDeliveryWidgetUpdate(context, validDelivery, "profile-a"));
             assertEquals("Tableau Hermes", store.spec(id).title);
 
             org.json.JSONObject unsafeDelivery = new org.json.JSONObject()
@@ -141,7 +142,7 @@ public final class Android16OsIntegrationTest extends InstrumentationTestCase {
                     .put("title", "Secret")
                     .put("template", "status")
                     .put("home_screen_safe", false);
-            assertFalse(org.llm4people.hermes.artifact.HomePinBridge.applyDeliveryWidgetUpdate(context, unsafeDelivery));
+            assertFalse(org.llm4people.hermes.artifact.HomePinBridge.applyDeliveryWidgetUpdate(context, unsafeDelivery, "profile-a"));
             assertNull(org.llm4people.hermes.artifact.HomePinBridge.parseDeliveryWidgetSpec(unsafeDelivery));
         } catch (org.json.JSONException unexpected) {
             throw new AssertionError(unexpected);

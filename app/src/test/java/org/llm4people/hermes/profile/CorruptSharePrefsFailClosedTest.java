@@ -40,7 +40,7 @@ public final class CorruptSharePrefsFailClosedTest {
 
         boolean[] mediaCommitted = {false};
         SharedPreferences corruptMediaPrefs = corruptPrefs("id", 99, mediaCommitted);
-        assertNull(IncomingMediaShare.pendingIdFromPrefs(corruptMediaPrefs, 1_000_000L));
+        assertNull(IncomingMediaShare.pendingIdFromPrefs(corruptMediaPrefs, 1_000_000L, null, null));
         assertTrue("Corrupt IncomingMediaShare record must be cleared fail-closed", mediaCommitted[0]);
         assertTrue(Diagnostics.exportRedacted().contains("share.media_pref_corrupt"));
     }
@@ -56,7 +56,7 @@ public final class CorruptSharePrefsFailClosedTest {
         boolean[] mediaCommitted = {false};
         String[] deletedBlobId = {null};
         SharedPreferences badMediaExpiry = corruptExpiryPrefs("receipt-2", mediaCommitted);
-        assertNull(IncomingMediaShare.pendingIdFromPrefs(badMediaExpiry, 1_000_000L, id -> deletedBlobId[0] = id));
+        assertNull(IncomingMediaShare.pendingIdFromPrefs(badMediaExpiry, 1_000_000L, id -> deletedBlobId[0] = id, null));
         assertTrue(mediaCommitted[0]);
         assertTrue("Corrupt-expiry media share must delete its sealed .enc blob", "receipt-2".equals(deletedBlobId[0]));
         assertTrue(Diagnostics.exportRedacted().contains("share.media_expiry_corrupt"));
@@ -65,7 +65,7 @@ public final class CorruptSharePrefsFailClosedTest {
         boolean[] expiredCommitted = {false};
         String[] expiredDeletedId = {null};
         SharedPreferences expiredMedia = validPrefs("receipt-expired", "500000", expiredCommitted);
-        assertNull(IncomingMediaShare.pendingIdFromPrefs(expiredMedia, 1_000_000L, id -> expiredDeletedId[0] = id));
+        assertNull(IncomingMediaShare.pendingIdFromPrefs(expiredMedia, 1_000_000L, id -> expiredDeletedId[0] = id, null));
         assertTrue(expiredCommitted[0]);
         assertTrue("Expired media share must delete its sealed .enc blob", "receipt-expired".equals(expiredDeletedId[0]));
     }

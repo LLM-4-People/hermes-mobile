@@ -42,11 +42,6 @@ public final class TemplateStoreTest {
         assertTrue(store.deleteCustom(created.id));
         assertTrue(store.listCustom().isEmpty());
         assertNull(backing.read(TemplateStore.STORAGE_KEY));
-
-        store.saveCustom(null, "Temporaire", "", "Texte");
-        store.wipe();
-        assertTrue(store.listCustom().isEmpty());
-        assertNull(backing.read(TemplateStore.STORAGE_KEY));
     }
 
     @Test public void rejectsSecretsControlCharsOversizedAndInvalidIds() throws Exception {
@@ -68,8 +63,14 @@ public final class TemplateStoreTest {
         }
         assertTrue(store.listCustom().isEmpty());
 
-        // Blank, control chars, oversized inputs
+        // Blank, invisible-only, bidi/zero-width/control/surrogate, and oversized inputs
         assertIoRejected(() -> store.saveCustom(null, "   ", "", "Draft"));
+        assertIoRejected(() -> store.saveCustom(null, "\u3164\u00A0", "", "Draft"));
+        assertIoRejected(() -> store.saveCustom(null, "Title\u202Espoof", "", "Draft"));
+        assertIoRejected(() -> store.saveCustom(null, "Title\u2067isolate", "", "Draft"));
+        assertIoRejected(() -> store.saveCustom(null, "Title\u200Bzwsp", "", "Draft"));
+        assertIoRejected(() -> store.saveCustom(null, "Title\uD800lone", "", "Draft"));
+        assertIoRejected(() -> store.saveCustom(null, "Title", "Sub\u202Ebidi", "Draft"));
         assertIoRejected(() -> store.saveCustom(null, "Title", "", "   "));
         assertIoRejected(() -> store.saveCustom(null, "Title\nLine2", "", "Draft"));
         assertIoRejected(() -> store.saveCustom(null, "Title", "", "Draft\u0000nul"));

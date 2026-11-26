@@ -103,7 +103,7 @@ public class ThreadStateTest extends InstrumentationTestCase {
     public void testObservedRunSurvivesRestartAndRestoresOriginalAdmissionAndDraft() {
         AtomicReference<String> saved = new AtomicReference<>();
         ThreadJournal journal = new ThreadJournal("thread", "scope", null, saved::set);
-        journal.stage(ThreadData.body("tip", "message", null), 100, 2, 60, true);
+        journal.stage(ThreadData.body("tip", "message", null), 100, 2, 60, true, null);
         journal.setRunId("mobile-run");
         assertEquals(1000L, journal.nextReconnectDelayMillis());
         journal.draft("unfinished draft");
@@ -132,7 +132,7 @@ public class ThreadStateTest extends InstrumentationTestCase {
                 .put("allowed_toolsets", new JSONArray()).put("excluded_tools", new JSONArray().put("shell"))
                 .put("session_id", "untrusted").put("input", "overwritten");
         JSONObject body = ThreadData.body("abc", first.draft(), options);
-        JSONObject sent = first.stage(body, 10_000, 3, 60, true);
+        JSONObject sent = first.stage(body, 10_000, 3, 60, true, null);
         ThreadJournal resumed = new ThreadJournal("abc", "original", stored.get(), stored::set);
         assertEquals("", resumed.draft());
         assertEquals(sent.getString("key"), resumed.pending().getString("key"));
@@ -143,7 +143,7 @@ public class ThreadStateTest extends InstrumentationTestCase {
         assertEquals("shell", body.getJSONArray("excluded_tools").getString(0));
         resumed.setRunId("r7");
         resumed.draft("autre message");
-        resumed.checkpoint(4, "bonjour");
+        resumed.checkpoint(4, "bonjour", RunPreview.Origin.FIRST, 0);
         resumed.flush();
         ThreadJournal followed = new ThreadJournal("abc", "original", stored.get(), stored::set);
         assertEquals("r7", followed.pending().getString("run_id"));
@@ -159,7 +159,7 @@ public class ThreadStateTest extends InstrumentationTestCase {
         AtomicReference<String> saved = new AtomicReference<>();
         ThreadJournal journal = new ThreadJournal("thread", "owner", null, saved::set);
         for (int turn = 1; turn <= 6; turn++) {
-            journal.stage(ThreadData.body("thread", "turn " + turn, null), turn, 1, 60, true);
+            journal.stage(ThreadData.body("thread", "turn " + turn, null), turn, 1, 60, true, null);
             journal.setRunId("run-" + turn);
             assertFalse(journal.reconnectsExhausted());
             assertEquals(1000L, journal.nextReconnectDelayMillis());
@@ -170,7 +170,7 @@ public class ThreadStateTest extends InstrumentationTestCase {
     public void testReopenAndReceiptReplayPreserveRetriesUntilExplicitResumeOrFinish() {
         AtomicReference<String> saved = new AtomicReference<>();
         ThreadJournal journal = new ThreadJournal("thread", "owner", null, saved::set);
-        journal.stage(ThreadData.body("thread", "first", null), 1, 1, 60, true);
+        journal.stage(ThreadData.body("thread", "first", null), 1, 1, 60, true, null);
         journal.setRunId("first-run");
         long[] expected = {1000, 2000, 4000, 8000, 16000};
         for (long delay : expected) {
@@ -191,7 +191,7 @@ public class ThreadStateTest extends InstrumentationTestCase {
         assertFalse(journal.reconnectsExhausted());
         assertEquals(1000L, journal.nextReconnectDelayMillis());
         journal.finish();
-        journal.stage(ThreadData.body("thread", "next", null), 2, 1, 60, true);
+        journal.stage(ThreadData.body("thread", "next", null), 2, 1, 60, true, null);
         journal.setRunId("second-run");
         assertEquals(1000L, journal.nextReconnectDelayMillis());
     }
@@ -203,7 +203,7 @@ public class ThreadStateTest extends InstrumentationTestCase {
             if (!writable.get()) throw new IllegalStateException("Storage unavailable");
             saved.set(value);
         });
-        journal.stage(ThreadData.body("thread", "first", null), 1, 1, 60, true);
+        journal.stage(ThreadData.body("thread", "first", null), 1, 1, 60, true, null);
         journal.setRunId("run");
         writable.set(false);
         try { journal.nextReconnectDelayMillis(); fail("Scheduled a reconnect before recording it"); }
@@ -222,7 +222,7 @@ public class ThreadStateTest extends InstrumentationTestCase {
         ThreadJournal journal = new ThreadJournal("thread", "original", null, ignored -> { throw new IllegalStateException("full"); });
         journal.draft("bonjour");
         try {
-            journal.stage(ThreadData.body("thread", journal.draft(), null), 100, 2, 3, true);
+            journal.stage(ThreadData.body("thread", journal.draft(), null), 100, 2, 3, true, null);
             fail("Send without durable record");
         } catch (IllegalStateException expected) {
             assertNull(journal.pending());
@@ -244,7 +244,7 @@ public class ThreadStateTest extends InstrumentationTestCase {
         String initial = ThreadJournal.scope("account", "https://one/p/a", "bearer1", "s");
         AtomicReference<String> saved = new AtomicReference<>();
         ThreadJournal original = new ThreadJournal("s", initial, null, saved::set);
-        original.stage(ThreadData.body("tip-id", "bonjour", null), 10, 1, 60, true);
+        original.stage(ThreadData.body("tip-id", "bonjour", null), 10, 1, 60, true, null);
         for (String other : new String[]{
                 ThreadJournal.scope("account", "https://one/p/a", "bearer2", "s"),
                 ThreadJournal.scope("account", "https://one/p/b", "bearer1", "s"),
@@ -261,7 +261,7 @@ public class ThreadStateTest extends InstrumentationTestCase {
         ThreadJournal journal = new ThreadJournal("root", "owner", null, saved::set);
         journal.draft("first");
         Runnable late = journal.snapshot();
-        journal.stage(ThreadData.body("tip", journal.draft(), null), 10, 1, 60, true);
+        journal.stage(ThreadData.body("tip", journal.draft(), null), 10, 1, 60, true, null);
         journal.draft("next");
         journal.reject();
         late.run();
