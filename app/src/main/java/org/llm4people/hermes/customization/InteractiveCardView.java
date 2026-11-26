@@ -309,7 +309,7 @@ public final class InteractiveCardView extends LinearLayout {
                     String link = str(rawLink);
                     String slug = str(src.get("profile_slug"));
                     String displayName = str(src.get("display_name"));
-                    long expiresAt = parseLongVal(src.get("expires_at"));
+                    long expiresAt = org.llm4people.hermes.EpochTimestamps.parseEpochSeconds(src.get("expires_at"));
                     int ttl = JsonValues.parseInt(src.get("ttl_seconds"), 300);
                     yield pairingInvite(id, title, subtitle,
                             new PairingInvite(mode, link, slug, displayName, expiresAt, ttl));
@@ -470,29 +470,15 @@ public final class InteractiveCardView extends LinearLayout {
     }
 
     private void renderQuickPicks(Context context) {
-        int touchMin = Ui.dp(context, 48);
         for (QuickPick pick : spec.quickPicks) {
-            Button chip = new Button(context, null, android.R.attr.borderlessButtonStyle);
-            chip.setText(pick.label());
-            chip.setAllCaps(false);
-            chip.setTextSize(14);
-            chip.setTypeface(Ui.mediumTypeface());
-            chip.setTextColor(Ui.enabledDisabledInk(context, R.color.accent));
-            chip.setMinHeight(touchMin);
-            chip.setMinimumHeight(touchMin);
-            chip.setMinWidth(touchMin);
-            chip.setMinimumWidth(touchMin);
-            chip.setGravity(Gravity.CENTER_VERTICAL | Gravity.START);
-            Ui.pad(chip, 14, 8);
-            GradientDrawable bg = new GradientDrawable();
-            bg.setColor(context.getColor(R.color.accent_surface));
-            bg.setCornerRadius(Ui.dp(context, Ui.BUTTON_CORNER_DP));
-            chip.setBackground(Ui.roundedRipple(context, Ui.BUTTON_CORNER_DP, bg));
-            chip.setTag("pick:" + pick.id());
-            chip.setOnClickListener(v -> {
+            Button chip = Ui.tonalButton(context, pick.label(), v -> {
                 Diagnostics.event("card", "quick_pick_draft");
                 callbacks.onQuickPickDraft(spec.cardId, pick.id(), pick.draftText());
             });
+            chip.setTextSize(14);
+            chip.setGravity(Gravity.CENTER_VERTICAL | Gravity.START);
+            Ui.pad(chip, 14, 8);
+            chip.setTag("pick:" + pick.id());
             LayoutParams lp = new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
             lp.topMargin = Ui.dp(context, 8);
             addView(chip, lp);
@@ -736,9 +722,5 @@ public final class InteractiveCardView extends LinearLayout {
 
     private static boolean bool(Object value) {
         return value instanceof Boolean b && b;
-    }
-
-    private static long parseLongVal(Object value) {
-        return org.llm4people.hermes.EpochTimestamps.parseEpochSeconds(value);
     }
 }

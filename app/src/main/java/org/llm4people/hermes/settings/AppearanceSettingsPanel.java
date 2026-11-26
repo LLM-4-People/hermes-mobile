@@ -287,7 +287,6 @@ public final class AppearanceSettingsPanel {
         hexInput.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO);
         hexInput.setHint(R.string.appearance_custom_hex_hint);
         Ui.styleDialogInput(activity, hexInput);
-        hexInput.setMinHeight(Ui.dp(activity, 48));
         Ui.pad(hexInput, 12, 9);
         card.addView(hexInput, new LinearLayout.LayoutParams(-1, -2));
 
@@ -499,7 +498,6 @@ public final class AppearanceSettingsPanel {
         greetingInput.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO);
         greetingInput.setHint(R.string.appearance_greeting_hint);
         Ui.styleDialogInput(activity, greetingInput);
-        greetingInput.setMinHeight(Ui.dp(activity, 48));
         Ui.pad(greetingInput, 12, 9);
         card.addView(greetingInput, new LinearLayout.LayoutParams(-1, -2));
 
@@ -629,7 +627,6 @@ public final class AppearanceSettingsPanel {
         labelInput.setSaveEnabled(false);
         labelInput.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO);
         Ui.styleDialogInput(activity, labelInput);
-        labelInput.setMinHeight(Ui.dp(activity, 48));
         Ui.pad(labelInput, 12, 9);
         form.addView(labelInput, new LinearLayout.LayoutParams(-1, -2));
 

@@ -54,8 +54,16 @@ final class ProfileDefaultsPanel {
     private TextView toolsetCountPill;
     private LinearLayout toolsetListContainer;
     private String toolsetFilterQuery = "";
+    private String lastAnnouncedStatusText;
+    private String lastAnnouncedReasoningHelper;
+    private String lastAnnouncedToolsetCount;
     private String lastToolsetEmptyAnnouncement;
     private boolean saving;
+
+    /** Pure-JVM live-region transition guard: announces only when a value changed after initial load. */
+    static boolean shouldAnnounceTransition(String previous, String next) {
+        return previous != null && next != null && !next.equals(previous);
+    }
 
     ProfileDefaultsPanel(SessionPanel panel, Runnable parent) {
         this.panel = panel;
@@ -175,8 +183,12 @@ final class ProfileDefaultsPanel {
     private void buildStatusAndSaveBar() {
         LinearLayout bar = Ui.column(panel.activity);
         LinearLayout topRow = Ui.row(panel.activity);
-        statusPill = Ui.pill(panel.activity, "", R.color.accent_surface, R.color.accent);
-        statusPill.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+        String currentStatus = statusText(model.isDirty());
+        statusPill = Ui.pill(panel.activity, currentStatus, R.color.accent_surface, R.color.accent);
+        if (shouldAnnounceTransition(lastAnnouncedStatusText, currentStatus)) {
+            statusPill.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+        }
+        lastAnnouncedStatusText = currentStatus;
         topRow.addView(statusPill);
         bar.addView(topRow);
 
@@ -195,14 +207,22 @@ final class ProfileDefaultsPanel {
         body.addView(bar, barParams);
     }
 
+    private String statusText(boolean dirty) {
+        return panel.t(dirty
+                ? R.string.profile_defaults_status_unsaved
+                : R.string.profile_defaults_status_saved);
+    }
+
     private void syncSaveBar() {
         boolean dirty = model.isDirty();
         if (statusPill != null) {
-            String nextText = panel.t(dirty
-                    ? R.string.profile_defaults_status_unsaved
-                    : R.string.profile_defaults_status_saved);
+            String nextText = statusText(dirty);
             if (!nextText.contentEquals(statusPill.getText())) {
+                if (shouldAnnounceTransition(lastAnnouncedStatusText, nextText)) {
+                    statusPill.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+                }
                 statusPill.setText(nextText);
+                lastAnnouncedStatusText = nextText;
             }
             statusPill.setTextColor(panel.activity.getColor(dirty ? R.color.warning : R.color.accent));
             statusPill.setBackground(Ui.shape(panel.activity, 999,
@@ -281,11 +301,14 @@ final class ProfileDefaultsPanel {
             card.addView(chipRow, rowLp);
         }
 
-        TextView helper = Ui.text(panel.activity,
-                panel.t(ProfileDefaultsModel.effortHelperRes(model.reasoningEffort())), 14);
+        String helperText = panel.t(ProfileDefaultsModel.effortHelperRes(model.reasoningEffort()));
+        TextView helper = Ui.text(panel.activity, helperText, 14);
         helper.setTextColor(panel.activity.getColor(R.color.muted));
         helper.setLineSpacing(0f, 1.25f);
-        helper.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+        if (shouldAnnounceTransition(lastAnnouncedReasoningHelper, helperText)) {
+            helper.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+        }
+        lastAnnouncedReasoningHelper = helperText;
         LinearLayout.LayoutParams helperLp = new LinearLayout.LayoutParams(-1, -2);
         helperLp.topMargin = Ui.dp(panel.activity, 12);
         card.addView(helper, helperLp);
@@ -308,8 +331,12 @@ final class ProfileDefaultsPanel {
 
         // Header: live enabled counter pill + Enable all / Disable all quick actions
         LinearLayout headerRow = Ui.row(panel.activity);
-        toolsetCountPill = Ui.pill(panel.activity, toolsetCountText(), R.color.accent_surface, R.color.accent);
-        toolsetCountPill.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+        String countText = toolsetCountText();
+        toolsetCountPill = Ui.pill(panel.activity, countText, R.color.accent_surface, R.color.accent);
+        if (shouldAnnounceTransition(lastAnnouncedToolsetCount, countText)) {
+            toolsetCountPill.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+        }
+        lastAnnouncedToolsetCount = countText;
         headerRow.addView(toolsetCountPill);
         card.addView(headerRow);
 
@@ -409,7 +436,11 @@ final class ProfileDefaultsPanel {
         if (toolsetCountPill == null) return;
         String next = toolsetCountText();
         if (!next.contentEquals(toolsetCountPill.getText())) {
+            if (shouldAnnounceTransition(lastAnnouncedToolsetCount, next)) {
+                toolsetCountPill.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+            }
             toolsetCountPill.setText(next);
+            lastAnnouncedToolsetCount = next;
         }
     }
 

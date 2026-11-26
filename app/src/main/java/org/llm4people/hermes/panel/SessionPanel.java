@@ -60,9 +60,6 @@ public final class SessionPanel implements AutoCloseable {
                 () -> activity.getResources().getConfiguration()).show();
     }
     public void showStats(String stableId, String remoteId) { new UsagePanel(this, stableId, remoteId, null).show(); }
-    public void showSkills(BooleanSupplier activeOwner, Consumer<String> stageDraft) {
-        new SkillBrowser(this, activeOwner, stageDraft, null).show();
-    }
     public void showReminders() { new ReminderPanel(this).show(); }
     public void showCreateReminder() { new ReminderPanel(this).create(); }
     public void showReminder(String jobId) { new ReminderPanel(this).open(jobId); }

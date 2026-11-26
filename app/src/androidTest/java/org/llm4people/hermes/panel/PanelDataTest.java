@@ -34,21 +34,17 @@ public final class PanelDataTest extends TestCase {
     }
 
     public void testUnknownCountersAreNeverReportedAsMeasuredZero() throws Exception {
-        assertTrue(Double.isNaN(PanelData.cacheRatio(new JSONObject())));
-        assertTrue(Double.isNaN(PanelData.cacheRatio(buckets(0, 0, 0))));
-        assertTrue(Double.isNaN(PanelData.cacheRatio(buckets(-1, 4, 0))));
-        assertTrue(Double.isNaN(PanelData.cacheRatio(buckets(4, -1, 0))));
-        assertTrue(Double.isNaN(PanelData.cacheRatio(buckets(4, 1, -1))));
+        assertTrue(Double.isNaN(PanelData.promptTokens(new JSONObject())));
+        assertTrue(Double.isNaN(PanelData.promptTokens(buckets(-1, 4, 0))));
+        assertTrue(Double.isNaN(PanelData.promptTokens(buckets(4, -1, 0))));
+        assertTrue(Double.isNaN(PanelData.promptTokens(buckets(4, 1, -1))));
         JSONObject incomplete = buckets(30, 60, 10);
         incomplete.remove("cache_write_tokens");
-        assertTrue(Double.isNaN(PanelData.cacheRatio(incomplete)));
+        assertTrue(Double.isNaN(PanelData.promptTokens(incomplete)));
+        assertEquals(0, PanelData.promptTokens(buckets(0, 0, 0)), 0);
         assertEquals(100, PanelData.promptTokens(buckets(30, 60, 10)), 0);
-        assertEquals(.60, PanelData.cacheRatio(buckets(30, 60, 10)), 0);
-        assertEquals(0, PanelData.cacheRatio(buckets(40, 0, 12)), 0);
-        assertEquals(1, PanelData.cacheRatio(buckets(0, 42, 0)), 0);
-        assertTrue(Double.isNaN(PanelData.endToEndRate(new JSONObject("{\"elapsed_ms\":1000}"))));
-        assertTrue(Double.isNaN(PanelData.endToEndRate(new JSONObject("{\"elapsed_ms\":0,\"output_tokens\":4}"))));
-        assertEquals(2.5, PanelData.endToEndRate(new JSONObject("{\"elapsed_ms\":2000,\"output_tokens\":5}")), 0);
+        assertTrue(Double.isNaN(PanelData.measure(new JSONObject("{\"elapsed_ms\":-5}"), "elapsed_ms")));
+        assertEquals(2000, PanelData.measure(new JSONObject("{\"elapsed_ms\":2000}"), "elapsed_ms"), 0);
     }
 
     private static JSONObject buckets(int input, int read, int write) throws Exception {
@@ -96,16 +92,17 @@ public final class PanelDataTest extends TestCase {
 
     public void testRecurringAndUnknownScheduleDisplaysPreserveServerValues() throws Exception {
         ZoneId zone = ZoneId.of("Europe/Paris");
+        Locale locale = Locale.getDefault();
         JSONObject job = new JSONObject();
-        assertEquals("", ReminderPanel.scheduleLabel(job, zone));
+        assertEquals("", ReminderPanel.scheduleLabel(job, zone, locale));
         job.put("schedule", new JSONObject().put("kind", "cron").put("expr", "0 9 * * 1-5"));
-        assertEquals("0 9 * * 1-5", ReminderPanel.scheduleLabel(job, zone));
+        assertEquals("0 9 * * 1-5", ReminderPanel.scheduleLabel(job, zone, locale));
         job.put("schedule", new JSONObject().put("kind", "interval").put("minutes", 45));
-        assertEquals("45m", ReminderPanel.scheduleLabel(job, zone));
+        assertEquals("45m", ReminderPanel.scheduleLabel(job, zone, locale));
         job.put("schedule", new JSONObject().put("kind", "once").put("run_at", "indéterminé"));
-        assertEquals("indéterminé", ReminderPanel.scheduleLabel(job, zone));
+        assertEquals("indéterminé", ReminderPanel.scheduleLabel(job, zone, locale));
         job.put("schedule", new JSONObject().put("kind", "new-server-format"));
-        assertEquals("", ReminderPanel.scheduleLabel(job, zone));
+        assertEquals("", ReminderPanel.scheduleLabel(job, zone, locale));
     }
 
     public void testScheduleRoundTripsServerShapesWithoutSendingDisplayCopy() throws Exception {

@@ -201,8 +201,25 @@ public final class ExhaustiveUiAndLayoutStressTest extends InstrumentationTestCa
                             activity.getString(R.string.panel_stats));
                     exercisePanel("Reminders", panel::showReminders, activity,
                             activity.getString(R.string.panel_reminders));
-                    exercisePanel("Skills", () -> panel.showSkills(() -> true, d -> {}), activity,
-                            activity.getString(R.string.skills_title));
+                    exercisePanel("Skills", () -> {
+                        try {
+                            Class<?> sb = Class.forName("org.llm4people.hermes.panel.SkillBrowser");
+                            java.lang.reflect.Constructor<?> ctor = sb.getDeclaredConstructor(
+                                    SessionPanel.class, java.util.function.BooleanSupplier.class,
+                                    java.util.function.Consumer.class, Runnable.class);
+                            ctor.setAccessible(true);
+                            Object browser = ctor.newInstance(
+                                    panel,
+                                    (java.util.function.BooleanSupplier) () -> true,
+                                    (java.util.function.Consumer<String>) d -> {},
+                                    null);
+                            java.lang.reflect.Method show = sb.getDeclaredMethod("show");
+                            show.setAccessible(true);
+                            show.invoke(browser);
+                        } catch (Exception err) {
+                            throw new AssertionError(err);
+                        }
+                    }, activity, activity.getString(R.string.skills_title));
                 } finally {
                     runTestOnUiThread(panel::close);
                 }

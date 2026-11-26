@@ -321,10 +321,6 @@ public final class ReminderPanel {
         };
     }
 
-    static String scheduleLabel(JSONObject job, ZoneId zone) {
-        return scheduleLabel(job, zone, Locale.getDefault());
-    }
-
     static String scheduleLabel(JSONObject job, ZoneId zone, Locale locale) {
         String value = PanelData.schedule(job);
         JSONObject schedule = job.optJSONObject("schedule");

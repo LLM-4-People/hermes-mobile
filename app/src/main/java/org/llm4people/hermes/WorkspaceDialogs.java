@@ -311,6 +311,8 @@ final class WorkspaceDialogs {
         Runnable syncInputs = () -> {
             first.getText().clear();
             confirm.getText().clear();
+            note.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_NONE);
+            note.setTextColor(activity.getColor(R.color.muted));
             if (chosen[0] == ProfileLockPolicy.Mode.BIOMETRIC) {
                 first.setVisibility(View.GONE);
                 confirm.setVisibility(View.GONE);
@@ -357,55 +359,74 @@ final class WorkspaceDialogs {
                 .setTitle(R.string.security_lock_mode_title)
                 .setView(formScroll)
                 .setNegativeButton(R.string.profile_setup_cancel, null)
-                .setPositiveButton(R.string.security_lock_mode_save, (d, w) -> {
-                    ProfileLockPolicy.Mode target = chosen[0];
-                    char[] secret = null;
-                    if (target == ProfileLockPolicy.Mode.PIN) {
-                        if (ProfileLockPolicy.evaluatePin(first.getText(), confirm.getText())
-                                != ProfileLockPolicy.CredentialState.READY) {
-                            first.getText().clear();
-                            confirm.getText().clear();
-                            Toast.makeText(activity, R.string.lock_setup_missing_pin, Toast.LENGTH_LONG).show();
-                            return;
-                        }
-                        secret = new char[first.length()];
-                        first.getText().getChars(0, secret.length, secret, 0);
-                        first.getText().clear();
-                        confirm.getText().clear();
-                    } else if (target == ProfileLockPolicy.Mode.PASSPHRASE) {
-                        if (ProfileLockPolicy.evaluatePassphrase(first.getText(), confirm.getText())
-                                != ProfileLockPolicy.CredentialState.READY) {
-                            first.getText().clear();
-                            confirm.getText().clear();
-                            Toast.makeText(activity, R.string.lock_setup_missing_passphrase, Toast.LENGTH_LONG).show();
-                            return;
-                        }
-                        secret = new char[first.length()];
-                        first.getText().getChars(0, secret.length, secret, 0);
-                        first.getText().clear();
-                        confirm.getText().clear();
-                    } else if (!bioAvailable) {
-                        first.getText().clear();
-                        confirm.getText().clear();
-                        Toast.makeText(activity, R.string.lock_mode_biometric_unavailable, Toast.LENGTH_LONG).show();
-                        return;
+                .setPositiveButton(R.string.security_lock_mode_save, null));
+        Button saveBtn = modeDialog.getButton(AlertDialog.BUTTON_POSITIVE);
+        if (saveBtn != null) {
+            saveBtn.setOnClickListener(v -> {
+                ProfileLockPolicy.Mode target = chosen[0];
+                int errRes = lockModeValidationErrorRes(target, first.getText(), confirm.getText(), bioAvailable);
+                if (errRes != 0) {
+                    note.setTextColor(activity.getColor(R.color.danger));
+                    if (note.getAccessibilityLiveRegion() != View.ACCESSIBILITY_LIVE_REGION_POLITE) {
+                        note.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
                     }
-                    if (activeEnroll[0] != null) activeEnroll[0].cancel();
-                    activeEnroll[0] = gate.updateLockMode(account, target, secret, ok -> {
-                        activeEnroll[0] = null;
-                        if (activity.isFinishing() || activity.isDestroyed()) return;
-                        Toast.makeText(activity,
-                                ok ? R.string.security_lock_mode_updated : R.string.security_lock_mode_update_failed,
-                                Toast.LENGTH_SHORT).show();
-                        if (ok && onUpdated != null) onUpdated.run();
-                    });
-                }));
+                    String errMsg = activity.getString(errRes);
+                    if (!errMsg.contentEquals(note.getText())) {
+                        note.setText(errMsg);
+                    }
+                    return;
+                }
+                char[] secret = null;
+                if (target == ProfileLockPolicy.Mode.PIN || target == ProfileLockPolicy.Mode.PASSPHRASE) {
+                    secret = new char[first.length()];
+                    first.getText().getChars(0, secret.length, secret, 0);
+                    first.getText().clear();
+                    confirm.getText().clear();
+                }
+                modeDialog.dismiss();
+                if (activeEnroll[0] != null) activeEnroll[0].cancel();
+                activeEnroll[0] = gate.updateLockMode(account, target, secret, ok -> {
+                    activeEnroll[0] = null;
+                    if (activity.isFinishing() || activity.isDestroyed()) return;
+                    Toast.makeText(activity,
+                            ok ? R.string.security_lock_mode_updated : R.string.security_lock_mode_update_failed,
+                            Toast.LENGTH_SHORT).show();
+                    if (ok && onUpdated != null) onUpdated.run();
+                });
+            });
+        }
         modeDialog.setOnDismissListener(d -> {
             first.getText().clear();
             confirm.getText().clear();
             if (childHolder != null && childHolder[0] == modeDialog) childHolder[0] = null;
         });
         return modeDialog;
+    }
+
+    /** Pure-JVM validation error message resource for the Change Lock Mode dialog (0 when READY). */
+    static int lockModeValidationErrorRes(
+            ProfileLockPolicy.Mode target,
+            CharSequence first,
+            CharSequence confirm,
+            boolean bioAvailable) {
+        if (target == ProfileLockPolicy.Mode.PIN) {
+            return switch (ProfileLockPolicy.evaluatePin(first, confirm)) {
+                case READY -> 0;
+                case INVALID_FORMAT -> R.string.lock_pin_digits_only;
+                case MISMATCH -> R.string.lock_pin_mismatch;
+                case AWAITING_CONFIRM -> R.string.lock_pin_confirm_needed;
+                case EMPTY, TOO_SHORT -> R.string.lock_setup_missing_pin;
+            };
+        }
+        if (target == ProfileLockPolicy.Mode.PASSPHRASE) {
+            return switch (ProfileLockPolicy.evaluatePassphrase(first, confirm)) {
+                case READY -> 0;
+                case MISMATCH -> R.string.profile_setup_passphrase_mismatch_live;
+                case AWAITING_CONFIRM -> R.string.profile_setup_passphrase_confirm_needed;
+                case EMPTY, INVALID_FORMAT, TOO_SHORT -> R.string.lock_setup_missing_passphrase;
+            };
+        }
+        return bioAvailable ? 0 : R.string.lock_mode_biometric_unavailable;
     }
 
     /** Each profile pins its own quick-actions widget, so profiles never overwrite or purge each other's. */

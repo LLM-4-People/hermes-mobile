@@ -2,7 +2,6 @@ package org.llm4people.hermes.palette;
 
 import android.app.Activity;
 import android.app.AlertDialog;
-import android.graphics.drawable.GradientDrawable;
 import android.text.Editable;
 import android.text.InputFilter;
 import android.text.InputType;
@@ -65,17 +64,9 @@ public final class CommandPalette {
         search.setSingleLine(true);
         search.setFilters(new InputFilter[]{new InputFilter.LengthFilter(CommandRegistry.MAX_QUERY_CHARS)});
         search.setHint(R.string.palette_search_hint);
-        search.setTextColor(activity.getColor(R.color.ink));
-        search.setHintTextColor(activity.getColor(R.color.muted));
+        Ui.styleDialogInput(activity, search);
         search.setTextSize(16);
-        search.setMinHeight(Ui.dp(activity, 48));
-        search.setMinimumHeight(Ui.dp(activity, 48));
-        Ui.pad(search, 12, 10);
-        GradientDrawable inputBg = new GradientDrawable();
-        inputBg.setColor(activity.getColor(R.color.surface));
-        inputBg.setCornerRadius(Ui.dp(activity, Ui.BUTTON_CORNER_DP));
-        inputBg.setStroke(Math.max(1, Ui.dp(activity, 1)), activity.getColor(R.color.accent));
-        search.setBackground(inputBg);
+        search.setBackground(Ui.shape(activity, Ui.BUTTON_CORNER_DP, R.color.surface, R.color.accent, 1));
         container.addView(search);
 
         countAnnouncement = Ui.text(activity, "", 13);
@@ -159,11 +150,8 @@ public final class CommandPalette {
         row.setFocusable(true);
         row.setMinimumHeight(Ui.dp(activity, 48));
         Ui.pad(row, 14, 10);
-        GradientDrawable bg = new GradientDrawable();
-        bg.setColor(activity.getColor(R.color.surface));
-        bg.setCornerRadius(Ui.dp(activity, Ui.CARD_CORNER_DP));
-        bg.setStroke(Math.max(1, Ui.dp(activity, 1)), activity.getColor(R.color.line));
-        row.setBackground(Ui.roundedRipple(activity, Ui.CARD_CORNER_DP, bg));
+        row.setBackground(Ui.roundedRipple(activity, Ui.CARD_CORNER_DP,
+                Ui.shape(activity, Ui.CARD_CORNER_DP, R.color.surface, R.color.line, 1)));
 
         LinearLayout header = Ui.row(activity);
         header.setGravity(Gravity.CENTER_VERTICAL);
@@ -177,10 +165,7 @@ public final class CommandPalette {
         TextView badge = Ui.text(activity, categoryLabel(item.category), 12);
         badge.setTextColor(activity.getColor(R.color.accent));
         badge.setTypeface(Ui.mediumTypeface());
-        GradientDrawable badgeBg = new GradientDrawable();
-        badgeBg.setColor(activity.getColor(R.color.accent_surface));
-        badgeBg.setCornerRadius(Ui.dp(activity, 8));
-        badge.setBackground(badgeBg);
+        badge.setBackground(Ui.shape(activity, 8, R.color.accent_surface, 0, 0));
         Ui.pad(badge, 8, 3);
         LinearLayout.LayoutParams badgeLp = new LinearLayout.LayoutParams(-2, -2);
         badgeLp.setMarginStart(Ui.dp(activity, 8));

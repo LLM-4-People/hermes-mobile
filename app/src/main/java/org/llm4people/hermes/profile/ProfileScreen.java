@@ -45,7 +45,7 @@ final class ProfileScreen {
     }
 
     void section(String title, String description) {
-        add(Ui.divider(activity), 24);
+        card(Ui.divider(activity), 24);
         heading(title, 19, 18, false);
         description(description);
     }
@@ -55,21 +55,21 @@ final class ProfileScreen {
         heading.setTypeface(display ? Typeface.DEFAULT_BOLD : Ui.mediumTypeface());
         heading.setLetterSpacing(display ? -0.02f : -0.01f);
         heading.setAccessibilityHeading(true);
-        add(heading, top);
+        card(heading, top);
     }
 
     private void description(String text) {
         TextView detail = Ui.text(activity, text, 15);
         detail.setTextColor(activity.getColor(R.color.muted));
         detail.setLineSpacing(0f, 1.25f);
-        add(detail, 6);
+        card(detail, 6);
     }
 
     TextView note(String text) {
         TextView caption = Ui.text(activity, text, 13);
         caption.setTextColor(activity.getColor(R.color.muted));
         caption.setLineSpacing(0f, 1.2f);
-        add(caption, 6);
+        card(caption, 6);
         return caption;
     }
 
@@ -129,7 +129,6 @@ final class ProfileScreen {
         edit.setInputType(type);
         edit.setTypeface(Typeface.DEFAULT);
         Ui.styleDialogInput(activity, edit);
-        edit.setMinHeight(Ui.dp(activity, 48));
         Ui.pad(edit, 14, 12);
         edit.setHint(hint);
         edit.setSaveEnabled(false);
@@ -248,7 +247,7 @@ final class ProfileScreen {
         });
         row.setFocusable(false);
         row.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
-        add(row, 10);
+        card(row, 10);
         return button;
     }
 
@@ -271,7 +270,7 @@ final class ProfileScreen {
         if (primary && lastField != null) {
             connectSubmission(lastField, button);
         }
-        add(button, primary ? 22 : 8);
+        card(button, primary ? 22 : 8);
         return button;
     }
 
@@ -322,7 +321,7 @@ final class ProfileScreen {
             status = Ui.text(activity, "", 15);
             status.setLineSpacing(0f, 1.25f);
             status.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
-            add(status, 14);
+            card(status, 14);
         }
         status.setTextColor(activity.getColor(error ? R.color.danger : R.color.muted));
         String changed = changedNoteText(status.getText(), message);
@@ -332,10 +331,6 @@ final class ProfileScreen {
     }
 
     void card(View view, int top) {
-        add(view, top);
-    }
-
-    private void add(View view, int top) {
         ViewGroup.LayoutParams initial = view.getLayoutParams();
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, initial == null ? -2 : initial.height);
         params.topMargin = Ui.dp(activity, top);

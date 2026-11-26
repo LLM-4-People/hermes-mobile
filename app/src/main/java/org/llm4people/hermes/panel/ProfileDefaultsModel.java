@@ -100,10 +100,6 @@ public final class ProfileDefaultsModel {
         return !saved.equals(currentSnapshot());
     }
 
-    public void markSaved() {
-        saved = currentSnapshot();
-    }
-
     public void markSaved(Snapshot committed) {
         if (committed != null) saved = committed;
     }

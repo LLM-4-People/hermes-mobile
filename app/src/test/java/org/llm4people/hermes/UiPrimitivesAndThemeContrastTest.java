@@ -140,6 +140,40 @@ public final class UiPrimitivesAndThemeContrastTest {
     }
 
     @Test
+    public void lockModeValidationErrorResDistinguishesMismatchFormatAndShortInputs() {
+        assertEquals(0, WorkspaceDialogs.lockModeValidationErrorRes(
+                org.llm4people.hermes.profile.ProfileLockPolicy.Mode.PIN, "123456", "123456", false));
+        int pinMismatch = WorkspaceDialogs.lockModeValidationErrorRes(
+                org.llm4people.hermes.profile.ProfileLockPolicy.Mode.PIN, "123456", "654321", false);
+        int pinShort = WorkspaceDialogs.lockModeValidationErrorRes(
+                org.llm4people.hermes.profile.ProfileLockPolicy.Mode.PIN, "123", "123", false);
+        assertEquals(R.string.lock_pin_mismatch, pinMismatch);
+        assertEquals(R.string.lock_setup_missing_pin, pinShort);
+        assertNotEquals(pinMismatch, pinShort);
+        assertEquals(R.string.lock_pin_digits_only, WorkspaceDialogs.lockModeValidationErrorRes(
+                org.llm4people.hermes.profile.ProfileLockPolicy.Mode.PIN, "12ab56", "12ab56", false));
+        assertEquals(R.string.lock_pin_confirm_needed, WorkspaceDialogs.lockModeValidationErrorRes(
+                org.llm4people.hermes.profile.ProfileLockPolicy.Mode.PIN, "123456", "", false));
+
+        assertEquals(0, WorkspaceDialogs.lockModeValidationErrorRes(
+                org.llm4people.hermes.profile.ProfileLockPolicy.Mode.PASSPHRASE, "twelve-chars", "twelve-chars", false));
+        int passMismatch = WorkspaceDialogs.lockModeValidationErrorRes(
+                org.llm4people.hermes.profile.ProfileLockPolicy.Mode.PASSPHRASE, "twelve-chars", "twelve-charX", false);
+        int passShort = WorkspaceDialogs.lockModeValidationErrorRes(
+                org.llm4people.hermes.profile.ProfileLockPolicy.Mode.PASSPHRASE, "short", "short", false);
+        assertEquals(R.string.profile_setup_passphrase_mismatch_live, passMismatch);
+        assertEquals(R.string.lock_setup_missing_passphrase, passShort);
+        assertNotEquals(passMismatch, passShort);
+        assertEquals(R.string.profile_setup_passphrase_confirm_needed, WorkspaceDialogs.lockModeValidationErrorRes(
+                org.llm4people.hermes.profile.ProfileLockPolicy.Mode.PASSPHRASE, "twelve-chars", "", false));
+
+        assertEquals(0, WorkspaceDialogs.lockModeValidationErrorRes(
+                org.llm4people.hermes.profile.ProfileLockPolicy.Mode.BIOMETRIC, "", "", true));
+        assertEquals(R.string.lock_mode_biometric_unavailable, WorkspaceDialogs.lockModeValidationErrorRes(
+                org.llm4people.hermes.profile.ProfileLockPolicy.Mode.BIOMETRIC, "", "", false));
+    }
+
+    @Test
     public void appCustomizationSyncsWithThemePaletteAndMeetsWcagAa() {
         assertEquals(org.llm4people.hermes.artifact.ThemePalette.WCAG_AA_NORMAL,
                 org.llm4people.hermes.customization.AppCustomization.WCAG_AA_MIN_CONTRAST, 1e-9);

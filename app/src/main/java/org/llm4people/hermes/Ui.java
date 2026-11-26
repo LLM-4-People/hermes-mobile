@@ -235,7 +235,9 @@ public final class Ui {
         input.setTextColor(context.getColor(R.color.ink));
         input.setHintTextColor(context.getColor(R.color.muted));
         pad(input, 12, 10);
-        input.setMinimumHeight(dp(context, 48));
+        int minHeight = dp(context, 48);
+        input.setMinHeight(minHeight);
+        input.setMinimumHeight(minHeight);
     }
 
     /** Clean Material 3 surface card (16dp corners, 1dp hairline border, single elevation layer). */
