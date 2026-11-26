@@ -149,7 +149,7 @@ public final class UiPrimitivesAndThemeContrastTest {
                 org.llm4people.hermes.profile.ProfileLockPolicy.Mode.PIN, "123", "123", false);
         assertEquals(R.string.lock_pin_mismatch, pinMismatch);
         assertEquals(R.string.lock_setup_missing_pin, pinShort);
-        assertNotEquals(pinMismatch, pinShort);
+        assertTrue(pinMismatch != pinShort);
         assertEquals(R.string.lock_pin_digits_only, WorkspaceDialogs.lockModeValidationErrorRes(
                 org.llm4people.hermes.profile.ProfileLockPolicy.Mode.PIN, "12ab56", "12ab56", false));
         assertEquals(R.string.lock_pin_confirm_needed, WorkspaceDialogs.lockModeValidationErrorRes(
@@ -163,7 +163,7 @@ public final class UiPrimitivesAndThemeContrastTest {
                 org.llm4people.hermes.profile.ProfileLockPolicy.Mode.PASSPHRASE, "short", "short", false);
         assertEquals(R.string.profile_setup_passphrase_mismatch_live, passMismatch);
         assertEquals(R.string.lock_setup_missing_passphrase, passShort);
-        assertNotEquals(passMismatch, passShort);
+        assertTrue(passMismatch != passShort);
         assertEquals(R.string.profile_setup_passphrase_confirm_needed, WorkspaceDialogs.lockModeValidationErrorRes(
                 org.llm4people.hermes.profile.ProfileLockPolicy.Mode.PASSPHRASE, "twelve-chars", "", false));
 
