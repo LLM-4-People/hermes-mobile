@@ -311,24 +311,11 @@ public final class UniversalSearchSheet implements AutoCloseable {
     }
 
     private Button buildFilterChip(String label, boolean selected, Runnable onClick) {
-        Button chip = new Button(localized, null, android.R.attr.borderlessButtonStyle);
-        chip.setText(label);
-        chip.setAllCaps(false);
-        chip.setTextSize(14);
-        chip.setTypeface(Ui.mediumTypeface());
-        chip.setStateListAnimator(null);
-        chip.setMinHeight(Ui.dp(localized, 48));
-        chip.setMinimumHeight(Ui.dp(localized, 48));
+        Button chip = Ui.choiceChip(localized, label, v -> onClick.run());
+        Ui.styleChoiceChip(chip, selected);
         chip.setPaddingRelative(Ui.dp(localized, 16), Ui.dp(localized, 10),
                 Ui.dp(localized, 16), Ui.dp(localized, 10));
-        chip.setSelected(selected);
         chip.setContentDescription(label);
-        chip.setTextColor(localized.getColor(selected ? R.color.on_accent : R.color.ink));
-        chip.setBackground(Ui.roundedRipple(localized, Ui.BUTTON_CORNER_DP,
-                selected
-                        ? Ui.shape(localized, Ui.BUTTON_CORNER_DP, R.color.accent, 0, 0)
-                        : Ui.shape(localized, Ui.BUTTON_CORNER_DP, R.color.surface_container, R.color.line, 1)));
-        chip.setOnClickListener(v -> onClick.run());
         return chip;
     }
 

@@ -2,7 +2,6 @@ package org.llm4people.hermes.panel;
 
 import android.app.DatePickerDialog;
 import android.app.TimePickerDialog;
-import android.graphics.drawable.GradientDrawable;
 import android.text.Editable;
 import android.text.InputType;
 import android.text.TextWatcher;
@@ -185,26 +184,9 @@ final class ReminderEditor {
     }
 
     private Button selectableChip(String label, boolean selected, boolean alignStart, View.OnClickListener listener) {
-        Button chip = new Button(panel.activity, null, android.R.attr.borderlessButtonStyle);
-        chip.setText(label);
-        chip.setAllCaps(false);
-        chip.setTextSize(14);
-        chip.setTypeface(Ui.mediumTypeface());
-        chip.setStateListAnimator(null);
+        Button chip = Ui.choiceChip(panel.activity, label, listener);
         chip.setGravity((alignStart ? Gravity.START : Gravity.CENTER_HORIZONTAL) | Gravity.CENTER_VERTICAL);
-        int touchMin = Ui.dp(panel.activity, 48);
-        chip.setMinHeight(touchMin);
-        chip.setMinimumHeight(touchMin);
-        Ui.pad(chip, 14, 10);
-        GradientDrawable fill = Ui.shape(panel.activity, Ui.BUTTON_CORNER_DP,
-                selected ? R.color.accent_surface : R.color.surface,
-                selected ? R.color.accent : R.color.line,
-                selected ? 2 : 1);
-        chip.setBackground(Ui.roundedRipple(panel.activity, Ui.BUTTON_CORNER_DP, fill));
-        chip.setTextColor(panel.activity.getColor(selected ? R.color.accent : R.color.ink));
-        chip.setSelected(selected);
-        Ui.setCheckableState(chip, selected);
-        chip.setOnClickListener(listener);
+        Ui.styleChoiceChip(chip, selected);
         return chip;
     }
 

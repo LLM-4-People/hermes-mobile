@@ -383,10 +383,6 @@ public final class ThreadViews {
         if (scrollController != null) scrollController.onNewMessagesArrived(count);
     }
 
-    void scrollToTail() {
-        followTail();
-    }
-
     private void reset(boolean chat) {
         cancelPendingTailFollow();
         scrollController = null;
@@ -472,35 +468,21 @@ public final class ThreadViews {
         inboxFilterRow.removeAllViews();
         int gap = Ui.dp(activity, 8);
         ThreadInboxFilter.Filter[] filters = ThreadInboxFilter.Filter.values();
-        Typeface medium = Ui.mediumTypeface();
         for (int i = 0; i < filters.length; i++) {
             ThreadInboxFilter.Filter filter = filters[i];
             boolean selected = filter == activeInboxFilter;
             String label = activity.getString(filter.labelRes);
-            Button pill = new Button(activity, null, android.R.attr.borderlessButtonStyle);
-            pill.setTag("thread_inbox:filter:" + filter.name().toLowerCase(java.util.Locale.ROOT));
-            pill.setText(label);
-            pill.setAllCaps(false);
-            pill.setTextSize(14);
-            pill.setTypeface(medium);
-            pill.setStateListAnimator(null);
-            pill.setMinHeight(Ui.dp(activity, 48));
-            pill.setMinimumHeight(Ui.dp(activity, 48));
-            pill.setPaddingRelative(Ui.dp(activity, 16), Ui.dp(activity, 8),
-                    Ui.dp(activity, 16), Ui.dp(activity, 8));
-            pill.setSelected(selected);
-            pill.setContentDescription(label);
-            pill.setTextColor(activity.getColor(selected ? R.color.on_accent : R.color.ink));
-            pill.setBackground(Ui.roundedRipple(activity, Ui.BUTTON_CORNER_DP,
-                    selected
-                            ? Ui.shape(activity, Ui.BUTTON_CORNER_DP, R.color.accent, 0, 0)
-                            : Ui.shape(activity, Ui.BUTTON_CORNER_DP, R.color.surface_container, R.color.line, 1)));
-            pill.setOnClickListener(v -> {
+            Button pill = Ui.choiceChip(activity, label, v -> {
                 if (activeInboxFilter == filter) return;
                 activeInboxFilter = filter;
                 renderInboxFilters();
                 if (onInboxFilterSelected != null) onInboxFilterSelected.accept(filter);
             });
+            pill.setTag("thread_inbox:filter:" + filter.name().toLowerCase(java.util.Locale.ROOT));
+            Ui.styleChoiceChip(pill, selected);
+            pill.setPaddingRelative(Ui.dp(activity, 16), Ui.dp(activity, 8),
+                    Ui.dp(activity, 16), Ui.dp(activity, 8));
+            pill.setContentDescription(label);
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
             if (i < filters.length - 1) lp.setMarginEnd(gap);
             inboxFilterRow.addView(pill, lp);
@@ -818,7 +800,7 @@ public final class ThreadViews {
         }
     }
 
-    private void followTail() {
+    void followTail() {
         // A prompt can arrive between a transcript refresh and its queued scroll.
         if (scrollController != null) scrollController.onSnappedToLatest();
         if (promptRows.visible()) return;
@@ -941,10 +923,24 @@ public final class ThreadViews {
     }
 
     void notice(String message, String label, Runnable action) {
-        notice.setVisibility(message.isEmpty() ? View.GONE : View.VISIBLE);
+        String next = message == null ? "" : message;
+        if (next.isEmpty()) {
+            if (notice.getVisibility() != View.GONE) {
+                notice.setVisibility(View.GONE);
+            }
+            remedy.setVisibility(View.GONE);
+            remedy.setOnClickListener(null);
+            return;
+        }
+        boolean wasVisible = notice.getVisibility() == View.VISIBLE;
         notice.setBackground(Ui.shape(activity, Ui.CARD_CORNER_DP,
                 action != null ? R.color.warning_surface : R.color.surface_container, 0, 0));
-        status.setText(message);
+        if (!wasVisible || !next.contentEquals(status.getText())) {
+            status.setText(next);
+        }
+        if (!wasVisible) {
+            notice.setVisibility(View.VISIBLE);
+        }
         remedy.setVisibility(action == null ? View.GONE : View.VISIBLE);
         remedy.setText(label);
         remedy.setOnClickListener(action == null ? null : v -> action.run());

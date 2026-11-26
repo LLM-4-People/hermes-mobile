@@ -89,7 +89,7 @@ final class WorkspaceForms {
             try {
                 String draft = DraftForm.compose(form, values);
                 error.setVisibility(View.GONE);
-                review(activity, host, draft);
+                reviewDraft(activity, host, draft);
             } catch (DraftForm.MissingAnswer e) {
                 error.setText(c.getString(R.string.workspace_missing_field, e.field.label));
                 error.setVisibility(View.VISIBLE);
@@ -128,9 +128,7 @@ final class WorkspaceForms {
             text.setTextColor(colors.ink);
             text.setHintTextColor(colors.muted);
         } else {
-            text.setBackgroundResource(R.drawable.profile_input);
-            text.setBackgroundTintList(null);
-            text.setTextColor(c.getColor(R.color.ink));
+            Ui.styleDialogInput(c, text);
         }
         Ui.pad(text,12,9);
         text.setMaxLines(multiline ? 8 : 1);
@@ -139,10 +137,6 @@ final class WorkspaceForms {
         text.setSaveEnabled(false);
         text.setFilters(new InputFilter[]{new InputFilter.LengthFilter(limit)});
         return text;
-    }
-
-    private static void review(Activity a, ArtifactDesk.Host host, String draft) {
-        reviewDraft(a, host, draft);
     }
 
     static void reviewDraft(Activity a, ArtifactDesk.Host host, String draft) {

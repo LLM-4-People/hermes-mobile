@@ -168,11 +168,8 @@ public final class CodeReader {
         searchInput.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
         searchInput.setImeOptions(EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING | EditorInfo.IME_ACTION_SEARCH);
         searchInput.setSingleLine(true);
-        searchInput.setMinHeight(Ui.dp(c, 48));
         searchInput.setHint(R.string.code_search_hint);
-        searchInput.setTextColor(c.getColor(R.color.ink));
-        searchInput.setHintTextColor(c.getColor(R.color.muted));
-        searchInput.setBackgroundResource(R.drawable.profile_input);
+        Ui.styleDialogInput(c, searchInput);
         Ui.pad(searchInput, 10, 6);
         searchInput.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}

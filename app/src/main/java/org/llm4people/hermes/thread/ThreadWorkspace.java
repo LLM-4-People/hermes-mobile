@@ -925,7 +925,7 @@ public final class ThreadWorkspace implements AutoCloseable {
         }, () -> {
             if (owner != journal || closed) return;
             if (transcriptWindow.hasNewer()) loadMessages(false, null);
-            else if (screen != null) screen.scrollToTail();
+            else if (screen != null) screen.followTail();
         });
         refreshPhoto();
         nearby.restore();

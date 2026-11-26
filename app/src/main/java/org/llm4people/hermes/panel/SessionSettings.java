@@ -184,10 +184,7 @@ final class SessionSettings {
         search.setHint(R.string.panel_search);
         search.setImeOptions(EditorInfo.IME_ACTION_SEARCH | EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING
                 | EditorInfo.IME_FLAG_NO_EXTRACT_UI);
-        search.setMinHeight(Ui.dp(panel.activity, 48));
-        search.setTextColor(panel.activity.getColor(R.color.ink));
-        search.setHintTextColor(panel.activity.getColor(R.color.muted));
-        search.setBackgroundResource(R.drawable.profile_input);
+        Ui.styleDialogInput(panel.activity, search);
         Ui.pad(search, 12, 8);
         LinearLayout.LayoutParams field = new LinearLayout.LayoutParams(-1, -2);
         field.setMargins(0, Ui.dp(panel.activity, 8), 0, Ui.dp(panel.activity, 8));

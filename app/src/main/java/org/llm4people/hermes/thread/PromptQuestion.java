@@ -87,10 +87,8 @@ final class PromptQuestion {
                 | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
         input.setImeOptions(EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING | EditorInfo.IME_FLAG_NO_EXTRACT_UI);
         input.setMaxLines(4);
-        input.setMinimumHeight(Ui.dp(card.getContext(), 48));
+        Ui.styleDialogInput(card.getContext(), input);
         input.setTextSize(17);
-        input.setTextColor(card.getContext().getColor(R.color.ink));
-        input.setHintTextColor(card.getContext().getColor(R.color.muted));
         input.setBackground(null);
         Ui.pad(input, 12, 9);
         voice = card.ui.voice.bind(input);
