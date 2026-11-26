@@ -492,11 +492,7 @@ public final class FirstRunWizard {
         Ui.pad(box, 20, 8);
         EditText input = new EditText(activity);
         input.setHint(R.string.onboarding_paste_card_hint);
-        input.setTextColor(activity.getColor(R.color.ink));
-        input.setHintTextColor(activity.getColor(R.color.muted));
-        input.setBackgroundResource(R.drawable.profile_input);
-        input.setBackgroundTintList(null);
-        input.setMinimumHeight(Ui.dp(activity, 48));
+        Ui.styleDialogInput(activity, input);
         input.setMinLines(2);
         input.setMaxLines(4);
         input.setSaveEnabled(false);
@@ -646,15 +642,8 @@ public final class FirstRunWizard {
         // Language selector
         String[] selectedLang = {AppLanguage.readMode(activity).wire};
         body.addView(sectionLabel(activity, R.string.onboarding_language_label), topMargin(activity, 14));
-        body.addView(ProfileScreen.choiceRow(activity,
-                new String[]{
-                        activity.getString(R.string.onboarding_language_auto),
-                        activity.getString(R.string.onboarding_language_en),
-                        activity.getString(R.string.onboarding_language_fr)
-                },
-                new String[]{"auto", "en", "fr"},
-                selectedLang[0],
-                val -> selectedLang[0] = val), topMargin(activity, 6));
+        body.addView(ProfileScreen.languageChoiceRow(activity, selectedLang[0], val -> selectedLang[0] = val),
+                topMargin(activity, 6));
 
         // Theme selector (staged locally until Finish/Starter commit so tapping chips never recreates mid-dialog)
         String initialTheme = AppThemeMode.readMode(activity);

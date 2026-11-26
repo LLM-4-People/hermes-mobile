@@ -188,7 +188,10 @@ public final class PermissionsPanel {
         }
         PermissionCenter.Summary summary = PermissionCenter.summarizeStates(states);
         if (summaryText != null) {
-            summaryText.setText(formatSummary(activity, summary));
+            String next = formatSummary(activity, summary);
+            if (!next.contentEquals(summaryText.getText())) {
+                summaryText.setText(next);
+            }
         }
         cardsContainer.removeAllViews();
         for (Map.Entry<PermissionCenter.Key, PermissionCenter.State> entry : states.entrySet()) {

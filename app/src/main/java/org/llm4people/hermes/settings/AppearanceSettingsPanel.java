@@ -286,10 +286,7 @@ public final class AppearanceSettingsPanel {
         hexInput.setSaveEnabled(false);
         hexInput.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO);
         hexInput.setHint(R.string.appearance_custom_hex_hint);
-        hexInput.setTextColor(activity.getColor(R.color.ink));
-        hexInput.setHintTextColor(activity.getColor(R.color.muted));
-        hexInput.setBackgroundResource(R.drawable.profile_input);
-        hexInput.setBackgroundTintList(null);
+        Ui.styleDialogInput(activity, hexInput);
         hexInput.setMinHeight(Ui.dp(activity, 48));
         Ui.pad(hexInput, 12, 9);
         card.addView(hexInput, new LinearLayout.LayoutParams(-1, -2));
@@ -378,8 +375,11 @@ public final class AppearanceSettingsPanel {
         Locale locale = AppLanguage.resolvedLocale(activity);
         if (!eval.validSyntax()) {
             hexContrastPill.setVisibility(View.GONE);
-            hexErrorText.setVisibility(showInvalidSyntax || trimmed.length() >= 7 ? View.VISIBLE : View.GONE);
-            hexErrorText.setText(R.string.appearance_hex_invalid);
+            if (showInvalidSyntax || trimmed.length() >= 7) {
+                showHexError(R.string.appearance_hex_invalid);
+            } else {
+                hexErrorText.setVisibility(View.GONE);
+            }
             hexApplyBtn.setEnabled(false);
             return;
         }
@@ -395,9 +395,19 @@ public final class AppearanceSettingsPanel {
             hexContrastPill.setText(activity.getString(R.string.appearance_contrast_fail, ratio));
             hexContrastPill.setTextColor(activity.getColor(R.color.danger));
             hexContrastPill.setBackground(Ui.shape(activity, 999, R.color.danger_surface, 0, 0));
-            hexErrorText.setVisibility(View.VISIBLE);
-            hexErrorText.setText(R.string.appearance_hex_low_contrast);
+            showHexError(R.string.appearance_hex_low_contrast);
             hexApplyBtn.setEnabled(false);
+        }
+    }
+
+    private void showHexError(int msgRes) {
+        String next = activity.getString(msgRes);
+        boolean wasVisible = hexErrorText.getVisibility() == View.VISIBLE;
+        if (!wasVisible) {
+            hexErrorText.setVisibility(View.VISIBLE);
+        }
+        if (!wasVisible || !next.contentEquals(hexErrorText.getText())) {
+            hexErrorText.setText(next);
         }
     }
 
@@ -488,10 +498,7 @@ public final class AppearanceSettingsPanel {
         greetingInput.setSaveEnabled(false);
         greetingInput.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO);
         greetingInput.setHint(R.string.appearance_greeting_hint);
-        greetingInput.setTextColor(activity.getColor(R.color.ink));
-        greetingInput.setHintTextColor(activity.getColor(R.color.muted));
-        greetingInput.setBackgroundResource(R.drawable.profile_input);
-        greetingInput.setBackgroundTintList(null);
+        Ui.styleDialogInput(activity, greetingInput);
         greetingInput.setMinHeight(Ui.dp(activity, 48));
         Ui.pad(greetingInput, 12, 9);
         card.addView(greetingInput, new LinearLayout.LayoutParams(-1, -2));
@@ -618,14 +625,11 @@ public final class AppearanceSettingsPanel {
                 | EditorInfo.IME_FLAG_NO_EXTRACT_UI
                 | EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING);
         labelInput.setHint(R.string.appearance_shortcut_label_hint);
-        labelInput.setTextColor(activity.getColor(R.color.ink));
-        labelInput.setHintTextColor(activity.getColor(R.color.muted));
         labelInput.setFilters(new InputFilter[]{new InputFilter.LengthFilter(AppCustomization.MAX_SHORTCUT_LABEL_CHARS)});
         labelInput.setSaveEnabled(false);
         labelInput.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO);
+        Ui.styleDialogInput(activity, labelInput);
         labelInput.setMinHeight(Ui.dp(activity, 48));
-        labelInput.setBackgroundResource(R.drawable.profile_input);
-        labelInput.setBackgroundTintList(null);
         Ui.pad(labelInput, 12, 9);
         form.addView(labelInput, new LinearLayout.LayoutParams(-1, -2));
 
@@ -639,14 +643,11 @@ public final class AppearanceSettingsPanel {
                 | EditorInfo.IME_FLAG_NO_EXTRACT_UI
                 | EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING);
         draftInput.setHint(R.string.appearance_shortcut_draft_hint);
-        draftInput.setTextColor(activity.getColor(R.color.ink));
-        draftInput.setHintTextColor(activity.getColor(R.color.muted));
         draftInput.setFilters(new InputFilter[]{new InputFilter.LengthFilter(AppCustomization.MAX_SHORTCUT_DRAFT_CHARS)});
         draftInput.setSaveEnabled(false);
         draftInput.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO);
+        Ui.styleDialogInput(activity, draftInput);
         draftInput.setMinHeight(Ui.dp(activity, 64));
-        draftInput.setBackgroundResource(R.drawable.profile_input);
-        draftInput.setBackgroundTintList(null);
         Ui.pad(draftInput, 12, 9);
         LinearLayout.LayoutParams dLp = new LinearLayout.LayoutParams(-1, -2);
         dLp.topMargin = Ui.dp(activity, 10);
