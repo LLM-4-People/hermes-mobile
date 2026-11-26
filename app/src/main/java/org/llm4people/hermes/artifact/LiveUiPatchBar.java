@@ -144,10 +144,6 @@ public final class LiveUiPatchBar extends LinearLayout {
         setVisibility(GONE);
     }
 
-    public void clear() {
-        showReverted();
-    }
-
     public LiveUiPatch pendingPatch() { return pending; }
 
     private void applyCurrent() {
@@ -162,10 +158,10 @@ public final class LiveUiPatchBar extends LinearLayout {
             listener.onRollback(rev);
         } else if (pending != null) {
             LiveUiPatch dismissed = pending;
-            clear();
+            showReverted();
             listener.onDismiss(dismissed);
         } else {
-            clear();
+            showReverted();
         }
     }
 
@@ -248,13 +244,6 @@ public final class LiveUiPatchBar extends LinearLayout {
     public static View quickActionStrip(Context context, List<LiveUiPatch.QuickAction> actions,
                                         ThemePalette palette,
                                         java.util.function.Consumer<String> stageDraft,
-                                        java.util.function.Consumer<String> openSurface) {
-        return quickActionStrip(context, actions, palette, stageDraft, openSurface, null);
-    }
-
-    public static View quickActionStrip(Context context, List<LiveUiPatch.QuickAction> actions,
-                                        ThemePalette palette,
-                                        java.util.function.Consumer<String> stageDraft,
                                         java.util.function.Consumer<String> openSurface,
                                         java.util.function.Consumer<String> openAction) {
         HorizontalScrollView scroll = new HorizontalScrollView(context);
@@ -302,14 +291,6 @@ public final class LiveUiPatchBar extends LinearLayout {
      * Renders optional contextual "Actions rapides suggérées" chips below a Hermes reply.
      * Every chip is 1-tap safe (stages an editable draft, opens a surface, opens a native panel, or pins a widget — never auto-sends).
      */
-    public static View suggestedActionsStrip(Context context, List<LiveUiPatch.SuggestedAction> suggestions,
-                                             ThemePalette palette,
-                                             java.util.function.Consumer<String> stageDraft,
-                                             java.util.function.Consumer<String> openSurface,
-                                             java.util.function.Consumer<String> openAction) {
-        return suggestedActionsStrip(context, suggestions, palette, stageDraft, openSurface, openAction, null);
-    }
-
     public static View suggestedActionsStrip(Context context, List<LiveUiPatch.SuggestedAction> suggestions,
                                              ThemePalette palette,
                                              java.util.function.Consumer<String> stageDraft,

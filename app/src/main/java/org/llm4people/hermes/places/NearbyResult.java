@@ -9,7 +9,7 @@ import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.HermesConfig;
 import org.llm4people.hermes.R;
-import org.llm4people.hermes.VisibleText;
+import org.llm4people.hermes.PlainTextSanitizer;
 
 import java.time.DateTimeException;
 import java.time.Instant;
@@ -189,7 +189,7 @@ public final class NearbyResult {
 
     private static String label(Object value, int maxCodePoints) {
         if (!(value instanceof String text) || text.codePointCount(0, text.length()) > maxCodePoints
-                || VisibleText.isBlank(text)) return "";
+                || !PlainTextSanitizer.hasVisibleText(text)) return "";
         for (int i = 0; i < text.length();) {
             int cp = text.codePointAt(i), type = Character.getType(cp);
             if (Character.isISOControl(cp) || type == Character.SURROGATE || type == Character.LINE_SEPARATOR
@@ -232,7 +232,7 @@ public final class NearbyResult {
         Set<String> labels = new LinkedHashSet<>();
         for (String part : value.split(";")) {
             String name = part.trim();
-            if (VisibleText.isBlank(name)) continue;
+            if (!PlainTextSanitizer.hasVisibleText(name)) continue;
             int res = cuisineLabelRes(name);
             String resolved = res != 0 && strings != null ? strings.apply(res) : name;
             labels.add(resolved == null || resolved.isEmpty() ? name : resolved);

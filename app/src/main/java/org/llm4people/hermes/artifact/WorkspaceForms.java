@@ -21,7 +21,7 @@ import java.util.Map;
 import java.util.function.Supplier;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
-import org.llm4people.hermes.VisibleText;
+import org.llm4people.hermes.PlainTextSanitizer;
 
 final class WorkspaceForms {
     static void mount(LinearLayout group, WorkspaceLayout.Block form, ThemePalette palette,
@@ -154,7 +154,7 @@ final class WorkspaceForms {
         if (dialog != null) dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
             if (!dialog.isShowing()) return;
             String text = edit.getText().toString();
-            if (VisibleText.isBlank(text)) { edit.setError(a.getString(R.string.ws_form_enter_message)); return; }
+            if (!PlainTextSanitizer.hasVisibleText(text)) { edit.setError(a.getString(R.string.ws_form_enter_message)); return; }
             DeskDialogs.navigate(a, () -> host.stageDraft(text));
         });
     }

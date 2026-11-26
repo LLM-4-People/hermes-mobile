@@ -40,10 +40,6 @@ public final class MessageParts {
         return source.text == null ? null : source.text.toString();
     }
 
-    public static String project(JSONObject row, Map<Integer,String> verified, IntFunction<String> description) {
-        return project(row, verified, description, DEFAULT_IMAGE_MARKER);
-    }
-
     public static String project(JSONObject row, Map<Integer,String> verified, IntFunction<String> description,
             Context context) {
         return project(row, verified, description, imageMarker(context));

@@ -12,7 +12,7 @@ import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.MainActivity;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
-import org.llm4people.hermes.VisibleText;
+import org.llm4people.hermes.PlainTextSanitizer;
 import org.llm4people.hermes.profile.IncomingShare;
 import org.llm4people.hermes.settings.AppThemeMode;
 
@@ -108,7 +108,7 @@ public final class ShareTextActivity extends Activity {
         if (input == null || input.length() == 0 || input.length() > IncomingShare.MAX_TEXT)
             throw new IllegalArgumentException();
         String text = input.toString();
-        if (text.length() > IncomingShare.MAX_TEXT || VisibleText.isBlank(text)) throw new IllegalArgumentException();
+        if (text.length() > IncomingShare.MAX_TEXT || !PlainTextSanitizer.hasVisibleText(text)) throw new IllegalArgumentException();
         for (int i = 0; i < text.length();) {
             int cp = text.codePointAt(i);
             if (Character.isISOControl(cp) && cp != '\n' && cp != '\r' && cp != '\t'

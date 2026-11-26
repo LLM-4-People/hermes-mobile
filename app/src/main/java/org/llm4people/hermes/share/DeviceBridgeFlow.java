@@ -13,7 +13,6 @@ import org.llm4people.hermes.JsonValues;
 import org.llm4people.hermes.PlainTextSanitizer;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
-import org.llm4people.hermes.VisibleText;
 import org.llm4people.hermes.ambient.AmbientNotification;
 import org.llm4people.hermes.ambient.CalendarContextReader;
 import org.llm4people.hermes.ambient.HermesNotificationListener;
@@ -738,7 +737,7 @@ public final class DeviceBridgeFlow {
             once.finish(Status.UNAVAILABLE, null);
             return;
         }
-        String reasonText = VisibleText.isBlank(request.reason())
+        String reasonText = !PlainTextSanitizer.hasVisibleText(request.reason())
                 ? defaultReason(activity, request.actionType()) : request.reason();
         String paramPreview = formatParamPreview(activity, request);
         String detailText = paramPreview.isEmpty() ? reasonText : reasonText + "\n\n" + paramPreview;

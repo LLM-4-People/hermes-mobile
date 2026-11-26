@@ -29,7 +29,7 @@ public class DeviceReviewTest extends InstrumentationTestCase {
                     DeviceActionContractTest.EVENT.replace("Réunion ☕", title)));
             runTestOnUiThread(() -> {
                 LinearLayout page = Ui.column(context);
-                WorkspaceBlocks.add(page, layout, layout.blocks.get(0), null, new WorkspaceTestHost());
+                WorkspaceBlocks.add(page, layout, layout.blocks.get(0), null, null, "", null, new WorkspaceTestHost());
                 int width = Ui.dp(context, 230);
                 page.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
                         View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
@@ -82,7 +82,7 @@ public class DeviceReviewTest extends InstrumentationTestCase {
                 draft[0] = new EditText(activity);
                 draft[0].setText("Brouillon privé");
                 root.addView(draft[0]);
-                View page = InstrumentPreview.render(activity, DeviceActionContractTest.page(REQUEST), host);
+                View page = InstrumentPreview.render(activity, DeviceActionContractTest.page(REQUEST), host, null, "thread");
                 root.addView(page);
                 activity.setContentView(root);
             });

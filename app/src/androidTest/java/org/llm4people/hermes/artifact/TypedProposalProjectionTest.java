@@ -15,7 +15,8 @@ public final class TypedProposalProjectionTest extends TestCase {
         return new JSONObject().put("role", "assistant").put("content", new JSONArray(java.util.Arrays.asList(parts)));
     }
     private static String project(JSONObject row, String label) {
-        return MessageParts.project(row, Collections.singletonMap(0, RAW), ignored -> label);
+        return MessageParts.project(row, Collections.singletonMap(0, RAW), ignored -> label,
+                MessageParts.DEFAULT_IMAGE_MARKER);
     }
 
     public void testInputWithEqualFenceIsPreservedAlongsideOrdinaryCodeAndImages() throws Exception {
@@ -49,10 +50,10 @@ public final class TypedProposalProjectionTest extends TestCase {
         JSONObject row = row(part("text", code), part("input_text", "Extrait"), part("output_text", FENCE),
                 part("output_text", code));
         assertEquals(code + "\nExtrait\n" + code,
-                MessageParts.project(row, Collections.singletonMap(1, RAW), i -> ""));
+                MessageParts.project(row, Collections.singletonMap(1, RAW), i -> "", MessageParts.DEFAULT_IMAGE_MARKER));
         assertEquals(MessageParts.display(row), project(row, ""));
         row.put("role", "user");
         assertEquals(MessageParts.display(row),
-                MessageParts.project(row, Collections.singletonMap(1, RAW), i -> ""));
+                MessageParts.project(row, Collections.singletonMap(1, RAW), i -> "", MessageParts.DEFAULT_IMAGE_MARKER));
     }
 }

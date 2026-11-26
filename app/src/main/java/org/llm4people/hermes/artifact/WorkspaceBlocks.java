@@ -16,11 +16,6 @@ import org.llm4people.hermes.Ui;
 /** Renders only local components and invokes the host's typed operations after a user gesture. */
 final class WorkspaceBlocks {
     static void add(LinearLayout parent, WorkspaceLayout layout, WorkspaceLayout.Block block,
-                    Activity activity, ArtifactDesk.Host host) {
-        add(parent, layout, block, null, null, "", activity, host);
-    }
-
-    static void add(LinearLayout parent, WorkspaceLayout layout, WorkspaceLayout.Block block,
                     ThemePalette palette, InstrumentStateStore stateStore, String stateScope,
                     Activity activity, ArtifactDesk.Host host) {
         Context c = parent.getContext();

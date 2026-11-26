@@ -10,7 +10,7 @@ import android.util.JsonReader;
 import android.util.JsonToken;
 import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.R;
-import org.llm4people.hermes.VisibleText;
+import org.llm4people.hermes.PlainTextSanitizer;
 import org.llm4people.hermes.places.NearbyResult;
 
 import java.io.IOException;
@@ -315,7 +315,7 @@ public sealed interface DeviceAction {
             };
             require(!values.containsKey(key) && in.peek() == JsonToken.STRING);
             String value = in.nextString();
-            require(value.length() <= max && !VisibleText.isBlank(value));
+            require(value.length() <= max && PlainTextSanitizer.hasVisibleText(value));
             boolean multiline = "text".equals(key) || "message".equals(key) || "body".equals(key);
             require(value.codePoints().allMatch(cp -> displayable(cp) || (multiline && cp == '\n')));
             values.put(key, value);

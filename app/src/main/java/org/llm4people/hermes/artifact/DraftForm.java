@@ -2,7 +2,7 @@ package org.llm4people.hermes.artifact;
 
 import android.util.JsonReader;
 import android.util.JsonToken;
-import org.llm4people.hermes.VisibleText;
+import org.llm4people.hermes.PlainTextSanitizer;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -68,7 +68,7 @@ final class DraftForm {
         for (Field f : form.fields) {
             String answer = inputs.get(f.id);
             answer = answer == null ? "" : answer.trim();
-            if (VisibleText.isBlank(answer)) {
+            if (!PlainTextSanitizer.hasVisibleText(answer)) {
                 if (f.required) throw new MissingAnswer(f);
                 continue;
             }
