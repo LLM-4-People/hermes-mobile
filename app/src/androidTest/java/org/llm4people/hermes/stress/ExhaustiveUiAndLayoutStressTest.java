@@ -204,9 +204,10 @@ public final class ExhaustiveUiAndLayoutStressTest extends InstrumentationTestCa
                     exercisePanel("Skills", () -> {
                         try {
                             Class<?> sb = Class.forName("org.llm4people.hermes.panel.SkillBrowser");
+                            Class<?> settingsClass = Class.forName("org.llm4people.hermes.panel.SessionSettings");
                             java.lang.reflect.Constructor<?> ctor = sb.getDeclaredConstructor(
                                     SessionPanel.class, java.util.function.BooleanSupplier.class,
-                                    java.util.function.Consumer.class, Runnable.class);
+                                    java.util.function.Consumer.class, settingsClass);
                             ctor.setAccessible(true);
                             Object browser = ctor.newInstance(
                                     panel,
