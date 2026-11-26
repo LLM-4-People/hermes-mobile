@@ -24,38 +24,14 @@ public final class DeviceBridgeCapabilitiesTest {
             "notifications_digest", "notification_reply", "media_control", "calendar_read");
 
     @Test
-    public void advertisedCapabilitiesStrictlyMatchForkPr15Allowlist() {
-        List<String> full = DeviceBridgeFlow.advertisedCapabilities(true, true, true, true);
-        for (String cap : full) {
-            assertTrue("Non-allowlisted capability would trigger HTTP 400: " + cap,
-                    FORK_PR18_ALLOWLIST.contains(cap));
-        }
-        assertTrue(full.contains("camera"));
-        assertTrue(full.contains("location_coarse"));
-        assertTrue(full.contains("nearby_osm"));
-        assertTrue(full.contains("alarm_timer"));
-        assertTrue(full.contains("maps_handoff"));
-        assertTrue(full.contains("calendar_draft"));
-        assertTrue(full.contains("dial_draft"));
-        assertTrue(full.contains("email_draft"));
-        assertTrue(full.contains("contacts_pick"));
-        assertTrue(full.contains("ui_surfaces_v2"));
-        assertFalse(full.contains("map_navigation"));
-        assertFalse(full.contains("clipboard_write"));
-        assertFalse(full.contains("sms_draft"));
-        assertFalse(full.contains("contact_draft"));
-
-        List<String> minimal = DeviceBridgeFlow.advertisedCapabilities(false, false, false, false);
-        assertFalse(minimal.contains("camera"));
-        assertFalse(minimal.contains("location_coarse"));
-        assertFalse(minimal.contains("nearby_osm"));
-        assertFalse(minimal.contains("alarm_timer"));
-        assertFalse(minimal.contains("maps_handoff"));
-
-        List<String> executable = DeviceBridgeFlow.executableCapabilities(true, true, true);
+    public void executableCapabilitiesStrictlyMatchAllowlistAndFailClosed() {
+        PresencePolicy defaults = PresencePolicy.defaults();
+        List<String> deepDefaults = DeviceBridgeFlow.deepExecutableCapabilities(defaults);
+        List<String> executable = DeviceBridgeFlow.executableCapabilities(
+                true, true, true, NotificationAllowlist.Settings.ALL_OFF, false, false, false, defaults);
         for (String cap : executable) {
-            assertTrue("Executable capability must be in Fork PR #18 allowlist: " + cap,
-                    FORK_PR18_ALLOWLIST.contains(cap));
+            assertTrue("Executable capability must be in Fork PR #18 or deep allowlist: " + cap,
+                    FORK_PR18_ALLOWLIST.contains(cap) || deepDefaults.contains(cap));
         }
         assertTrue(executable.contains("calendar_draft"));
         assertTrue(executable.contains("alarm_timer"));
@@ -74,8 +50,13 @@ public final class DeviceBridgeCapabilitiesTest {
         assertFalse(executable.contains("notification_reply"));
         assertFalse(executable.contains("media_control"));
         assertFalse(executable.contains("calendar_read"));
+        assertFalse(executable.contains("map_navigation"));
+        assertFalse(executable.contains("clipboard_write"));
+        assertFalse(executable.contains("sms_draft"));
+        assertFalse(executable.contains("contact_draft"));
 
-        List<String> restricted = DeviceBridgeFlow.executableCapabilities(false, false, false);
+        List<String> restricted = DeviceBridgeFlow.executableCapabilities(
+                false, false, false, NotificationAllowlist.Settings.ALL_OFF, false, false, false, defaults);
         assertFalse(restricted.contains("maps_handoff"));
         assertFalse(restricted.contains("alarm_timer"));
         assertFalse(restricted.contains("clipboard_read"));

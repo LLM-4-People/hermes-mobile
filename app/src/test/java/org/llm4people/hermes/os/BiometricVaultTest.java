@@ -243,4 +243,58 @@ public class BiometricVaultTest {
         assertEquals("Late withOnCancel on cancelled-then-markSettled session must still run once",
                 1, raceLateHooks[0]);
     }
+
+    @Test public void enrollmentAttemptTrailingCancelAndErrorAfterSuccessNeverDeleteCommittedAlias() {
+        byte[] payloadCopy = new byte[]{10, 20, 30, 40};
+        int[] deletes = {0};
+        int[] settledMarks = {0};
+        BiometricVault.EnrollmentAttempt attempt = new BiometricVault.EnrollmentAttempt(
+                payloadCopy, () -> deletes[0]++, () -> settledMarks[0]++);
+
+        // Authentication succeeds first and claims settlement.
+        assertTrue(attempt.claimSuccess(false));
+        assertEquals(1, settledMarks[0]);
+        assertEquals("Winning success must not delete staging alias", 0, deletes[0]);
+        assertArrayEquals("Payload remains intact until caller finishes sealing", new byte[]{10, 20, 30, 40}, payloadCopy);
+
+        // Trailing negative-button cancel, framework onAuthenticationError, session.cancel(), and duplicate success
+        // must all lose the CAS and leave the committed alias untouched.
+        assertFalse(attempt.settleAborted(true));
+        assertFalse(attempt.settleAborted(false));
+        assertFalse(attempt.claimSuccess(false));
+        assertFalse(attempt.claimSuccess(true));
+        assertEquals("Trailing cancel/error after commit must never delete committed alias", 0, deletes[0]);
+        assertEquals(1, settledMarks[0]);
+    }
+
+    @Test public void enrollmentAttemptAbortBeforeSuccessWipesPayloadDeletesStagingKeyOnceAndBlocksLateSuccess() {
+        byte[] payloadCopy = new byte[]{1, 2, 3, 4};
+        int[] deletes = {0};
+        int[] settledMarks = {0};
+        BiometricVault.EnrollmentAttempt attempt = new BiometricVault.EnrollmentAttempt(
+                payloadCopy, () -> deletes[0]++, () -> settledMarks[0]++);
+
+        assertTrue(attempt.settleAborted(true));
+        assertArrayEquals(new byte[4], payloadCopy);
+        assertEquals(1, deletes[0]);
+        assertEquals(1, settledMarks[0]);
+
+        // Late success or duplicate abort must be ignored without re-deleting.
+        assertFalse(attempt.claimSuccess(false));
+        assertFalse(attempt.settleAborted(false));
+        assertEquals(1, deletes[0]);
+
+        // Externally canceled session arriving in onAuthenticationSucceeded still cleans up staging key once.
+        byte[] canceledPayload = new byte[]{9, 8, 7};
+        int[] canceledDeletes = {0};
+        int[] canceledMarks = {0};
+        BiometricVault.EnrollmentAttempt canceledAttempt = new BiometricVault.EnrollmentAttempt(
+                canceledPayload, () -> canceledDeletes[0]++, () -> canceledMarks[0]++);
+        assertFalse(canceledAttempt.claimSuccess(true));
+        assertArrayEquals(new byte[3], canceledPayload);
+        assertEquals(1, canceledDeletes[0]);
+        assertEquals(0, canceledMarks[0]);
+        assertFalse(canceledAttempt.settleAborted(true));
+        assertEquals(1, canceledDeletes[0]);
+    }
 }

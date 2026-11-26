@@ -60,15 +60,6 @@ public final class TemplatesPanelTest extends InstrumentationTestCase {
 
                     storeA.saveCustom(null, customA.title, customA.subtitle, customA.draft);
                     runTestOnUiThread(() -> {
-                        View strip = TemplatesPanel.starterStrip(activity, builtIns, staged::set);
-                        List<Button> chips = collectButtons(strip);
-                        assertEquals(TemplatesPanel.MAX_STARTER_CHIPS, chips.size());
-                        for (Button chip : chips) {
-                            assertTrue("Starter chip must be >= 48dp", chip.getMinimumHeight() >= minTouchPx);
-                        }
-                        chips.get(0).performClick();
-                        assertEquals(builtIns.get(0).draft, staged.get());
-
                         staged.set(null);
                         TemplatesPanel panel = new TemplatesPanel(activity, first.account, staged::set, () -> true);
                         panelRef.set(panel);

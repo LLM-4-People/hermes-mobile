@@ -52,8 +52,6 @@ public final class CalendarContextReader {
         }
     }
 
-    public record FreeSlot(long startMillis, long endMillis) {}
-
     private CalendarContextReader() {}
 
     public static boolean hasPermission(Context context) {
@@ -88,35 +86,6 @@ public final class CalendarContextReader {
             filtered = new ArrayList<>(filtered.subList(0, cap));
         }
         return Collections.unmodifiableList(filtered);
-    }
-
-    /** Compute non-overlapping free slots of at least {@code minSlotMillis} across timed events. */
-    public static List<FreeSlot> computeFreeSlots(
-            long windowStartMillis, long windowEndMillis, List<AgendaEvent> events, long minSlotMillis) {
-        if (windowEndMillis <= windowStartMillis || minSlotMillis <= 0) return Collections.emptyList();
-        List<AgendaEvent> timed = new ArrayList<>();
-        if (events != null) {
-            for (AgendaEvent e : events) {
-                if (e != null && !e.allDay() && e.endMillis() > windowStartMillis && e.startMillis() < windowEndMillis) {
-                    timed.add(e);
-                }
-            }
-        }
-        timed.sort(Comparator.comparingLong(AgendaEvent::startMillis).thenComparingLong(AgendaEvent::endMillis));
-        List<FreeSlot> slots = new ArrayList<>();
-        long cursor = windowStartMillis;
-        for (AgendaEvent e : timed) {
-            long start = Math.max(windowStartMillis, e.startMillis());
-            long end = Math.min(windowEndMillis, e.endMillis());
-            if (start - cursor >= minSlotMillis) {
-                slots.add(new FreeSlot(cursor, start));
-            }
-            if (end > cursor) cursor = end;
-        }
-        if (windowEndMillis - cursor >= minSlotMillis) {
-            slots.add(new FreeSlot(cursor, windowEndMillis));
-        }
-        return Collections.unmodifiableList(slots);
     }
 
     /** Read bounded upcoming events only when the profile opted in AND Android READ_CALENDAR is granted. */

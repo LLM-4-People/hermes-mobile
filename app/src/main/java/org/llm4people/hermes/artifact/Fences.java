@@ -79,11 +79,6 @@ public final class Fences {
         });
     }
 
-    /** Redact the exact verified bodies of a scalar text message. */
-    public static String without(String text, Map<Integer,String> proposals) {
-        return described(text, proposals, ignored -> "");
-    }
-
     /** Substitute a spoken description at each verified source, preserving the order of the authored reply. */
     public static String described(String text, Map<Integer,String> proposals, IntFunction<String> description) {
         if (proposals.isEmpty() || text.length() > ArtifactCatalog.MAX_MESSAGE_CHARS) return text;

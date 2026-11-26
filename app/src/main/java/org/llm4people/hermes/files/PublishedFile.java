@@ -17,12 +17,8 @@ final class PublishedFile {
         this(threadPath, row, CapturedMedia.effectiveByteLimit(0L));
     }
 
-    static long effectiveBound(long maxBytes) {
-        return CapturedMedia.effectiveByteLimit(maxBytes);
-    }
-
     PublishedFile(String threadPath, JSONObject row, long maxBytes) throws JSONException, IOException {
-        long bound = effectiveBound(maxBytes);
+        long bound = CapturedMedia.effectiveByteLimit(maxBytes);
         String id = row.getString("id");
         name = row.getString("name");
         mime = row.getString("mime");
