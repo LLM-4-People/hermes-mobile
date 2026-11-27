@@ -50,8 +50,6 @@ public final class ReleaseVersionTest {
                 assertFalse(ordered[i] + " must not be newer than " + ordered[j], a.isNewerThan(b));
             }
         }
-        assertTrue(ReleaseVersion.parse("1.0.0-rc.1").isPreRelease());
-        assertFalse(ReleaseVersion.parse("1.0.0").isPreRelease());
     }
 
     @Test

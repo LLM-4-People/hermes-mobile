@@ -92,10 +92,6 @@ public final class ProfileDefaultsModel {
         return new Snapshot(selectedProvider, selectedModel, selectedEffort, selectedToolsets);
     }
 
-    public Snapshot savedSnapshot() {
-        return saved;
-    }
-
     public boolean isDirty() {
         return !saved.equals(currentSnapshot());
     }

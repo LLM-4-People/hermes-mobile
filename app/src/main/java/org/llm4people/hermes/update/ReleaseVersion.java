@@ -84,10 +84,6 @@ public final class ReleaseVersion implements Comparable<ReleaseVersion> {
         }
     }
 
-    public boolean isPreRelease() {
-        return !preRelease.isEmpty();
-    }
-
     public boolean isNewerThan(ReleaseVersion other) {
         return other != null && compareTo(other) > 0;
     }

@@ -45,10 +45,6 @@ public final class ModelCapabilityBadges {
             return new ModelInfo(id, id, 0, 0, false, false, false, Double.NaN, Double.NaN);
         }
 
-        public List<BadgeSpec> badgeSpecs(Locale locale) {
-            return ModelCapabilityBadges.badgeSpecsFor(this, locale);
-        }
-
         public List<String> badges(Context context) {
             return ModelCapabilityBadges.badgesFor(context, this);
         }

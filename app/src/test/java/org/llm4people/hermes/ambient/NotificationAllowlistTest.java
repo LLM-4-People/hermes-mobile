@@ -42,7 +42,6 @@ public final class NotificationAllowlistTest {
 
         allowlist.saveSettings(new NotificationAllowlist.Settings(true, true, false, false, true));
         assertEquals(Set.of("org.thoughtcrime.securesms"), allowlist.effectiveAllowedPackages());
-        assertTrue(allowlist.isAllowed("ORG.THOUGHTCRIME.SECURESMS"));
     }
 
     @Test

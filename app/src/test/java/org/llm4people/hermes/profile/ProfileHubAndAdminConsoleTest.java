@@ -15,6 +15,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.Assert.*;
@@ -238,5 +239,69 @@ public final class ProfileHubAndAdminConsoleTest {
         assertFalse(AdminConsoleSheet.shouldAnnounceUsersError(false, "Load failed", null));
         assertFalse(AdminConsoleSheet.shouldAnnounceUsersError(true, "", null));
         assertFalse(AdminConsoleSheet.shouldAnnounceUsersError(true, null, null));
+    }
+
+    @Test public void pairingSingleFlightBlocksRapidDoubleInvocationUntilFirstSettles() {
+        AtomicBoolean inFlight = new AtomicBoolean(false);
+        AtomicInteger submitted = new AtomicInteger(0);
+        AtomicInteger disabledCount = new AtomicInteger(0);
+        AtomicInteger rejectedCount = new AtomicInteger(0);
+        Runnable[] pendingTask = new Runnable[1];
+
+        // First tap acquires the single-flight lock and submits one IO task.
+        assertTrue(ProfileInviteDialogs.submitSingleFlight(
+                inFlight,
+                task -> {
+                    submitted.incrementAndGet();
+                    pendingTask[0] = task;
+                    return true;
+                },
+                disabledCount::incrementAndGet,
+                rejectedCount::incrementAndGet,
+                () -> inFlight.set(false)));
+        assertTrue(inFlight.get());
+        assertEquals(1, submitted.get());
+        assertEquals(1, disabledCount.get());
+        assertEquals(0, rejectedCount.get());
+
+        // Rapid second invocation while first is still in flight is dropped without submitting.
+        assertFalse(ProfileInviteDialogs.submitSingleFlight(
+                inFlight,
+                task -> {
+                    submitted.incrementAndGet();
+                    return true;
+                },
+                disabledCount::incrementAndGet,
+                rejectedCount::incrementAndGet,
+                () -> {}));
+        assertEquals(1, submitted.get());
+        assertEquals(1, disabledCount.get());
+
+        // Once the first request settles, a subsequent invocation is allowed.
+        pendingTask[0].run();
+        assertFalse(inFlight.get());
+        assertTrue(ProfileInviteDialogs.submitSingleFlight(
+                inFlight,
+                task -> {
+                    submitted.incrementAndGet();
+                    task.run();
+                    return true;
+                },
+                disabledCount::incrementAndGet,
+                rejectedCount::incrementAndGet,
+                () -> inFlight.set(false)));
+        assertEquals(2, submitted.get());
+        assertEquals(2, disabledCount.get());
+        assertFalse(inFlight.get());
+
+        // Rejected submitIo releases inFlight and invokes onRejected so the trigger re-enables.
+        assertFalse(ProfileInviteDialogs.submitSingleFlight(
+                inFlight,
+                task -> false,
+                disabledCount::incrementAndGet,
+                rejectedCount::incrementAndGet,
+                () -> {}));
+        assertFalse(inFlight.get());
+        assertEquals(1, rejectedCount.get());
     }
 }

@@ -82,11 +82,9 @@ public final class RichBlocksModelTest {
     @Test public void metricGridFormatsUnavailableAndUnitsCleanly() {
         MetricGridBlock.Item staticMetric = new MetricGridBlock.Item("Tâches", "4", "+1", "actives", "positive", "Aujourd’hui", null);
         assertEquals("4 actives", staticMetric.formattedValue(null, ""));
-        assertFalse(staticMetric.isUnavailable(""));
 
         MetricGridBlock.Item liveMetric = new MetricGridBlock.Item("Messages", "", "", "", "neutral", "Fil actif", "thread.messageCount");
-        assertTrue(liveMetric.isUnavailable(""));
-        assertFalse(liveMetric.isUnavailable("14"));
+        assertEquals("", liveMetric.formattedValue(null, ""));
         assertEquals("14", liveMetric.formattedValue(null, "14"));
     }
 

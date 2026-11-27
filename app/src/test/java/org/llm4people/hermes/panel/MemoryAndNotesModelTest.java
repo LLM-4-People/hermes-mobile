@@ -40,7 +40,6 @@ public final class MemoryAndNotesModelTest {
                 new MemoryModel.Entry("2", "Travaille en Java", false)), 40, 2000, true);
         assertEquals(1, bucket.filter("montreal").size());
         assertEquals("1", bucket.filter("montreal").get(0).id());
-        assertEquals(1960, bucket.remainingChars());
 
         assertEquals(R.string.ws_memory_err_conflict, MemoryModel.describeHttpErrorRes(409, "conflict"));
         assertEquals(R.string.ws_memory_err_secret, MemoryModel.describeHttpErrorRes(400, "secret_detected"));

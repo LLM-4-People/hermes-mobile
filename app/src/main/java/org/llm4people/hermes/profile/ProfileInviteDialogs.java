@@ -26,6 +26,7 @@ import org.llm4people.hermes.net.HermesApi;
 import org.llm4people.hermes.onboarding.OnboardingModels;
 
 import java.util.Locale;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -107,6 +108,26 @@ final class ProfileInviteDialogs {
         return field;
     }
 
+    /**
+     * Single-flight gate for async pairing requests: atomically acquires {@code inFlight}, runs
+     * {@code onAcquired} before dispatching {@code submitIo}, and rolls back both if submission is rejected.
+     */
+    static boolean submitSingleFlight(
+            AtomicBoolean inFlight,
+            Predicate<Runnable> submitIo,
+            Runnable onAcquired,
+            Runnable onRejected,
+            Runnable ioTask) {
+        if (!inFlight.compareAndSet(false, true)) return false;
+        if (onAcquired != null) onAcquired.run();
+        if (!submitIo.test(ioTask)) {
+            inFlight.set(false);
+            if (onRejected != null) onRejected.run();
+            return false;
+        }
+        return true;
+    }
+
     /** Creates a 5-minute device-pairing ticket for an existing profile slug and delivers it on {@code main}. */
     static void pairExistingProfileDevice(
             Activity activity,
@@ -115,31 +136,47 @@ final class ProfileInviteDialogs {
             Predicate<Runnable> submitIo,
             BooleanSupplier isClosed,
             BooleanSupplier canAct,
+            AtomicBoolean inFlight,
+            Button trigger,
             String slug,
             String diagTag,
             String diagFailureEvent,
             Consumer<OnboardingModels.PairingTicket> onTicketReady) {
         if (isClosed.getAsBoolean() || api.isRevoked()) return;
-        submitIo.test(() -> {
-            OnboardingModels.PairingTicket ticket = null;
-            try {
-                ticket = OnboardingModels.parsePairingTicket(api.inviteProfile(slug, buildDevicePairingRequest()));
-            } catch (Exception err) {
-                Diagnostics.warning(diagTag, diagFailureEvent);
-            }
-            OnboardingModels.PairingTicket created = ticket;
-            main.post(() -> {
-                if (isClosed.getAsBoolean() || !canAct.getAsBoolean()
-                        || activity.isFinishing() || activity.isDestroyed()) {
-                    return;
-                }
-                if (created == null) {
-                    Toast.makeText(activity, R.string.profile_hub_qr_unavailable, Toast.LENGTH_LONG).show();
-                    return;
-                }
-                onTicketReady.accept(created);
-            });
-        });
+        submitSingleFlight(
+                inFlight,
+                submitIo,
+                () -> {
+                    if (trigger != null) trigger.setEnabled(false);
+                },
+                () -> {
+                    if (trigger != null) trigger.setEnabled(true);
+                },
+                () -> {
+                    OnboardingModels.PairingTicket ticket = null;
+                    try {
+                        ticket = OnboardingModels.parsePairingTicket(
+                                api.inviteProfile(slug, buildDevicePairingRequest()));
+                    } catch (Exception err) {
+                        Diagnostics.warning(diagTag, diagFailureEvent);
+                    }
+                    OnboardingModels.PairingTicket created = ticket;
+                    if (!main.post(() -> {
+                        inFlight.set(false);
+                        if (trigger != null) trigger.setEnabled(true);
+                        if (isClosed.getAsBoolean() || !canAct.getAsBoolean()
+                                || activity.isFinishing() || activity.isDestroyed()) {
+                            return;
+                        }
+                        if (created == null) {
+                            Toast.makeText(activity, R.string.profile_hub_qr_unavailable, Toast.LENGTH_LONG).show();
+                            return;
+                        }
+                        onTicketReady.accept(created);
+                    })) {
+                        inFlight.set(false);
+                    }
+                });
     }
 
     /** Shows the shared "Create &amp; Invite User" dialog and delivers the resulting pairing ticket on {@code main}. */

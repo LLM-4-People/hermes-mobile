@@ -71,7 +71,7 @@ public final class UsageAndBadgesModelTest {
     public void modelCapabilityBadgesPreserveUnknownPricingAndFormatFriendlyLabels() {
         ModelCapabilityBadges.ModelInfo rich = new ModelCapabilityBadges.ModelInfo(
                 "claude-sonnet", "Claude Sonnet", 200_000, 8_192, true, true, true, 3.0, 15.0);
-        List<ModelCapabilityBadges.BadgeSpec> specs = rich.badgeSpecs(Locale.US);
+        List<ModelCapabilityBadges.BadgeSpec> specs = ModelCapabilityBadges.badgeSpecsFor(rich, Locale.US);
         assertTrue(specs.stream().anyMatch(b -> b.resId() == R.string.ws_badge_vision));
         assertTrue(specs.stream().anyMatch(b -> b.resId() == R.string.ws_badge_tools));
         assertTrue(specs.stream().anyMatch(b -> b.resId() == R.string.ws_badge_long_context && "200k".equals(b.args()[0])));
@@ -80,7 +80,7 @@ public final class UsageAndBadgesModelTest {
 
         ModelCapabilityBadges.ModelInfo minimal = ModelCapabilityBadges.ModelInfo.minimal("fake-model");
         ModelCapabilityBadges.ModelInfo minimalCopy = ModelCapabilityBadges.ModelInfo.minimal("fake-model");
-        assertTrue(minimal.badgeSpecs(Locale.US).isEmpty());
+        assertTrue(ModelCapabilityBadges.badgeSpecsFor(minimal, Locale.US).isEmpty());
         assertEquals("fake-model", minimal.toString());
         assertEquals(minimal, minimal);
         assertEquals(minimal, minimalCopy);
@@ -88,8 +88,9 @@ public final class UsageAndBadgesModelTest {
 
         ModelCapabilityBadges.ModelInfo freeModel = new ModelCapabilityBadges.ModelInfo(
                 "local-llama", "Local Llama", 32_000, 4_096, false, true, false, 0.0, 0.0);
-        assertTrue(freeModel.badgeSpecs(Locale.US).stream().anyMatch(b -> b.resId() == R.string.ws_badge_pricing_included));
-        assertTrue(freeModel.badgeSpecs(Locale.US).stream().anyMatch(b -> b.resId() == R.string.ws_badge_context && "32k".equals(b.args()[0])));
+        List<ModelCapabilityBadges.BadgeSpec> freeSpecs = ModelCapabilityBadges.badgeSpecsFor(freeModel, Locale.US);
+        assertTrue(freeSpecs.stream().anyMatch(b -> b.resId() == R.string.ws_badge_pricing_included));
+        assertTrue(freeSpecs.stream().anyMatch(b -> b.resId() == R.string.ws_badge_context && "32k".equals(b.args()[0])));
     }
 
     @Test

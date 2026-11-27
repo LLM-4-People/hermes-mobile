@@ -1,6 +1,7 @@
 package org.llm4people.hermes.share;
 
 import org.junit.Test;
+import org.llm4people.hermes.Digests;
 import org.llm4people.hermes.camera.CapturedMedia;
 
 import java.io.IOException;
@@ -19,7 +20,7 @@ public final class AttachmentUploaderTest {
                 "evil\"name.py",
                 "text/x-python",
                 content,
-                CapturedMedia.sha256Hex(content),
+                Digests.sha256Hex(content),
                 null);
 
         byte[] body = AttachmentUploader.buildMultipartBody("HermesBoundary1234", item);
@@ -32,7 +33,7 @@ public final class AttachmentUploaderTest {
         assertEquals("/api/sessions/session-42/uploads", AttachmentUploader.uploadPath("session-42"));
 
         CapturedMedia.Item unnamed = new CapturedMedia.Item(
-                CapturedMedia.Kind.DOCUMENT, "   ", "text/plain", content, CapturedMedia.sha256Hex(content), null);
+                CapturedMedia.Kind.DOCUMENT, "   ", "text/plain", content, Digests.sha256Hex(content), null);
         String unnamedBody = new String(
                 AttachmentUploader.buildMultipartBody("HermesBoundary5678", unnamed), StandardCharsets.UTF_8);
         assertTrue(unnamedBody.contains("filename=\"attachment\""));
@@ -42,7 +43,7 @@ public final class AttachmentUploaderTest {
     public void rejectsOversizedAttachmentsInvalidBoundariesAndTraversalPaths() {
         byte[] bytes = new byte[2048];
         CapturedMedia.Item item = new CapturedMedia.Item(
-                CapturedMedia.Kind.DOCUMENT, "notes.txt", "text/plain", bytes, CapturedMedia.sha256Hex(bytes), null);
+                CapturedMedia.Kind.DOCUMENT, "notes.txt", "text/plain", bytes, Digests.sha256Hex(bytes), null);
         try {
             AttachmentUploader.upload((p, b, body) -> null, "s1", item, 1024);
             fail("Expected oversized attachment rejection");

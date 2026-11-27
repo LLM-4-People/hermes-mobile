@@ -88,9 +88,9 @@ public final class CapturedMediaTest {
     @Test
     public void sha256HexMatchesStandardDigest() {
         assertEquals("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-                CapturedMedia.sha256Hex(new byte[0]));
+                org.llm4people.hermes.Digests.sha256Hex(new byte[0]));
         assertEquals("2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
-                CapturedMedia.sha256Hex("hello".getBytes(StandardCharsets.UTF_8)));
+                org.llm4people.hermes.Digests.sha256Hex("hello".getBytes(StandardCharsets.UTF_8)));
     }
 
     @Test

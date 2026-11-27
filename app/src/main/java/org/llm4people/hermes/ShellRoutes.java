@@ -23,10 +23,6 @@ public final class ShellRoutes {
         fallback = Objects.requireNonNull(handler);
     }
 
-    public boolean hasRoute(String route) {
-        return route != null && handlers.containsKey(route);
-    }
-
     public boolean render(String route, boolean force) {
         RouteHandler handler = route == null ? null : handlers.get(route);
         if (handler != null) {

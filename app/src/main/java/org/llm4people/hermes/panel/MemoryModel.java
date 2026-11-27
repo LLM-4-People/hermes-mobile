@@ -30,10 +30,6 @@ public final class MemoryModel {
             limit = limit <= 0 ? DEFAULT_CHAR_LIMIT : limit;
         }
 
-        public int remainingChars() {
-            return Math.max(0, limit - chars);
-        }
-
         public List<Entry> filter(String query) {
             if (query == null || query.trim().isEmpty()) return entries;
             String needle = PlainTextSanitizer.foldAccents(query.trim());

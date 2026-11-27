@@ -265,9 +265,10 @@ public final class LiveUiStateManagerTest {
 
         // Updating one control preserves all sibling keys on the shared surface.
         InteractiveControlsBlock.persistBoolean(stateStore, "atelier", "page/shared", "toggle_a", false);
-        assertFalse(stateStore.getBoolean("atelier", "page/shared", "toggle_a", true));
-        assertEquals(42.0, stateStore.getNumber("atelier", "page/shared", "slider_b", 0.0), 0.001);
-        assertEquals(List.of("Travail"), stateStore.getStringList("atelier", "page/shared", "chips_c", Collections.emptyList()));
+        Map<String, Object> loaded = stateStore.load("atelier", "page/shared");
+        assertEquals(Boolean.FALSE, loaded.get("toggle_a"));
+        assertEquals(42.0, ((Number) loaded.get("slider_b")).doubleValue(), 0.001);
+        assertEquals(List.of("Travail"), loaded.get("chips_c"));
     }
 
     @Test public void trimToSanitizesControlsBidiAndNeverSplitsSurrogatePairs() {

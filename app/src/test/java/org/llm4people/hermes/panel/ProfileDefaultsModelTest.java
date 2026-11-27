@@ -44,8 +44,8 @@ public final class ProfileDefaultsModelTest {
         assertEquals(3, model.enabledToolsetCount());
         model.markSaved(model.currentSnapshot());
         assertFalse(model.isDirty());
-        assertEquals("anthropic", model.savedSnapshot().provider());
-        assertTrue(model.savedSnapshot().enabledToolsets().contains("terminal"));
+        assertEquals("anthropic", model.currentSnapshot().provider());
+        assertTrue(model.currentSnapshot().enabledToolsets().contains("terminal"));
 
         // R22.5.1: Live-region transition guard silences initial load and unchanged full-render rebuilds.
         assertFalse(ProfileDefaultsPanel.shouldAnnounceTransition(null, "Saved"));
@@ -75,8 +75,8 @@ public final class ProfileDefaultsModelTest {
         // PATCH completes with the previously submitted snapshot: model MUST stay dirty!
         model.markSaved(submitted);
         assertTrue("In-flight edits made after PATCH submission must remain dirty", model.isDirty());
-        assertEquals("high", model.savedSnapshot().reasoningEffort());
-        assertFalse(model.savedSnapshot().enabledToolsets().contains("files"));
+        assertEquals("high", submitted.reasoningEffort());
+        assertFalse(submitted.enabledToolsets().contains("files"));
 
         // Null snapshot is safely ignored.
         model.markSaved(null);

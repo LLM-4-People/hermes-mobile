@@ -10,6 +10,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.llm4people.hermes.SecretPatterns;
@@ -223,13 +224,13 @@ public final class LiveUiAndSurfacesV2Test extends InstrumentationTestCase {
 
             try (Account reopenedA = profileA.reopen()) {
                 InstrumentStateStore restoredA = InstrumentStateStore.forAccount(reopenedA);
-                assertTrue(restoredA.getBoolean("atelier", "suivi_hebdo", "tests_ok", false));
-                assertEquals(90.0, restoredA.getNumber("atelier", "suivi_hebdo", "focus", 0), 0.001);
-                assertEquals(Arrays.asList("Travail", "Santé"),
-                        restoredA.getStringList("atelier", "suivi_hebdo", "categorie", Collections.emptyList()));
+                Map<String, Object> loadedA = restoredA.load("atelier", "suivi_hebdo");
+                assertEquals(Boolean.TRUE, loadedA.get("tests_ok"));
+                assertEquals(90.0, ((Number) loadedA.get("focus")).doubleValue(), 0.001);
+                assertEquals(Arrays.asList("Travail", "Santé"), loadedA.get("categorie"));
             }
-            assertFalse(InstrumentStateStore.forAccount(profileB.account)
-                    .getBoolean("atelier", "suivi_hebdo", "tests_ok", false));
+            assertTrue(InstrumentStateStore.forAccount(profileB.account)
+                    .load("atelier", "suivi_hebdo").isEmpty());
 
             // 1-tap rollback restores Profile A completely.
             mgrA.rollbackAllTo("rev-101");
