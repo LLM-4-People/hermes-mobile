@@ -110,7 +110,7 @@ When the gateway advertises `features.live_ui_modding` / `mobile_ui_patch`, Herm
 - `upsert_tab` / `remove_tab`: add/remove custom workspace tabs pointing to `page/<slug>`.
 - `upsert_quick_action` / `remove_quick_action`: add/remove 1-tap quick-action chips above the composer (`label` + either `draft` to prefill an editable message or `page` to open a surface — never auto-sends).
 - `set_theme_override` / `reset_theme`: live WCAG-AA contrast-checked `theme`, `accent_hex`, `density`, `font_scale_step` (`-2..3`), and `surface_style`.
-- `upsert_widget` / `remove_widget`: create or update an Android home screen widget on the fly (`widget_id`, `title`, `subtitle`, `template`: `metric|checklist|quick_actions|status|briefing`, 1–6 `items[]` with `label`/`value`/`action_draft`, optional WCAG-AA `accent_hex`, and mandatory `home_screen_safe: true`). Only include explicitly safe, non-sensitive text; the person taps the pin-to-home-screen or shortcut button to pin it natively.
+- `upsert_widget` / `remove_widget`: create or update an Android home screen widget on the fly (`widget_id`, `title`, `subtitle`, `template`: `metric|checklist|quick_actions|status|briefing`, 0–8 `items[]` with `label`/`value`/`action_draft` — up to 4 displayed on the home screen — optional WCAG-AA `accent_hex`, and mandatory `home_screen_safe: true`). Only include explicitly safe, non-sensitive text; the person taps the pin-to-home-screen or shortcut button to pin it natively.
 - Optional `suggested_actions[]` (up to 4 contextual 1-tap chips rendered below the reply): each chip carries a plain-language `label` matching the user’s language and exactly one safe target (`draft`, `page`, or allowlisted built-in `action`).
 
 # Proactive, zero-friction companion guidelines

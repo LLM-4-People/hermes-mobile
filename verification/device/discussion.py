@@ -4,21 +4,14 @@ import hashlib
 import json
 import secrets
 
-from .installed import installed_apk_sha256
+from .installed import verify_disposable_emulator_apks
 from .run import APP, DEVICE_DIR, DRIVER, Emulator, cleanup_all, collect_captures
 
 
 @contextmanager
 def discussion_device(args, gateway, **fields):
     device = Emulator(args.serial, args.adb, args.adb_port)
-    if device.shell("getprop", "ro.kernel.qemu") != "1" or DRIVER not in device.shell("pm", "list", "instrumentation"):
-        raise ValueError("Install the debug app and test APK on a disposable emulator")
-    installed = [installed_apk_sha256(device, pkg) for pkg in (APP, APP + ".test")]
-    if args.verify_apks:
-        for path, digest in zip(args.verify_apks, installed, strict=True):
-            with path.open("rb") as apk:
-                if hashlib.file_digest(apk, "sha256").hexdigest() != digest:
-                    raise ValueError("Installed artifact differs from " + path.name)
+    installed = verify_disposable_emulator_apks(device, DRIVER, APP, args.verify_apks)
     token = secrets.token_hex(5)
     folder = f"{DEVICE_DIR}/{token}"
     with device.reverse(gateway.endpoint) as endpoint, device.appearance():

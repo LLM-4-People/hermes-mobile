@@ -18,7 +18,7 @@ import tempfile
 
 from conversation_cards import admission
 from device.app_strings import AppStrings
-from device.installed import installed_apk_sha256
+from device.installed import verify_disposable_emulator_apks
 from device.run import APP, DEVICE_DIR, DRIVER, Emulator, android_png_size, cleanup_all, collect_captures
 from device.viewport import restore_display, set_viewport as _apply_viewport
 from gateway_fixture import Gateway, PINNED_REVISION, check_source
@@ -178,14 +178,7 @@ def viewport(device):
 def journey(args, gateway, *, device=None, create_request=CREATE):
     if device is None:
         device = Emulator(args.serial, args.adb, args.adb_port)
-    if device.shell("getprop", "ro.kernel.qemu") != "1" or DRIVER not in device.shell("pm", "list", "instrumentation"):
-        raise ValueError("Install the current app and androidTest APK on a disposable emulator")
-    hashes = [installed_apk_sha256(device, pkg) for pkg in (APP, APP + ".test")]
-    if args.verify_apks:
-        for path, actual in zip(args.verify_apks, hashes, strict=True):
-            with path.open("rb") as apk:
-                if hashlib.file_digest(apk, "sha256").hexdigest() != actual:
-                    raise ValueError("Installed artifact differs from " + path.name)
+    hashes = verify_disposable_emulator_apks(device, DRIVER, APP, args.verify_apks)
     token = secrets.token_hex(5)
     folder = DEVICE_DIR + "/" + token
     spec = {"run": token, "phrase": secrets.token_hex(16), "endpoint": gateway.endpoint,
