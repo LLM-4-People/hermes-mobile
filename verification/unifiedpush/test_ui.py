@@ -539,6 +539,43 @@ class ScreenUiTest(unittest.TestCase):
         ), self.assertRaisesRegex(RuntimeError, "adb shell pidof exceeded 30s"):
             process_absent(make_ui())
 
+    def test_distributor_cleanup_preserves_primary_error_and_propagates_clean_exit_failure(self):
+        def setup_ui():
+            device = Mock()
+            device.shell.side_effect = lambda *args: (
+                "" if args == ("pm", "list", "packages", NTFY)
+                else NTFY + "/.MainActivity" if args[:2] == ("cmd", "package")
+                else ""
+            )
+            device.ime_shown.return_value = False
+            device.run.side_effect = lambda *args: (
+                (_ for _ in ()).throw(RuntimeError("adb uninstall failed")) if args == ("uninstall", NTFY) else b""
+            )
+            ui = Screen(device, Mock())
+            url_field = NTFY + ":id/default_server_dialog_url"
+            editor_tree = tree(
+                {"resource-id": url_field, "bounds": "[20,200][300,260]"},
+                {"text": "Save", "bounds": "[200,300][300,350]"},
+            )
+            saved_settings = tree({"text": "http://127.0.0.1:8080", "bounds": "[20,200][300,260]"})
+            topics = tree({"text": "Subscribed topics", "bounds": "[20,60][280,110]"})
+            ui.hierarchy = Mock(side_effect=[editor_tree, editor_tree, saved_settings, topics])
+            ui.type = Mock()
+            ui.tap_node = Mock()
+            return ui
+
+        primary = ValueError("distributor body failed")
+        with patch("verification.unifiedpush.stack.time.sleep"), self.assertRaises(ValueError) as raised:
+            with distributor(setup_ui(), Path("/tmp/ntfy.apk"), "http://127.0.0.1:8080"):
+                raise primary
+        self.assertIs(raised.exception, primary)
+        self.assertIn("adb uninstall failed", str(primary.__notes__))
+
+        with patch("verification.unifiedpush.stack.time.sleep"), self.assertRaises(ExceptionGroup) as clean_err:
+            with distributor(setup_ui(), Path("/tmp/ntfy.apk"), "http://127.0.0.1:8080"):
+                pass
+        self.assertIn("adb uninstall failed", str(clean_err.exception.exceptions[0]))
+
 
 if __name__ == "__main__":
     unittest.main()

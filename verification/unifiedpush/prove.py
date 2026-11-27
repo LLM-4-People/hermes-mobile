@@ -17,7 +17,10 @@ from urllib.parse import urlsplit
 from .assets import APK, SERVER, digest, extract_server
 from verification.device.installed import installed_apk_sha256
 from .editor import editor
-from verification.device.run import Emulator
+try:
+    from verification.device.run import Emulator, cleanup_all
+except ModuleNotFoundError:
+    from device.run import Emulator, cleanup_all
 from verification.gateway_fixture import Gateway, PINNED_REVISION, check_source
 from .stack import (
     LOCAL_HTTP,
@@ -55,7 +58,7 @@ def same_port(device, url):
     try:
         yield url
     finally:
-        device.run("reverse", "--remove", spec)
+        cleanup_all(lambda: device.run("reverse", "--remove", spec))
 
 
 def active_registration(database):
@@ -168,7 +171,7 @@ def disposable_app(device, apk):
             raise AssertionError("Installed application differs from the supplied APK")
         yield installed
     finally:
-        device.run("uninstall", APP)
+        cleanup_all(lambda: device.run("uninstall", APP))
 
 
 def run(args):
@@ -300,7 +303,7 @@ def run(args):
                 )
             )
         finally:
-            adb.shell("cmd", "statusbar", "collapse")
+            cleanup_all(lambda: adb.shell("cmd", "statusbar", "collapse"))
 
 
 def main():

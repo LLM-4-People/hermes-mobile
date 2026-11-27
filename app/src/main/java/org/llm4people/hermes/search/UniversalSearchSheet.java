@@ -750,6 +750,7 @@ public final class UniversalSearchSheet implements AutoCloseable {
     }
 
     private void dispatchResult(UniversalSearchModel.Result item) {
+        if (closed || item == null) return;
         Diagnostics.event("universal_search", "result_selected_" + item.category().name().toLowerCase(java.util.Locale.ROOT));
         close();
         if (callbacks == null) return;

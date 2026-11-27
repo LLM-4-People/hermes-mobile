@@ -186,7 +186,7 @@ public final class CommandPalette {
     }
 
     private void executeItem(CommandItem item) {
-        if (item == null || !canAct()) {
+        if (dialog == null || item == null || !canAct()) {
             dismiss();
             return;
         }

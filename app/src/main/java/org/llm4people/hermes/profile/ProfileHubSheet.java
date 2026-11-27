@@ -174,16 +174,12 @@ public final class ProfileHubSheet implements AutoCloseable {
             body.addView(emptyLocal, topMargin(6));
         }
 
-        Button scanQrBtn = Ui.tonalButton(activity, activity.getString(R.string.profile_hub_scan_qr_action), v -> {
-            close();
-            callbacks.onScanQrCode();
-        });
+        Button scanQrBtn = Ui.tonalButton(activity, activity.getString(R.string.profile_hub_scan_qr_action),
+                v -> closeAndRun(callbacks::onScanQrCode));
         body.addView(scanQrBtn, topMargin(12));
 
-        Button addLocalBtn = Ui.outlinedButton(activity, activity.getString(R.string.profile_add_action), v -> {
-            close();
-            callbacks.onAddProfile();
-        });
+        Button addLocalBtn = Ui.outlinedButton(activity, activity.getString(R.string.profile_add_action),
+                v -> closeAndRun(callbacks::onAddProfile));
         body.addView(addLocalBtn, topMargin(8));
 
         // Server profiles & remote status section
@@ -306,10 +302,8 @@ public final class ProfileHubSheet implements AutoCloseable {
         inviteButton.setVisibility(isAdmin ? View.VISIBLE : View.GONE);
         card.addView(inviteButton, topMargin(8));
 
-        adminButton = Ui.outlinedButton(activity, activity.getString(R.string.admin_console_open_action), v -> {
-            close();
-            callbacks.onOpenAdminConsole();
-        });
+        adminButton = Ui.outlinedButton(activity, activity.getString(R.string.admin_console_open_action),
+                v -> closeAndRun(callbacks::onOpenAdminConsole));
         adminButton.setVisibility(isAdmin ? View.VISIBLE : View.GONE);
         card.addView(adminButton, topMargin(8));
 
@@ -355,10 +349,8 @@ public final class ProfileHubSheet implements AutoCloseable {
         nameLp.setMarginEnd(Ui.dp(activity, 8));
         row.addView(name, nameLp);
 
-        Button switchBtn = Ui.tonalButton(activity, activity.getString(R.string.profile_hub_switch_action), v -> {
-            close();
-            callbacks.onSwitchProfile(profileId);
-        });
+        Button switchBtn = Ui.tonalButton(activity, activity.getString(R.string.profile_hub_switch_action),
+                v -> closeAndRun(() -> callbacks.onSwitchProfile(profileId)));
         row.addView(switchBtn);
         return row;
     }
@@ -576,6 +568,12 @@ public final class ProfileHubSheet implements AutoCloseable {
             try { childDialog.dismiss(); } catch (RuntimeException ignored) {}
             childDialog = null;
         }
+    }
+
+    private void closeAndRun(Runnable action) {
+        if (closed) return;
+        close();
+        action.run();
     }
 
     @Override public void close() {

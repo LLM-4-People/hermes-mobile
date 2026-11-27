@@ -550,7 +550,7 @@ public final class QrScannerActivity extends Activity {
         if (requestCode != REQ_PICK_IMAGE) return;
         if (resultCode != RESULT_OK || data == null || data.getData() == null) return;
         Uri uri = data.getData();
-        setStatus(getString(R.string.qr_scanner_reading_image));
+        announceImageStatus(getString(R.string.qr_scanner_reading_image));
         imageIo.execute(() -> decodePickedImage(uri));
     }
 
@@ -562,7 +562,7 @@ public final class QrScannerActivity extends Activity {
             startActivityForResult(pick, REQ_PICK_IMAGE);
         } catch (RuntimeException unavailable) {
             Diagnostics.warning("qr_scanner", "image_picker_unavailable");
-            setStatus(getString(R.string.qr_scanner_image_no_qr));
+            announceImageStatus(getString(R.string.qr_scanner_image_no_qr));
         }
     }
 
@@ -618,19 +618,24 @@ public final class QrScannerActivity extends Activity {
         return fallbackVisible;
     }
 
+    static void announceImageStatus(TextView statusView, TextView fallbackView, View fallbackContainer, String message) {
+        boolean fallbackVisible = fallbackContainer != null && fallbackContainer.getVisibility() == View.VISIBLE;
+        TextView target = routesImageFailureToFallback(fallbackVisible) ? fallbackView : statusView;
+        Ui.announceLiveStatus(target, message);
+    }
+
+    private void announceImageStatus(String message) {
+        if (isFinishing() || isDestroyed()) return;
+        announceImageStatus(statusText, fallbackDetail, fallbackScroll, message);
+    }
+
     private void postImageResult(ScanVerdict verdict, String rawText) {
         mainHandler.post(() -> {
             if (isFinishing() || isDestroyed()) return;
             if (verdict == ScanVerdict.VALID_HERMES) {
                 deliverSuccess(rawText, "scanned_image");
             } else {
-                String errMsg = getString(imageFailureMessageRes(verdict));
-                boolean fallbackVisible = fallbackScroll != null && fallbackScroll.getVisibility() == View.VISIBLE;
-                if (routesImageFailureToFallback(fallbackVisible)) {
-                    Ui.announceLiveStatus(fallbackDetail, errMsg);
-                } else {
-                    Ui.announceLiveStatus(statusText, errMsg);
-                }
+                announceImageStatus(getString(imageFailureMessageRes(verdict)));
             }
         });
     }

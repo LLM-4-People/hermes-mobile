@@ -14,6 +14,10 @@ from urllib.parse import urlsplit
 from urllib.request import HTTPSHandler, ProxyHandler, Request, build_opener
 
 from .processes import close_child
+try:
+    from verification.device.run import cleanup_all
+except ModuleNotFoundError:
+    from device.run import cleanup_all
 from deploy.accounts import CADDY_IMAGE
 from verification.gateway_fixture import unused_loopback_port
 
@@ -80,7 +84,7 @@ def caddy_binary(directory):
         subprocess.run(["docker", "cp", create + ":/usr/bin/caddy", path], check=True)
         return path
     finally:
-        subprocess.run(["docker", "rm", create], check=True, stdout=subprocess.DEVNULL)
+        cleanup_all(lambda: subprocess.run(["docker", "rm", create], check=True, stdout=subprocess.DEVNULL))
 
 
 @contextmanager
