@@ -250,7 +250,9 @@ public final class BrainJsonAndApiContractTest extends InstrumentationTestCase {
         MemoryModel.Snapshot mem = BrainJson.parseMemorySnapshot(new JSONObject("""
                 {"memory":{"entries":[
                   {"id":"../bad","text":"Ignored"},
-                  {"id":"bad id","text":"Ignored 2"},
+                  {"id":"..","text":"Ignored 2"},
+                  {"id":"bad\\\\slash","text":"Ignored 3"},
+                  {"id":"bad\\u0000ctrl","text":"Ignored 4"},
                   {"id":"entry_1","text":"Valid entry","pinned":true}
                 ],"chars":11,"limit":2000,"enabled":true},
                 "user":{"entries":[],"chars":0,"limit":2000,"enabled":true}}
