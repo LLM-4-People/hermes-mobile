@@ -61,7 +61,7 @@ public final class PushProgressDialogTest extends InstrumentationTestCase {
                 getInstrumentation().waitForIdleSync();
                 runTestOnUiThread(() -> {
                     initial.addAll(WindowInspector.getGlobalWindowViews());
-                    push.settings(fixture.account);
+                    push.settings(fixture.account, null);
                     Button start = dialogWindow(initial).findViewById(history ? android.R.id.button3 : android.R.id.button1);
                     assertEquals(activity.getString(history ? R.string.push_settings_history : R.string.push_settings_enable),
                             start.getText().toString());

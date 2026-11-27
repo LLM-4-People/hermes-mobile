@@ -47,7 +47,7 @@ public final class SecurePushWindowTest extends InstrumentationTestCase {
                 List<View> windows = new ArrayList<>();
                 runTestOnUiThread(() -> {
                     List<View> before = new ArrayList<>(WindowInspector.getGlobalWindowViews());
-                    push.settings(account);
+                    push.settings(account, null);
                     windows.addAll(WindowInspector.getGlobalWindowViews());
                     windows.removeAll(before);
                     assertEquals("The settings dialog must own a window", 1, windows.size());

@@ -51,10 +51,6 @@ final class PushSettings {
     private boolean showingPermissionRecovery;
     private volatile boolean closed;
 
-    PushSettings(Activity activity, Account account) {
-        this(activity, account, null);
-    }
-
     PushSettings(Activity activity, Account account, DeliveryRouter.Actions deliveryActions) {
         this.activity = activity;
         this.account = account;

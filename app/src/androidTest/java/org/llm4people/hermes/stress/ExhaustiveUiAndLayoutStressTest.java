@@ -111,7 +111,8 @@ public final class ExhaustiveUiAndLayoutStressTest extends InstrumentationTestCa
                 Configuration originalConfig = new Configuration(activity.getResources().getConfiguration());
                 try {
                     for (ViewportSpec spec : VIEWPORT_MATRIX) {
-                        ConnectionDoctor doctor = new ConnectionDoctor(stressProbes(spec.name()));
+                        ConnectionDoctor doctor = new ConnectionDoctor(
+                                stressProbes(spec.name()), org.llm4people.hermes.HermesConfig.defaults());
                         ConnectionDoctorPanel doctorPanel = new ConnectionDoctorPanel(activity, doctor, null);
                         UpdatePanel updatePanel = new UpdatePanel(activity);
                         AmbientAccessPanel ambientPanel = new AmbientAccessPanel(
@@ -288,7 +289,8 @@ public final class ExhaustiveUiAndLayoutStressTest extends InstrumentationTestCa
             }
 
             // Render ConnectionDoctorPanel with adversarial server values & rapid-click every visible button.
-            ConnectionDoctor doctor = new ConnectionDoctor(adversarialProbes());
+            ConnectionDoctor doctor = new ConnectionDoctor(
+                    adversarialProbes(), org.llm4people.hermes.HermesConfig.defaults());
             ConnectionDoctorPanel panel = new ConnectionDoctorPanel(activity, doctor, null);
             try {
                 View[] rootRef = new View[1];

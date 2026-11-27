@@ -65,7 +65,7 @@ public final class PushConnectionConfigAndSettingsTest {
                 "profile-1", "Personal", "https://hermes.example.com", "bearer-token",
                 null, new byte[64]);
         try {
-            PushSettings settings = new PushSettings(null, account);
+            PushSettings settings = new PushSettings(null, account, null);
             HermesApi owned = settings.ownedApi();
             assertNotNull("PushSettings must own a revocable HermesApi", owned);
             assertFalse(owned.isRevoked());
@@ -94,7 +94,7 @@ public final class PushConnectionConfigAndSettingsTest {
                 "profile-2", "Work", "https://hermes.example.com", "bearer-token",
                 null, new byte[64]);
         try {
-            PushSettings withoutActions = new PushSettings(null, account);
+            PushSettings withoutActions = new PushSettings(null, account, null);
             try {
                 assertNull("2-arg PushSettings must default deliveryActions to null",
                         withoutActions.deliveryActions());

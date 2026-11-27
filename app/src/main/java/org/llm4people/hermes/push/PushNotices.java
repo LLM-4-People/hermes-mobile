@@ -74,9 +74,11 @@ final class PushNotices {
     }
 
     static boolean allowed(Context context) {
+        if (context == null) return false;
         if (Build.VERSION.SDK_INT >= 33 && context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
                 != PackageManager.PERMISSION_GRANTED) return false;
         NotificationManager manager = context.getSystemService(NotificationManager.class);
+        if (manager == null) return false;
         NotificationChannel channel = manager.getNotificationChannel(CHANNEL);
         return manager.areNotificationsEnabled() && (channel == null
                 || channel.getImportance() != NotificationManager.IMPORTANCE_NONE);

@@ -296,7 +296,7 @@ public final class DistributorLifecycleTest extends InstrumentationTestCase {
             PushStore.Device enabled = prepare();
             store.updateSubscription(enabled, "{}");
             store.enable(store.forProfile(enabled.profile));
-            PushSettings settings = new PushSettings(activity, null);
+            PushSettings settings = new PushSettings(activity, null, null);
             for (int repair : new int[]{PushStore.NO_REPAIR, PushStore.WAITING_ENDPOINT, PushStore.RETRY_REPAIR, PushStore.REPAIR_ACTION}) {
                 String failure = repair == PushStore.RETRY_REPAIR ? "NETWORK" : repair == PushStore.REPAIR_ACTION ? "ACTION_REQUIRED" : null;
                 long retryAt = repair == PushStore.WAITING_ENDPOINT || repair == PushStore.RETRY_REPAIR ? 1000 : 0;

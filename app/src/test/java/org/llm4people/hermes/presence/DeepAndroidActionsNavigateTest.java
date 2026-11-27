@@ -49,6 +49,36 @@ public final class DeepAndroidActionsNavigateTest {
     }
 
     @Test
+    public void postNudgeIfAllowedFailsClosedOnDisabledMutedOrRuntimeException() {
+        AtomicInteger notifyCalls = new AtomicInteger();
+
+        // Enabled notifications + default importance posts cleanly.
+        assertTrue(DeepAndroidActions.postNudgeIfAllowed(
+                true, android.app.NotificationManager.IMPORTANCE_DEFAULT, notifyCalls::incrementAndGet));
+        assertEquals(1, notifyCalls.get());
+
+        // Disabled app notifications fails closed without calling notify.
+        assertFalse(DeepAndroidActions.postNudgeIfAllowed(
+                false, android.app.NotificationManager.IMPORTANCE_DEFAULT, notifyCalls::incrementAndGet));
+        assertEquals(1, notifyCalls.get());
+
+        // Muted channel (IMPORTANCE_NONE) fails closed without calling notify.
+        assertFalse(DeepAndroidActions.postNudgeIfAllowed(
+                true, android.app.NotificationManager.IMPORTANCE_NONE, notifyCalls::incrementAndGet));
+        assertEquals(1, notifyCalls.get());
+
+        // Null runnable fails closed.
+        assertFalse(DeepAndroidActions.postNudgeIfAllowed(
+                true, android.app.NotificationManager.IMPORTANCE_DEFAULT, null));
+
+        // RuntimeException from NotificationManager.notify() is caught and returns false.
+        assertFalse(DeepAndroidActions.postNudgeIfAllowed(
+                true, android.app.NotificationManager.IMPORTANCE_DEFAULT, () -> {
+                    throw new SecurityException("blocked");
+                }));
+    }
+
+    @Test
     public void navigateTargetsSsotCoversAllCanonicalDestinationsAndRejectsUnknown() {
         List<String> required = List.of(
                 "discussions", NotesTasksPanel.ROUTE_ID, "tasks", AppsLauncherPanel.ROUTE_ID,

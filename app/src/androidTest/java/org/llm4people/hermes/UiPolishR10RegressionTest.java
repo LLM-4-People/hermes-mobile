@@ -283,9 +283,10 @@ public final class UiPolishR10RegressionTest extends InstrumentationTestCase {
 
                     // 3. PushSettings styledSwitch & SessionSettings toggle (R10.5.4)
                     Class<?> pushSettingsCls = Class.forName("org.llm4people.hermes.push.PushSettings");
-                    Constructor<?> psCtor = pushSettingsCls.getDeclaredConstructor(Activity.class, Account.class);
+                    Constructor<?> psCtor = pushSettingsCls.getDeclaredConstructor(
+                            Activity.class, Account.class, org.llm4people.hermes.push.DeliveryRouter.Actions.class);
                     psCtor.setAccessible(true);
-                    Object pushSettings = psCtor.newInstance(activity, null);
+                    Object pushSettings = psCtor.newInstance(activity, null, null);
                     Method styledSwitch = pushSettingsCls.getDeclaredMethod("styledSwitch", String.class, boolean.class);
                     styledSwitch.setAccessible(true);
                     Switch pushToggle = (Switch) styledSwitch.invoke(pushSettings, "Quiet hours", true);
