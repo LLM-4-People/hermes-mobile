@@ -632,6 +632,14 @@ class DeviceGateTest(unittest.TestCase):
         # attempts 5 and 6 succeed consecutively (hit=2).
         self.assertEqual(int(counter.read_text()), 6)
 
+        # R40.8.1: direct disable_emulator_network callers must also survive transient ADB errors under set -euo pipefail.
+        counter.write_text("2")
+        direct = subprocess.run(
+            ["bash", "-c", f'set -euo pipefail; source "{offline_sh}"; disable_emulator_network emulator-transient'],
+            env=env, text=True, capture_output=True,
+        )
+        self.assertEqual(direct.returncode, 0, direct.stderr)
+
     def test_workspace_job_runs_hermes_contract_tests_without_requiring_android_gate(self):
         workflow = (GATE.parents[1] / ".github/workflows/checks.yml").read_text()
         workspace_job = workflow.split("\n  workspace:\n", 1)[1].split("\n  package-debug:\n", 1)[0]

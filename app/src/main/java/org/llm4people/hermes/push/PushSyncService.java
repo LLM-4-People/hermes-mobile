@@ -19,7 +19,14 @@ public final class PushSyncService extends JobService {
     private final Map<Integer, AtomicBoolean> running = new HashMap<>();
 
     static void ensureScheduled(Context context) {
-        if (context.getSystemService(JobScheduler.class).getPendingJob(JOB_ID) == null) schedule(context);
+        if (context == null) return;
+        try {
+            JobScheduler scheduler = context.getSystemService(JobScheduler.class);
+            if (scheduler == null) return;
+            if (scheduler.getPendingJob(JOB_ID) == null) schedule(context);
+        } catch (RuntimeException err) {
+            Diagnostics.warning("push", "job_scheduler_unavailable", err);
+        }
     }
 
     private static JobInfo.Builder job(Context context, int id) {
@@ -28,16 +35,27 @@ public final class PushSyncService extends JobService {
     }
 
     private static void submit(Context context, JobInfo.Builder builder) {
-        if (context.getSystemService(JobScheduler.class).schedule(builder.build()) != JobScheduler.RESULT_SUCCESS)
-            Diagnostics.event("push", "scheduling_failed");
+        if (context == null) return;
+        try {
+            JobScheduler scheduler = context.getSystemService(JobScheduler.class);
+            if (scheduler == null) return;
+            if (scheduler.schedule(builder.build()) != JobScheduler.RESULT_SUCCESS)
+                Diagnostics.event("push", "scheduling_failed");
+        } catch (RuntimeException err) {
+            Diagnostics.warning("push", "job_scheduler_unavailable", err);
+        }
     }
 
-    static void schedule(Context context) { submit(context, job(context, JOB_ID)); }
+    static void schedule(Context context) {
+        if (context == null) return;
+        submit(context, job(context, JOB_ID));
+    }
 
     // A delayed distributor retry must not replace an immediate removal or endpoint upload.
     static void scheduleRetries(Context context) { scheduleRetries(context, false); }
 
     private static synchronized void scheduleRetries(Context context, boolean completed) {
+        if (context == null) return;
         long due = Long.MAX_VALUE;
         for (PushStore.Device device : PushStore.get(context).devices()) {
             if (device.unified() && device.retryAt > 0 && (PushStore.PENDING.equals(device.state)
@@ -45,14 +63,19 @@ public final class PushSyncService extends JobService {
                 due = Math.min(due, device.retryAt);
         }
         if (due == Long.MAX_VALUE) return;
-        JobScheduler scheduler = context.getSystemService(JobScheduler.class);
-        JobInfo current = scheduler.getPendingJob(REGISTRATION_JOB);
-        if (!completed && current != null && current.getExtras().getLong("due") == due) return;
-        PersistableBundle extras = new PersistableBundle();
-        extras.putLong("due", due);
-        long delay = due - System.currentTimeMillis();
-        submit(context, job(context, REGISTRATION_JOB).setExtras(extras)
-                .setMinimumLatency(delay > PushStore.MAX_DELAY ? 0 : Math.max(0, delay)));
+        try {
+            JobScheduler scheduler = context.getSystemService(JobScheduler.class);
+            if (scheduler == null) return;
+            JobInfo current = scheduler.getPendingJob(REGISTRATION_JOB);
+            if (!completed && current != null && current.getExtras().getLong("due") == due) return;
+            PersistableBundle extras = new PersistableBundle();
+            extras.putLong("due", due);
+            long delay = due - System.currentTimeMillis();
+            submit(context, job(context, REGISTRATION_JOB).setExtras(extras)
+                    .setMinimumLatency(delay > PushStore.MAX_DELAY ? 0 : Math.max(0, delay)));
+        } catch (RuntimeException err) {
+            Diagnostics.warning("push", "job_scheduler_unavailable", err);
+        }
     }
 
     @Override public boolean onStartJob(JobParameters params) {

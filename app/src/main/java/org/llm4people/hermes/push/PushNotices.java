@@ -65,33 +65,49 @@ final class PushNotices {
     }
 
     static void channel(Context context) {
-        Context localized = AppLanguage.wrapContext(context);
-        NotificationChannel channel = new NotificationChannel(CHANNEL,
-                localized.getString(R.string.push_channel_activity),
-                NotificationManager.IMPORTANCE_DEFAULT);
-        channel.setLockscreenVisibility(Notification.VISIBILITY_PRIVATE);
-        context.getSystemService(NotificationManager.class).createNotificationChannel(channel);
+        if (context == null) return;
+        try {
+            Context localized = AppLanguage.wrapContext(context);
+            NotificationChannel channel = new NotificationChannel(CHANNEL,
+                    localized.getString(R.string.push_channel_activity),
+                    NotificationManager.IMPORTANCE_DEFAULT);
+            channel.setLockscreenVisibility(Notification.VISIBILITY_PRIVATE);
+            NotificationManager manager = context.getSystemService(NotificationManager.class);
+            if (manager != null) manager.createNotificationChannel(channel);
+        } catch (RuntimeException error) {
+            Diagnostics.warning("push", "channel_create_failed", error);
+        }
     }
 
     static boolean allowed(Context context) {
         if (context == null) return false;
-        if (Build.VERSION.SDK_INT >= 33 && context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
-                != PackageManager.PERMISSION_GRANTED) return false;
-        NotificationManager manager = context.getSystemService(NotificationManager.class);
-        if (manager == null) return false;
-        NotificationChannel channel = manager.getNotificationChannel(CHANNEL);
-        return manager.areNotificationsEnabled() && (channel == null
-                || channel.getImportance() != NotificationManager.IMPORTANCE_NONE);
+        try {
+            if (Build.VERSION.SDK_INT >= 33 && context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
+                    != PackageManager.PERMISSION_GRANTED) return false;
+            NotificationManager manager = context.getSystemService(NotificationManager.class);
+            if (manager == null) return false;
+            NotificationChannel channel = manager.getNotificationChannel(CHANNEL);
+            return manager.areNotificationsEnabled() && (channel == null
+                    || channel.getImportance() != NotificationManager.IMPORTANCE_NONE);
+        } catch (RuntimeException error) {
+            Diagnostics.warning("push", "allowed_check_failed", error);
+            return false;
+        }
     }
 
     @SuppressLint("MissingPermission") // allowed() checks the runtime grant before posting.
     static void deliver(Context context, String sender, Map<String,String> data) {
-        String id = data.get("installation_id"), event = data.get("event_id");
-        if (!validIds(id, event)) return;
-        PushStore.Device owner = PushStore.get(context).forInstallation(id);
-        if (owner != null && !owner.unified() && owner.config.senderId.equals(sender)) {
-            DeliveryItem.Urgency urgency = DeliveryItem.Urgency.fromWireOrDefault(data.get("urgency"));
-            post(context, owner, event, data.get("kind"), urgency);
+        if (context == null || data == null) return;
+        try {
+            String id = data.get("installation_id"), event = data.get("event_id");
+            if (!validIds(id, event)) return;
+            PushStore.Device owner = PushStore.get(context).forInstallation(id);
+            if (owner != null && !owner.unified() && owner.config.senderId.equals(sender)) {
+                DeliveryItem.Urgency urgency = DeliveryItem.Urgency.fromWireOrDefault(data.get("urgency"));
+                post(context, owner, event, data.get("kind"), urgency);
+            }
+        } catch (RuntimeException error) {
+            Diagnostics.warning("push", "deliver_failed", error);
         }
     }
 
@@ -104,61 +120,84 @@ final class PushNotices {
     @SuppressLint("MissingPermission") // allowed() checks the current runtime grant.
     static void postAt(Context context, PushStore.Device owner, String event, String kind,
                        DeliveryItem.Urgency urgency, int minuteOfDay) {
-        String id = owner.installation;
-        if (!owner.receives() || !validIds(id, event)) return;
-        PushStore store = PushStore.get(context);
-        if (DISMISS_QUESTION.equals(kind) || DISMISS_APPROVAL.equals(kind)) {
-            // A transport may deliver the dismissal before the original notice.
-            synchronized (PushNotices.class) {
-                store.dismissPrompt(id, event);
-                context.getSystemService(NotificationManager.class).cancel(id + "/" + event, 1);
+        if (context == null || owner == null) return;
+        try {
+            String id = owner.installation;
+            if (!owner.receives() || !validIds(id, event)) return;
+            PushStore store = PushStore.get(context);
+            if (DISMISS_QUESTION.equals(kind) || DISMISS_APPROVAL.equals(kind)) {
+                // A transport may deliver the dismissal before the original notice.
+                synchronized (PushNotices.class) {
+                    store.dismissPrompt(id, event);
+                    NotificationManager manager = context.getSystemService(NotificationManager.class);
+                    if (manager != null) manager.cancel(id + "/" + event, 1);
+                }
+                return;
             }
-            return;
-        }
-        Context localized = AppLanguage.wrapContext(context);
-        String noticeTitle = title(localized, kind);
-        if (noticeTitle == null || !allowed(context)) return;
-        PushPolicy policy = PushPolicy.load(context, owner.profile);
-        PushPolicy.Decision decision = policy.evaluate(kind, urgency, minuteOfDay);
-        if (decision != PushPolicy.Decision.NOTIFY) {
-            Diagnostics.event("push", "notice_suppressed", decision.reasonCode);
-            return;
-        }
-        Intent intent = tapIntent(context, id, event);
-        if (intent == null) return;
-        PendingIntent tap = PendingIntent.getActivity(context, 0, intent,
-                PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
-        channel(localized);
-        Notification notice = new Notification.Builder(context, CHANNEL)
-                .setSmallIcon(R.drawable.ic_push_notification)
-                .setContentTitle(noticeTitle)
-                .setContentText(localized.getString(R.string.push_notice_open_details))
-                .setVisibility(Notification.VISIBILITY_PRIVATE).setContentIntent(tap)
-                .setOnlyAlertOnce(true).setAutoCancel(true)
-                .setTimeoutAfter(isPrompt(kind) ? PROMPT_DISPLAY_MILLIS : 0).build();
+            Context localized = AppLanguage.wrapContext(context);
+            String noticeTitle = title(localized, kind);
+            if (noticeTitle == null || !allowed(context)) return;
+            PushPolicy policy = PushPolicy.load(context, owner.profile);
+            PushPolicy.Decision decision = policy.evaluate(kind, urgency, minuteOfDay);
+            if (decision != PushPolicy.Decision.NOTIFY) {
+                Diagnostics.event("push", "notice_suppressed", decision.reasonCode);
+                return;
+            }
+            Intent intent = tapIntent(context, id, event);
+            if (intent == null) return;
+            PendingIntent tap = PendingIntent.getActivity(context, 0, intent,
+                    PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+            channel(localized);
+            Notification notice = new Notification.Builder(context, CHANNEL)
+                    .setSmallIcon(R.drawable.ic_push_notification)
+                    .setContentTitle(noticeTitle)
+                    .setContentText(localized.getString(R.string.push_notice_open_details))
+                    .setVisibility(Notification.VISIBILITY_PRIVATE).setContentIntent(tap)
+                    .setOnlyAlertOnce(true).setAutoCancel(true)
+                    .setTimeoutAfter(isPrompt(kind) ? PROMPT_DISPLAY_MILLIS : 0).build();
 
-        synchronized (PushNotices.class) {
-            if (store.remember(id, event, kind)) {
-                context.getSystemService(NotificationManager.class).notify(id + "/" + event, 1, notice);
+            synchronized (PushNotices.class) {
+                NotificationManager manager = context.getSystemService(NotificationManager.class);
+                if (manager != null && store.remember(id, event, kind)) {
+                    manager.notify(id + "/" + event, 1, notice);
+                }
             }
+        } catch (RuntimeException error) {
+            Diagnostics.warning("push", "notice_post_failed", error);
         }
     }
 
     static Intent tapIntent(Context context, String id, String event) {
-        Intent intent = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
-        if (intent == null) return null;
-        intent.setAction(ACTION).setData(new Uri.Builder().scheme("hermes-mobile").authority("event")
-                .appendPath(id).appendPath(event).build())
-                .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-        return intent;
+        if (context == null || id == null || event == null) return null;
+        try {
+            PackageManager pm = context.getPackageManager();
+            if (pm == null) return null;
+            Intent intent = pm.getLaunchIntentForPackage(context.getPackageName());
+            if (intent == null) return null;
+            intent.setAction(ACTION).setData(new Uri.Builder().scheme("hermes-mobile").authority("event")
+                    .appendPath(id).appendPath(event).build())
+                    .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+            return intent;
+        } catch (RuntimeException error) {
+            Diagnostics.warning("push", "tap_intent_failed", error);
+            return null;
+        }
     }
 
     static synchronized void cancel(Context context, String installation) {
-        NotificationManager manager = context.getSystemService(NotificationManager.class);
-        for (android.service.notification.StatusBarNotification active : manager.getActiveNotifications()) {
-            if (active.getTag() != null && active.getTag().startsWith(installation + "/")) {
-                manager.cancel(active.getTag(), active.getId());
+        if (context == null || installation == null) return;
+        try {
+            NotificationManager manager = context.getSystemService(NotificationManager.class);
+            if (manager == null) return;
+            android.service.notification.StatusBarNotification[] activeList = manager.getActiveNotifications();
+            if (activeList == null) return;
+            for (android.service.notification.StatusBarNotification active : activeList) {
+                if (active != null && active.getTag() != null && active.getTag().startsWith(installation + "/")) {
+                    manager.cancel(active.getTag(), active.getId());
+                }
             }
+        } catch (RuntimeException error) {
+            Diagnostics.warning("push", "notice_cancel_failed", error);
         }
     }
 }

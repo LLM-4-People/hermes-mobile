@@ -19,9 +19,13 @@ final class DistributorIdentity {
 
     @SuppressWarnings("deprecation") // API 28 supports SigningInfo through the integer flags overload.
     private static SigningInfo installed(Context context, String name) {
+        if (context == null || name == null || name.isEmpty()) return null;
         try {
-            return context.getPackageManager().getPackageInfo(name, PackageManager.GET_SIGNING_CERTIFICATES).signingInfo;
-        } catch (PackageManager.NameNotFoundException gone) { return null; }
+            PackageManager pm = context.getPackageManager();
+            if (pm == null) return null;
+            android.content.pm.PackageInfo info = pm.getPackageInfo(name, PackageManager.GET_SIGNING_CERTIFICATES);
+            return info == null ? null : info.signingInfo;
+        } catch (PackageManager.NameNotFoundException | RuntimeException gone) { return null; }
     }
 
     private static String digest(Signature cert) {

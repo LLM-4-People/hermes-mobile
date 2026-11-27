@@ -691,10 +691,16 @@ public final class DeepAndroidActions {
                         intent.setPackage(packageName);
                     }
                 } else {
-                    PackageManager pm = app.getPackageManager();
-                    intent = pm.getLaunchIntentForPackage(packageName);
-                    if (intent == null) return false;
-                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    try {
+                        PackageManager pm = app.getPackageManager();
+                        if (pm == null) return false;
+                        intent = pm.getLaunchIntentForPackage(packageName);
+                        if (intent == null) return false;
+                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    } catch (RuntimeException failed) {
+                        Diagnostics.warning("deep_action", "intent_launch_failed", failed);
+                        return false;
+                    }
                 }
                 return startSafely(app, intent);
             }

@@ -285,12 +285,25 @@ public final class HermesNotificationListener extends NotificationListenerServic
 
     @Override public void onListenerDisconnected() {
         super.onListenerDisconnected();
-        connectedInstance = null;
-        synchronized (LOCK) {
-            BUFFER.clear();
-            REPLY_HANDLES.clear();
+        if (connectedInstance == this) {
+            connectedInstance = null;
+            synchronized (LOCK) {
+                BUFFER.clear();
+                REPLY_HANDLES.clear();
+            }
         }
         Diagnostics.event("ambient", "listener_disconnected");
+    }
+
+    @Override public void onDestroy() {
+        if (connectedInstance == this) {
+            connectedInstance = null;
+            synchronized (LOCK) {
+                BUFFER.clear();
+                REPLY_HANDLES.clear();
+            }
+        }
+        super.onDestroy();
     }
 
     @Override public void onNotificationPosted(StatusBarNotification sbn) {

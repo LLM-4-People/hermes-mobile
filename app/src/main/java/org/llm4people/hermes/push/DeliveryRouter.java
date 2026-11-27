@@ -57,8 +57,10 @@ public final class DeliveryRouter {
     private final Actions actions;
     private AlertDialog activeDialog;
     private AlertDialog inboxDialog;
+    private Button inboxRefreshButton;
     private int inboxEpoch;
     private boolean dismissed;
+    private boolean refreshing;
 
     public DeliveryRouter(Activity activity, Account account, HermesApi api, DeliveryInbox inbox, Actions actions) {
         this.activity = Objects.requireNonNull(activity, "activity");
@@ -78,8 +80,10 @@ public final class DeliveryRouter {
 
     public void dismiss() {
         dismissed = true;
+        refreshing = false;
         inboxEpoch++;
         inboxDialog = null;
+        inboxRefreshButton = null;
         if (activeDialog != null) {
             try { activeDialog.dismiss(); } catch (RuntimeException ignored) {}
             activeDialog = null;
@@ -91,6 +95,7 @@ public final class DeliveryRouter {
 
     public void showInbox() {
         dismissed = false;
+        refreshing = false;
         int epoch = ++inboxEpoch;
         List<DeliveryItem> local = inbox.cached(account);
         presentInbox(buildInboxDialog(local, null), epoch);
@@ -98,11 +103,14 @@ public final class DeliveryRouter {
     }
 
     private void refreshInBackground(int expectedEpoch, AlertDialog expectedInboxDialog) {
-        if (dismissed || api == null || api.isRevoked()) return;
+        if (dismissed || refreshing || api == null || api.isRevoked()) return;
+        refreshing = true;
+        if (inboxRefreshButton != null) inboxRefreshButton.setEnabled(false);
         PushConnection.WORK.execute(() -> {
             try {
                 List<DeliveryItem> updated = inbox.sync(account, api);
                 activity.runOnUiThread(() -> {
+                    if (expectedEpoch == inboxEpoch) refreshing = false;
                     if (canRefreshInbox(expectedEpoch, expectedInboxDialog)) {
                         presentInbox(buildInboxDialog(updated, null), expectedEpoch);
                     }
@@ -110,6 +118,7 @@ public final class DeliveryRouter {
             } catch (Exception failure) {
                 Diagnostics.warning("push", "inbox_sync_failed", failure);
                 activity.runOnUiThread(() -> {
+                    if (expectedEpoch == inboxEpoch) refreshing = false;
                     if (canRefreshInbox(expectedEpoch, expectedInboxDialog)) {
                         presentInbox(buildInboxDialog(inbox.cached(account),
                                 activity.getString(R.string.push_inbox_sync_error)), expectedEpoch);
@@ -137,8 +146,10 @@ public final class DeliveryRouter {
         toolbarScroll.setHorizontalScrollBarEnabled(false);
         LinearLayout toolbar = Ui.row(activity);
         Button refreshBtn = Ui.outlinedButton(activity, activity.getString(R.string.push_inbox_refresh), v -> {
-            if (api != null && !dismissed) refreshInBackground(inboxEpoch, inboxDialog);
+            if (api != null && !dismissed && !refreshing) refreshInBackground(inboxEpoch, inboxDialog);
         });
+        refreshBtn.setEnabled(!refreshing);
+        inboxRefreshButton = refreshBtn;
         toolbar.addView(refreshBtn);
         Button policyBtn = Ui.outlinedButton(activity, activity.getString(R.string.push_policy_button),
                 v -> actions.openPushPolicy());
@@ -489,8 +500,10 @@ public final class DeliveryRouter {
 
     private void present(AlertDialog.Builder builder) {
         if (dismissed || activity.isFinishing() || activity.isDestroyed()) return;
+        refreshing = false;
         inboxEpoch++;
         inboxDialog = null;
+        inboxRefreshButton = null;
         if (activeDialog != null) {
             try { activeDialog.dismiss(); } catch (RuntimeException ignored) {}
         }

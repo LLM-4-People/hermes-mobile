@@ -166,7 +166,14 @@ public final class ContinuousLocationTracker {
         }
         boolean effectivePrecise = policy.preciseLocation && hasFinePermission(context);
         Context app = context.getApplicationContext();
-        LocationManager manager = app.getSystemService(LocationManager.class);
+        LocationManager manager;
+        try {
+            manager = app.getSystemService(LocationManager.class);
+        } catch (RuntimeException unavailable) {
+            Diagnostics.warning("presence", "location_service_unavailable", unavailable);
+            stopAndWipe();
+            return false;
+        }
         if (manager == null) {
             stopAndWipe();
             return false;
@@ -212,13 +219,17 @@ public final class ContinuousLocationTracker {
             @Override
             public void onLocationChanged(Location location) {
                 if (location == null) return;
-                recordFromActiveListener(
-                        this,
-                        location.getLatitude(),
-                        location.getLongitude(),
-                        location.hasAccuracy() ? location.getAccuracy() : COARSE_MIN_ACCURACY_M,
-                        location.hasSpeed() ? location.getSpeed() : -1.0f,
-                        System.currentTimeMillis());
+                try {
+                    recordFromActiveListener(
+                            this,
+                            location.getLatitude(),
+                            location.getLongitude(),
+                            location.hasAccuracy() ? location.getAccuracy() : COARSE_MIN_ACCURACY_M,
+                            location.hasSpeed() ? location.getSpeed() : -1.0f,
+                            System.currentTimeMillis());
+                } catch (IllegalArgumentException invalidFix) {
+                    Diagnostics.debug("presence", "location_fix_dropped");
+                }
             }
 
             @SuppressWarnings("deprecation")
@@ -317,7 +328,13 @@ public final class ContinuousLocationTracker {
     @SuppressLint("MissingPermission")
     private void seedLastKnownLocked(LocationManager manager, boolean precise) {
         Location best = null;
-        List<String> providers = manager.getProviders(true);
+        List<String> providers;
+        try {
+            providers = manager.getProviders(true);
+        } catch (RuntimeException unavailable) {
+            Diagnostics.warning("presence", "location_providers_unavailable", unavailable);
+            return;
+        }
         if (providers == null) return;
         for (String provider : providers) {
             if (!precise && LocationManager.GPS_PROVIDER.equals(provider)) continue;
@@ -334,10 +351,14 @@ public final class ContinuousLocationTracker {
         if (best != null) {
             long ageMs = Math.max(0L, System.currentTimeMillis() - best.getTime());
             if (ageMs <= STALE_AFTER_MS) {
-                recordFix(best.getLatitude(), best.getLongitude(),
-                        best.hasAccuracy() ? best.getAccuracy() : COARSE_MIN_ACCURACY_M,
-                        best.hasSpeed() ? best.getSpeed() : -1.0f,
-                        "", best.getTime() > 0 ? best.getTime() : System.currentTimeMillis(), precise);
+                try {
+                    recordFix(best.getLatitude(), best.getLongitude(),
+                            best.hasAccuracy() ? best.getAccuracy() : COARSE_MIN_ACCURACY_M,
+                            best.hasSpeed() ? best.getSpeed() : -1.0f,
+                            "", best.getTime() > 0 ? best.getTime() : System.currentTimeMillis(), precise);
+                } catch (RuntimeException invalidFix) {
+                    Diagnostics.debug("presence", "location_seed_dropped");
+                }
             }
         }
     }

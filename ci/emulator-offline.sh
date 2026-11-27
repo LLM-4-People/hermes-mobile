@@ -4,10 +4,10 @@
 
 disable_emulator_network() {
   local serial=${1:?expected adb serial}
-  adb -s "$serial" shell cmd connectivity airplane-mode enable
-  adb -s "$serial" shell svc wifi disable
-  adb -s "$serial" shell svc data disable
-  adb -s "$serial" shell settings put global mobile_data 0
+  adb -s "$serial" shell cmd connectivity airplane-mode enable || true
+  adb -s "$serial" shell svc wifi disable || true
+  adb -s "$serial" shell svc data disable || true
+  adb -s "$serial" shell settings put global mobile_data 0 || true
 }
 
 wait_emulator_offline() {

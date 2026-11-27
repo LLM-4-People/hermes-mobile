@@ -39,24 +39,25 @@ public final class HermesWidgetPinning {
         if (!store.upsertSpec(spec)) return PinResult.INVALID_SPEC;
         HermesWidgetProvider.refreshWidget(app, spec.widgetId);
 
-        AppWidgetManager manager = AppWidgetManager.getInstance(app);
-        if (manager == null || !manager.isRequestPinAppWidgetSupported()) {
-            Diagnostics.event("widget", "pin_unsupported");
-            return PinResult.UNSUPPORTED_LAUNCHER;
-        }
-        String token = UUID.randomUUID().toString();
-        store.savePendingPin(token, spec.widgetId);
-        Intent callbackIntent = new Intent(app, HermesWidgetProvider.class)
-                .setAction(HermesWidgetProvider.ACTION_WIDGET_PINNED)
-                .putExtra(HermesWidgetProvider.EXTRA_PIN_TOKEN, token);
-        int flags = PendingIntent.FLAG_UPDATE_CURRENT
-                | (Build.VERSION.SDK_INT >= 31 ? PendingIntent.FLAG_MUTABLE : 0);
-        PendingIntent successCallback = PendingIntent.getBroadcast(
-                app, token.hashCode(), callbackIntent, flags);
-        Bundle extras = new Bundle();
-        extras.putParcelable(AppWidgetManager.EXTRA_APPWIDGET_PREVIEW,
-                HermesWidgetProvider.buildDynamicViews(app, spec));
+        String token = null;
         try {
+            AppWidgetManager manager = AppWidgetManager.getInstance(app);
+            if (manager == null || !manager.isRequestPinAppWidgetSupported()) {
+                Diagnostics.event("widget", "pin_unsupported");
+                return PinResult.UNSUPPORTED_LAUNCHER;
+            }
+            token = UUID.randomUUID().toString();
+            store.savePendingPin(token, spec.widgetId);
+            Intent callbackIntent = new Intent(app, HermesWidgetProvider.class)
+                    .setAction(HermesWidgetProvider.ACTION_WIDGET_PINNED)
+                    .putExtra(HermesWidgetProvider.EXTRA_PIN_TOKEN, token);
+            int flags = PendingIntent.FLAG_UPDATE_CURRENT
+                    | (Build.VERSION.SDK_INT >= 31 ? PendingIntent.FLAG_MUTABLE : 0);
+            PendingIntent successCallback = PendingIntent.getBroadcast(
+                    app, token.hashCode(), callbackIntent, flags);
+            Bundle extras = new Bundle();
+            extras.putParcelable(AppWidgetManager.EXTRA_APPWIDGET_PREVIEW,
+                    HermesWidgetProvider.buildDynamicViews(app, spec));
             boolean accepted = manager.requestPinAppWidget(
                     new ComponentName(app, HermesWidgetProvider.class), extras, successCallback);
             if (!accepted) {
@@ -67,8 +68,8 @@ public final class HermesWidgetPinning {
             Diagnostics.event("widget", "pin_requested");
             return PinResult.REQUESTED;
         } catch (RuntimeException error) {
-            store.consumePendingPin(token);
-            Diagnostics.warning("widget", "pin_failed");
+            if (token != null) store.consumePendingPin(token);
+            Diagnostics.warning("widget", "pin_failed", error);
             return PinResult.FAILED;
         }
     }
@@ -85,26 +86,26 @@ public final class HermesWidgetPinning {
         String safeLabel = HermesWidgetSpec.sanitizeHomeText(label, HermesWidgetSpec.MAX_TITLE_CHARS);
         if (safeLabel.isEmpty()) return PinResult.INVALID_SPEC;
         Context app = context.getApplicationContext();
-        ShortcutManager manager = app.getSystemService(ShortcutManager.class);
-        if (manager == null || !manager.isRequestPinShortcutSupported()) {
-            Diagnostics.event("shortcut", "pin_unsupported");
-            return PinResult.UNSUPPORTED_LAUNCHER;
-        }
-        Intent launch = target == OsEntryIntent.Target.WIDGET_ACTION
-                ? OsEntryIntent.widgetActionIntent(app, widgetId, -1)
-                : OsEntryIntent.intent(app, target);
-        ShortcutInfo info = new ShortcutInfo.Builder(app, "pinned_" + shortcutId)
-                .setShortLabel(safeLabel)
-                .setLongLabel(safeLabel)
-                .setIcon(Icon.createWithResource(app, R.mipmap.ic_launcher))
-                .setIntent(launch)
-                .build();
         try {
+            ShortcutManager manager = app.getSystemService(ShortcutManager.class);
+            if (manager == null || !manager.isRequestPinShortcutSupported()) {
+                Diagnostics.event("shortcut", "pin_unsupported");
+                return PinResult.UNSUPPORTED_LAUNCHER;
+            }
+            Intent launch = target == OsEntryIntent.Target.WIDGET_ACTION
+                    ? OsEntryIntent.widgetActionIntent(app, widgetId, -1)
+                    : OsEntryIntent.intent(app, target);
+            ShortcutInfo info = new ShortcutInfo.Builder(app, "pinned_" + shortcutId)
+                    .setShortLabel(safeLabel)
+                    .setLongLabel(safeLabel)
+                    .setIcon(Icon.createWithResource(app, R.mipmap.ic_launcher))
+                    .setIntent(launch)
+                    .build();
             boolean accepted = manager.requestPinShortcut(info, null);
             Diagnostics.event("shortcut", accepted ? "pin_requested" : "pin_unsupported");
             return accepted ? PinResult.REQUESTED : PinResult.UNSUPPORTED_LAUNCHER;
         } catch (RuntimeException error) {
-            Diagnostics.warning("shortcut", "pin_failed");
+            Diagnostics.warning("shortcut", "pin_failed", error);
             return PinResult.FAILED;
         }
     }
