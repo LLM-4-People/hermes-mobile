@@ -102,14 +102,21 @@ public final class HomePinBridge {
         String preview = spec.title
                 + (spec.subtitle.isEmpty() ? "" : "\n" + spec.subtitle)
                 + "\n\n" + activity.getString(R.string.home_pin_widget_privacy_note);
+        boolean[] handled = {false};
         DeskDialogs.open(activity, new AlertDialog.Builder(activity)
                 .setTitle(R.string.home_pin_dialog_title)
                 .setMessage(preview)
                 .setNegativeButton(R.string.home_pin_cancel, null)
-                .setPositiveButton(R.string.home_pin_widget_action, (d, w) ->
-                        launchWidgetPin(activity, spec, ownerProfileId))
-                .setNeutralButton(R.string.home_pin_shortcut_action, (d, w) ->
-                        pinWidgetShortcut(activity, spec, ownerProfileId)));
+                .setPositiveButton(R.string.home_pin_widget_action, (d, w) -> {
+                    if (handled[0]) return;
+                    handled[0] = true;
+                    launchWidgetPin(activity, spec, ownerProfileId);
+                })
+                .setNeutralButton(R.string.home_pin_shortcut_action, (d, w) -> {
+                    if (handled[0]) return;
+                    handled[0] = true;
+                    pinWidgetShortcut(activity, spec, ownerProfileId);
+                }));
     }
 
     static String widgetShortcutId(HermesWidgetSpec spec) {
@@ -143,12 +150,16 @@ public final class HomePinBridge {
         if (activity == null || !WorkspaceLayout.custom(surfaceId)) return;
         String safeTitle = safeSurfaceTitle(title);
         if (safeTitle.isEmpty()) return;
+        boolean[] handled = {false};
         DeskDialogs.open(activity, new AlertDialog.Builder(activity)
                 .setTitle(R.string.home_pin_dialog_title)
                 .setMessage(activity.getString(R.string.home_pin_surface_body, safeTitle))
                 .setNegativeButton(R.string.home_pin_cancel, null)
-                .setPositiveButton(R.string.home_pin_shortcut_action, (d, w) ->
-                        pinShortcutAsync(activity, "page-" + surfaceId.substring(5), safeTitle, surfaceId, null)));
+                .setPositiveButton(R.string.home_pin_shortcut_action, (d, w) -> {
+                    if (handled[0]) return;
+                    handled[0] = true;
+                    pinShortcutAsync(activity, "page-" + surfaceId.substring(5), safeTitle, surfaceId, null);
+                }));
     }
 
     private static void pinShortcutAsync(Activity activity, String shortcutId, String label,
@@ -227,12 +238,16 @@ public final class HomePinBridge {
             }
         }
         Diagnostics.event("home_pin", "widget_fallback_guidance");
+        boolean[] handled = {false};
         DeskDialogs.open(activity, new AlertDialog.Builder(activity)
                 .setTitle(R.string.home_pin_widget_fallback_title)
                 .setMessage(R.string.home_pin_widget_fallback_body)
                 .setNegativeButton(R.string.home_pin_close, null)
-                .setPositiveButton(R.string.home_pin_shortcut_action, (d, w) ->
-                        pinWidgetShortcut(activity, spec, ownerProfileId)));
+                .setPositiveButton(R.string.home_pin_shortcut_action, (d, w) -> {
+                    if (handled[0]) return;
+                    handled[0] = true;
+                    pinWidgetShortcut(activity, spec, ownerProfileId);
+                }));
     }
 
     /** Upserts a validated Live UI widget bound to an owner profile into HermesWidgetStore. */

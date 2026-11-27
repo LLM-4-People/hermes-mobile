@@ -297,8 +297,12 @@ public final class DeliveryRouter {
                 .setView(scroll)
                 .setNegativeButton(R.string.push_inbox_close, null);
         if (item.sessionId != null) {
-            builder.setPositiveButton(R.string.push_inbox_open_thread,
-                    (d, w) -> actions.openDiscussion(item.sessionId, item.runId));
+            boolean[] handled = {false};
+            builder.setPositiveButton(R.string.push_inbox_open_thread, (d, w) -> {
+                if (handled[0]) return;
+                handled[0] = true;
+                actions.openDiscussion(item.sessionId, item.runId);
+            });
         }
         return builder;
     }
@@ -318,16 +322,22 @@ public final class DeliveryRouter {
         if (!mime.isEmpty()) details.append("\n").append(mime);
 
         final String finalFilename = filename;
+        boolean[] handled = {false};
         AlertDialog.Builder builder = new AlertDialog.Builder(activity)
                 .setTitle(item.title)
                 .setMessage(details.toString())
                 .setNegativeButton(R.string.push_inbox_close, null);
         if (item.sessionId != null || !fileId.isEmpty()) {
-            builder.setPositiveButton(R.string.push_inbox_open_file,
-                    (d, w) -> actions.openPublishedFile(item.sessionId, fileId, finalFilename));
+            builder.setPositiveButton(R.string.push_inbox_open_file, (d, w) -> {
+                if (handled[0]) return;
+                handled[0] = true;
+                actions.openPublishedFile(item.sessionId, fileId, finalFilename);
+            });
         }
         if (!excerpt.isEmpty()) {
             builder.setNeutralButton(R.string.push_inbox_read_excerpt, (d, w) -> {
+                if (handled[0]) return;
+                handled[0] = true;
                 actions.openCodeSnippet(finalFilename, language, excerpt);
                 present(CodeReader.dialog(activity, finalFilename, language, excerpt));
             });
@@ -341,11 +351,16 @@ public final class DeliveryRouter {
         String message = summary.isEmpty()
                 ? activity.getString(R.string.push_inbox_ui_patch_prompt)
                 : activity.getString(R.string.push_inbox_ui_patch_prompt) + "\n\n" + summary;
+        boolean[] handled = {false};
         return new AlertDialog.Builder(activity)
                 .setTitle(item.title)
                 .setMessage(message)
                 .setNegativeButton(R.string.push_inbox_close, null)
-                .setPositiveButton(R.string.push_inbox_preview_ui, (d, w) -> actions.previewUiPatch(item));
+                .setPositiveButton(R.string.push_inbox_preview_ui, (d, w) -> {
+                    if (handled[0]) return;
+                    handled[0] = true;
+                    actions.previewUiPatch(item);
+                });
     }
 
     AlertDialog.Builder buildWidgetUpdateDialog(DeliveryItem item) {
@@ -354,26 +369,38 @@ public final class DeliveryRouter {
         String message = summary.isEmpty()
                 ? activity.getString(R.string.push_inbox_widget_prompt)
                 : activity.getString(R.string.push_inbox_widget_prompt) + "\n\n" + summary;
+        boolean[] handled = {false};
         return new AlertDialog.Builder(activity)
                 .setTitle(item.title)
                 .setMessage(message)
                 .setNegativeButton(R.string.push_inbox_close, null)
-                .setPositiveButton(R.string.push_inbox_refresh_widget, (d, w) -> actions.refreshWidget(item));
+                .setPositiveButton(R.string.push_inbox_refresh_widget, (d, w) -> {
+                    if (handled[0]) return;
+                    handled[0] = true;
+                    actions.refreshWidget(item);
+                });
     }
 
     AlertDialog.Builder buildReminderResultDialog(DeliveryItem item) {
         JSONObject payload = item.payloadObject();
         String body = firstNonEmpty(payload, "summary", "body", "result", "text", "message");
+        boolean[] handled = {false};
         AlertDialog.Builder builder = new AlertDialog.Builder(activity)
                 .setTitle(item.title)
                 .setMessage(body.isEmpty() ? item.kind.label(activity) : body)
                 .setNegativeButton(R.string.push_inbox_close, null);
         if (item.sessionId != null) {
-            builder.setPositiveButton(R.string.push_inbox_open_thread,
-                    (d, w) -> actions.openDiscussion(item.sessionId, item.runId));
+            builder.setPositiveButton(R.string.push_inbox_open_thread, (d, w) -> {
+                if (handled[0]) return;
+                handled[0] = true;
+                actions.openDiscussion(item.sessionId, item.runId);
+            });
         } else if (item.jobId != null) {
-            builder.setPositiveButton(R.string.push_inbox_open_reminder,
-                    (d, w) -> actions.openReminder(item.jobId, null));
+            builder.setPositiveButton(R.string.push_inbox_open_reminder, (d, w) -> {
+                if (handled[0]) return;
+                handled[0] = true;
+                actions.openReminder(item.jobId, null);
+            });
         }
         return builder;
     }

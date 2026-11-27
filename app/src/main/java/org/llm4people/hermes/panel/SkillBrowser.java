@@ -108,7 +108,8 @@ final class SkillBrowser {
         box.addView(list, new LinearLayout.LayoutParams(-1, 0, 1));
         search.setOnEditorActionListener((v, action, event) -> {
             if (action != EditorInfo.IME_ACTION_SEARCH) return false;
-            panel.activity.getSystemService(InputMethodManager.class).hideSoftInputFromWindow(v.getWindowToken(), 0);
+            InputMethodManager imm = panel.activity.getSystemService(InputMethodManager.class);
+            if (imm != null) imm.hideSoftInputFromWindow(v.getWindowToken(), 0);
             return true;
         });
         search.addTextChangedListener(new TextWatcher() {

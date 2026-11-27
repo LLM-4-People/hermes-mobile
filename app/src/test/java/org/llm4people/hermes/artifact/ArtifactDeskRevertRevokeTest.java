@@ -47,11 +47,33 @@ public final class ArtifactDeskRevertRevokeTest {
 
     @Test
     public void appCustomizationDelegatesContrastAndOnAccentToThemePalette() {
-        int[] samples = {0x1B5E50, 0x9AD7BA, 0x264B73, 0xF0A89B, 0xFFFFFF, 0x000000};
-        for (int rgb : samples) {
+        int[] passing = {0x1B5E50, 0x264B73, 0x000000};
+        int[] failing = {0x9AD7BA, 0xF0A89B, 0xFFFFFF};
+        for (int rgb : passing) {
             int argb = 0xFF000000 | rgb;
-            assertTrue(ThemePalette.minLightAccentContrast(argb) <= ThemePalette.contrastRatio(argb, ThemePalette.DAY_SURFACE));
+            double expectedMin = Math.min(
+                    ThemePalette.contrastRatio(argb, ThemePalette.DAY_PAPER),
+                    ThemePalette.contrastRatio(argb, ThemePalette.DAY_SURFACE));
+            assertEquals(expectedMin, ThemePalette.minLightAccentContrast(argb), 1e-12);
             assertEquals(ThemePalette.bestOnAccent(argb), AppCustomization.onAccentArgb(argb));
+            String hex = ThemePalette.formatHex(argb);
+            assertEquals(hex, AppCustomization.validateCustomAccentHex(hex));
+        }
+        for (int rgb : failing) {
+            int argb = 0xFF000000 | rgb;
+            double expectedMin = Math.min(
+                    ThemePalette.contrastRatio(argb, ThemePalette.DAY_PAPER),
+                    ThemePalette.contrastRatio(argb, ThemePalette.DAY_SURFACE));
+            assertEquals(expectedMin, ThemePalette.minLightAccentContrast(argb), 1e-12);
+            assertEquals(ThemePalette.bestOnAccent(argb), AppCustomization.onAccentArgb(argb));
+            String hex = ThemePalette.formatHex(argb);
+            boolean threw = false;
+            try {
+                AppCustomization.validateCustomAccentHex(hex);
+            } catch (IllegalArgumentException expected) {
+                threw = true;
+            }
+            assertTrue("Expected low-contrast accent " + hex + " to be rejected", threw);
         }
     }
 }

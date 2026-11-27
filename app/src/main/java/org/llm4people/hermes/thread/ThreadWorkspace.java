@@ -501,7 +501,8 @@ public final class ThreadWorkspace implements AutoCloseable {
                 else stageDraft(text);
                 View editor = owner.root.findFocus();
                 if (editor instanceof EditText && editor.isShown()) {
-                    activity.getSystemService(InputMethodManager.class).showSoftInput(editor, InputMethodManager.SHOW_IMPLICIT);
+                    InputMethodManager imm = activity.getSystemService(InputMethodManager.class);
+                    if (imm != null) imm.showSoftInput(editor, InputMethodManager.SHOW_IMPLICIT);
                 }
             });
             if (activeCustomization != null) starters.applyCustomization(activeCustomization);

@@ -95,7 +95,7 @@ Supported OpenStreetMap categories are strictly allowlisted: `restaurant`, `cafe
 
 # Rich declarative surfaces v2 (dashboards, charts, tables, persistent trackers)
 
-Schema `version: 2` (backwards-compatible with `version: 1`) adds rich, interactive, zero-script native blocks plus optional `accent` (WCAG-AA `#RRGGBB` checked against paper/surface), `density` (`compact`, `comfortable`, `spacious`), and `surface_style` (`paper`, `outlined`, `tinted`):
+Schema `version: 2` (backwards-compatible with `version: 1`) adds rich, interactive, zero-script native blocks plus optional `accent` (WCAG-AA `#RRGGBB` checked against paper/surface), `density` (`compact`, `comfortable`, `spacious`), and `surface_style` (`paper`, `elevated`, `outlined`, `tinted`, `glass`):
 
 - `metric_grid`: responsive KPI cards (`title`, optional `note`, `items[]` of `{label, value?, delta?, unit?, tone?: neutral|positive|warning|danger, provenance?, source?}`). Up to 8 tiles; `source` live-binds to `profile.label`, `thread.title`, or `thread.messageCount`.
 - `sparkline`: native Canvas line or bar chart (`title`, `values` of 2–64 finite numbers, optional `style: line|bar`, `unit`, `caption`, `target`, `min`, `max`).

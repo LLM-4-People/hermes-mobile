@@ -66,14 +66,14 @@ public final class HermesShortcuts {
     /** Reports opaque shortcut usage so Android launchers rank frequently used shortcuts naturally. */
     public static void reportUsed(Context context, OsEntryIntent.Target target) {
         if (context == null || target == null) return;
-        ShortcutManager manager = context.getSystemService(ShortcutManager.class);
-        if (manager == null) return;
         for (Descriptor item : DESCRIPTORS) {
             if (item.target() == target) {
                 try {
+                    ShortcutManager manager = context.getSystemService(ShortcutManager.class);
+                    if (manager == null) return;
                     manager.reportShortcutUsed(item.id());
                 } catch (RuntimeException error) {
-                    Diagnostics.warning("os", "shortcut_report_failed");
+                    Diagnostics.warning("os", "shortcut_report_failed", error);
                 }
                 return;
             }
