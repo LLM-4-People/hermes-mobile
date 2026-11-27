@@ -144,7 +144,7 @@ public final class SmartIntake {
             GradientDrawable bg = new GradientDrawable();
             bg.setCornerRadius(Ui.dp(context, Ui.BUTTON_CORNER_DP));
             bg.setColor(context.getColor(R.color.accent_surface));
-            bg.setStroke(Math.max(1, Ui.dp(context, 1)), context.getColor(R.color.line));
+            bg.setStroke(Math.max(1, Ui.dp(context, 1)), context.getColor(R.color.muted));
             chip.setBackground(Ui.roundedRipple(context, Ui.BUTTON_CORNER_DP, bg));
             Ui.pad(chip, 12, 6);
             chip.setMinimumHeight(Ui.dp(context, 48));

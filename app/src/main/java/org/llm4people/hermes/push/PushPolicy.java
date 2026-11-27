@@ -8,7 +8,6 @@ import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.profile.PreferenceTransaction;
 
-import java.time.LocalTime;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -93,11 +92,6 @@ public final class PushPolicy {
         return new PushPolicy(enabledCategories, enabled, startMinute, endMinute, allowHighUrgency);
     }
 
-    public boolean isQuietAt(LocalTime localTime) {
-        Objects.requireNonNull(localTime, "localTime");
-        return isQuietAt(localTime.getHour() * 60 + localTime.getMinute());
-    }
-
     public boolean isQuietAt(int minuteOfDay) {
         if (!quietHoursEnabled) return false;
         if (minuteOfDay < 0 || minuteOfDay >= 1440) {
@@ -125,10 +119,6 @@ public final class PushPolicy {
             return Decision.SUPPRESSED_QUIET_HOURS;
         }
         return Decision.NOTIFY;
-    }
-
-    public Decision evaluate(String wireKind, DeliveryItem.Urgency urgency, LocalTime localTime) {
-        return evaluate(wireKind, urgency, localTime.getHour() * 60 + localTime.getMinute());
     }
 
     public static String formatMinute(Context context, int minuteOfDay) {

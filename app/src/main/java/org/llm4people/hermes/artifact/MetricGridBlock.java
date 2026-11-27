@@ -56,11 +56,6 @@ public final class MetricGridBlock {
             return raw + " " + unit;
         }
 
-        public boolean isUnavailable(String boundValue) {
-            String raw = source != null ? boundValue : value;
-            return raw == null || raw.isEmpty();
-        }
-
         public String accessibilityText(Context context, String boundValue) {
             StringBuilder sb = new StringBuilder(label).append(", ").append(formattedValue(context, boundValue));
             if (!delta.isEmpty()) {

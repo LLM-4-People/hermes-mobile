@@ -5,8 +5,6 @@ import org.junit.Before;
 import org.junit.Test;
 import org.llm4people.hermes.Diagnostics;
 
-import java.time.LocalTime;
-
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
@@ -34,77 +32,77 @@ public final class PushPolicyTest {
             assertTrue(policy.isCategoryEnabled(cat));
         }
         assertFalse(policy.quietHoursEnabled);
-        assertFalse(policy.isQuietAt(LocalTime.of(23, 30)));
+        assertFalse(policy.isQuietAt(23 * 60 + 30));
         assertEquals(PushPolicy.Decision.NOTIFY,
-                policy.evaluate("briefing", DeliveryItem.Urgency.NORMAL, LocalTime.of(23, 30)));
+                policy.evaluate("briefing", DeliveryItem.Urgency.NORMAL, 23 * 60 + 30));
     }
 
     @Test
     public void perCategoryOptOutSuppressesMatchingTypedAndLegacyKindsOnly() {
         PushPolicy noFiles = PushPolicy.defaults().withCategory(DeliveryItem.Category.FILES, false);
         assertEquals(PushPolicy.Decision.SUPPRESSED_CATEGORY,
-                noFiles.evaluate("file", DeliveryItem.Urgency.HIGH, LocalTime.of(12, 0)));
+                noFiles.evaluate("file", DeliveryItem.Urgency.HIGH, 12 * 60));
         assertEquals(PushPolicy.Decision.NOTIFY,
-                noFiles.evaluate("briefing", DeliveryItem.Urgency.NORMAL, LocalTime.of(12, 0)));
+                noFiles.evaluate("briefing", DeliveryItem.Urgency.NORMAL, 12 * 60));
 
         PushPolicy noReminders = PushPolicy.defaults().withCategory(DeliveryItem.Category.REMINDERS, false);
         assertEquals(PushPolicy.Decision.SUPPRESSED_CATEGORY,
-                noReminders.evaluate("reminder", DeliveryItem.Urgency.NORMAL, LocalTime.of(9, 0)));
+                noReminders.evaluate("reminder", DeliveryItem.Urgency.NORMAL, 9 * 60));
         assertEquals(PushPolicy.Decision.SUPPRESSED_CATEGORY,
-                noReminders.evaluate("reminder_result", DeliveryItem.Urgency.NORMAL, LocalTime.of(9, 0)));
+                noReminders.evaluate("reminder_result", DeliveryItem.Urgency.NORMAL, 9 * 60));
 
         PushPolicy noScreen = PushPolicy.defaults().withCategory(DeliveryItem.Category.SCREEN_UPDATES, false);
         assertEquals(PushPolicy.Decision.SUPPRESSED_CATEGORY,
-                noScreen.evaluate("ui_patch", DeliveryItem.Urgency.NORMAL, LocalTime.of(10, 0)));
+                noScreen.evaluate("ui_patch", DeliveryItem.Urgency.NORMAL, 10 * 60));
         assertEquals(PushPolicy.Decision.SUPPRESSED_CATEGORY,
-                noScreen.evaluate("widget_update", DeliveryItem.Urgency.NORMAL, LocalTime.of(10, 0)));
+                noScreen.evaluate("widget_update", DeliveryItem.Urgency.NORMAL, 10 * 60));
 
         PushPolicy noActions = PushPolicy.defaults().withCategory(DeliveryItem.Category.PROPOSED_ACTIONS, false);
         assertEquals(PushPolicy.Decision.SUPPRESSED_CATEGORY,
-                noActions.evaluate("device_action", DeliveryItem.Urgency.HIGH, LocalTime.of(10, 0)));
+                noActions.evaluate("device_action", DeliveryItem.Urgency.HIGH, 10 * 60));
         assertEquals(PushPolicy.Decision.SUPPRESSED_CATEGORY,
-                noActions.evaluate("approval_requested", DeliveryItem.Urgency.HIGH, LocalTime.of(10, 0)));
+                noActions.evaluate("approval_requested", DeliveryItem.Urgency.HIGH, 10 * 60));
     }
 
     @Test
     public void silentUrgencyNeverPostsBannerEvenWhenCategoryEnabled() {
         PushPolicy policy = PushPolicy.defaults();
         assertEquals(PushPolicy.Decision.SILENT_INBOX_ONLY,
-                policy.evaluate("card", DeliveryItem.Urgency.SILENT, LocalTime.of(14, 0)));
+                policy.evaluate("card", DeliveryItem.Urgency.SILENT, 14 * 60));
         assertEquals(PushPolicy.Decision.SILENT_INBOX_ONLY,
-                policy.evaluate("widget_update", DeliveryItem.Urgency.SILENT, LocalTime.of(14, 0)));
+                policy.evaluate("widget_update", DeliveryItem.Urgency.SILENT, 14 * 60));
     }
 
     @Test
     public void quietHoursHandleOvernightSameDayEqualAndHighUrgencyBreakthrough() {
         // Overnight 22:00 -> 07:00
         PushPolicy overnight = PushPolicy.defaults().withQuietHours(true, 22 * 60, 7 * 60, true);
-        assertTrue(overnight.isQuietAt(LocalTime.of(22, 0)));
-        assertTrue(overnight.isQuietAt(LocalTime.of(23, 59)));
-        assertTrue(overnight.isQuietAt(LocalTime.of(0, 0)));
-        assertTrue(overnight.isQuietAt(LocalTime.of(6, 59)));
-        assertFalse(overnight.isQuietAt(LocalTime.of(7, 0)));
-        assertFalse(overnight.isQuietAt(LocalTime.of(21, 59)));
+        assertTrue(overnight.isQuietAt(22 * 60));
+        assertTrue(overnight.isQuietAt(23 * 60 + 59));
+        assertTrue(overnight.isQuietAt(0));
+        assertTrue(overnight.isQuietAt(6 * 60 + 59));
+        assertFalse(overnight.isQuietAt(7 * 60));
+        assertFalse(overnight.isQuietAt(21 * 60 + 59));
 
         assertEquals(PushPolicy.Decision.SUPPRESSED_QUIET_HOURS,
-                overnight.evaluate("briefing", DeliveryItem.Urgency.NORMAL, LocalTime.of(23, 15)));
+                overnight.evaluate("briefing", DeliveryItem.Urgency.NORMAL, 23 * 60 + 15));
         assertEquals(PushPolicy.Decision.NOTIFY,
-                overnight.evaluate("device_action", DeliveryItem.Urgency.HIGH, LocalTime.of(23, 15)));
+                overnight.evaluate("device_action", DeliveryItem.Urgency.HIGH, 23 * 60 + 15));
 
         PushPolicy strict = overnight.withQuietHours(true, 22 * 60, 7 * 60, false);
         assertEquals(PushPolicy.Decision.SUPPRESSED_QUIET_HOURS,
-                strict.evaluate("device_action", DeliveryItem.Urgency.HIGH, LocalTime.of(23, 15)));
+                strict.evaluate("device_action", DeliveryItem.Urgency.HIGH, 23 * 60 + 15));
 
         // Same-day 13:00 -> 15:00
         PushPolicy afternoon = PushPolicy.defaults().withQuietHours(true, 13 * 60, 15 * 60, false);
-        assertFalse(afternoon.isQuietAt(LocalTime.of(12, 59)));
-        assertTrue(afternoon.isQuietAt(LocalTime.of(13, 0)));
-        assertTrue(afternoon.isQuietAt(LocalTime.of(14, 59)));
-        assertFalse(afternoon.isQuietAt(LocalTime.of(15, 0)));
+        assertFalse(afternoon.isQuietAt(12 * 60 + 59));
+        assertTrue(afternoon.isQuietAt(13 * 60));
+        assertTrue(afternoon.isQuietAt(14 * 60 + 59));
+        assertFalse(afternoon.isQuietAt(15 * 60));
 
         // Equal start == end -> inactive
         PushPolicy emptyWindow = PushPolicy.defaults().withQuietHours(true, 8 * 60, 8 * 60, false);
-        assertFalse(emptyWindow.isQuietAt(LocalTime.of(8, 0)));
+        assertFalse(emptyWindow.isQuietAt(8 * 60));
     }
 
     @Test

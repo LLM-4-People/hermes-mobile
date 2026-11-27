@@ -79,6 +79,8 @@ public final class AdminConsoleSheet implements AutoCloseable {
     private OnboardingModels.AdminSettings settings;
     private List<OnboardingModels.PairingTicket> activeTickets = Collections.emptyList();
     private boolean closed;
+    private final java.util.concurrent.atomic.AtomicBoolean pairingInFlight =
+            new java.util.concurrent.atomic.AtomicBoolean();
 
     public AdminConsoleSheet(
             Activity activity,
@@ -404,8 +406,9 @@ public final class AdminConsoleSheet implements AutoCloseable {
         scroll.setHorizontalScrollBarEnabled(false);
         LinearLayout actions = Ui.row(activity);
 
-        addRowAction(actions, R.string.profile_hub_pair_device_action, true, true, false,
-                () -> pairProfileDevice(profile.slug()));
+        Button[] pairBtn = new Button[1];
+        pairBtn[0] = addRowAction(actions, R.string.profile_hub_pair_device_action, true, true, false,
+                () -> pairProfileDevice(profile.slug(), pairBtn[0]));
         addRowAction(actions, R.string.profile_hub_edit_action, true, false, false,
                 () -> showEditUserDialog(profile));
         Button[] roleBtn = new Button[1];
@@ -637,10 +640,10 @@ public final class AdminConsoleSheet implements AutoCloseable {
         }
     }
 
-    private void pairProfileDevice(String slug) {
+    private void pairProfileDevice(String slug, Button trigger) {
         ProfileInviteDialogs.pairExistingProfileDevice(
                 activity, api, main, this::submitIo, () -> closed, canAct,
-                slug, "admin", "pair_device_failed",
+                pairingInFlight, trigger, slug, "admin", "pair_device_failed",
                 created -> {
                     if (shareSheet != null) shareSheet.close();
                     shareSheet = PairingShareSheet.show(activity, created, api, io, canAct, this::refreshAll);

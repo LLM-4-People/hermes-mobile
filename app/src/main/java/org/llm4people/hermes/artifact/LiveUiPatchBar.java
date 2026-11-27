@@ -61,7 +61,7 @@ public final class LiveUiPatchBar extends LinearLayout {
         setBackground(bg);
         Ui.pad(this, 14, 10);
 
-        headline = Ui.text(activity, activity.getString(R.string.ws_liveui_proposal_headline), 15);
+        headline = Ui.text(activity, "", 15);
         headline.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         headline.setTextColor(palette.ink);
         headline.setAccessibilityLiveRegion(ACCESSIBILITY_LIVE_REGION_POLITE);
@@ -101,7 +101,6 @@ public final class LiveUiPatchBar extends LinearLayout {
         this.pendingWidget = firstWidget(patch);
         this.appliedRevisionId = null;
         this.appliedState = false;
-        headline.setText(R.string.ws_liveui_proposal_headline);
         summary.setText(patch.displaySummary(activity));
         viewButton.setVisibility(VISIBLE);
         applyButton.setVisibility(VISIBLE);
@@ -109,6 +108,7 @@ public final class LiveUiPatchBar extends LinearLayout {
         cancelButton.setText(R.string.ws_cancel);
         cancelButton.setContentDescription(activity.getString(R.string.ws_liveui_dismiss_a11y));
         setVisibility(VISIBLE);
+        Ui.announceLiveStatus(headline, activity.getString(R.string.ws_liveui_proposal_headline));
     }
 
     public void showApplied(LiveUiPatch patch) {
@@ -116,7 +116,6 @@ public final class LiveUiPatchBar extends LinearLayout {
         this.pendingWidget = firstWidget(patch);
         this.appliedRevisionId = patch.revisionId;
         this.appliedState = true;
-        headline.setText(R.string.ws_liveui_applied_headline);
         summary.setText(activity.getString(R.string.ws_liveui_applied_summary,
                 patch.displaySummary(activity)));
         viewButton.setVisibility(GONE);
@@ -125,6 +124,7 @@ public final class LiveUiPatchBar extends LinearLayout {
         cancelButton.setText(R.string.ws_cancel);
         cancelButton.setContentDescription(activity.getString(R.string.ws_liveui_undo_a11y));
         setVisibility(VISIBLE);
+        Ui.announceLiveStatus(headline, activity.getString(R.string.ws_liveui_applied_headline));
     }
 
     private static LiveUiPatch.WidgetSpec firstWidget(LiveUiPatch patch) {
@@ -274,7 +274,7 @@ public final class LiveUiPatchBar extends LinearLayout {
             GradientDrawable bg = new GradientDrawable();
             bg.setCornerRadius(Ui.dp(context, Ui.BUTTON_CORNER_DP));
             bg.setColor(colors.accentSurface);
-            bg.setStroke(Math.max(1, Ui.dp(context, 1)), colors.line);
+            bg.setStroke(Math.max(1, Ui.dp(context, 1)), WorkspaceForms.editorUnfocusedStrokeColor(colors));
             chip.setBackground(Ui.roundedRipple(context, Ui.BUTTON_CORNER_DP, bg));
             chip.setContentDescription(context.getString(action.draft != null
                     ? R.string.ws_liveui_chip_draft_a11y

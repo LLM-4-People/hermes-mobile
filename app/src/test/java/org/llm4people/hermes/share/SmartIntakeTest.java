@@ -1,6 +1,7 @@
 package org.llm4people.hermes.share;
 
 import org.junit.Test;
+import org.llm4people.hermes.Digests;
 import org.llm4people.hermes.camera.CapturedMedia;
 
 import java.nio.charset.StandardCharsets;
@@ -15,11 +16,11 @@ public final class SmartIntakeTest {
     public void classifiesPhotoUrlCodeLogDocumentAndMessageAccurately() {
         byte[] dummy = "x".getBytes(StandardCharsets.UTF_8);
         CapturedMedia.Item photo = new CapturedMedia.Item(
-                CapturedMedia.Kind.IMAGE, "recu.jpg", "image/jpeg", dummy, CapturedMedia.sha256Hex(dummy), null);
+                CapturedMedia.Kind.IMAGE, "recu.jpg", "image/jpeg", dummy, Digests.sha256Hex(dummy), null);
         CapturedMedia.Item logFile = new CapturedMedia.Item(
-                CapturedMedia.Kind.DOCUMENT, "crash.log", "text/plain", dummy, CapturedMedia.sha256Hex(dummy), null);
+                CapturedMedia.Kind.DOCUMENT, "crash.log", "text/plain", dummy, Digests.sha256Hex(dummy), null);
         CapturedMedia.Item pdf = new CapturedMedia.Item(
-                CapturedMedia.Kind.DOCUMENT, "facture.pdf", "application/pdf", dummy, CapturedMedia.sha256Hex(dummy), null);
+                CapturedMedia.Kind.DOCUMENT, "facture.pdf", "application/pdf", dummy, Digests.sha256Hex(dummy), null);
 
         assertEquals(SmartIntake.ContentType.PHOTO_OR_RECEIPT, SmartIntake.classify(null, List.of(photo)));
         assertEquals(SmartIntake.ContentType.CODE_OR_LOG, SmartIntake.classify(null, List.of(logFile)));
@@ -35,7 +36,7 @@ public final class SmartIntakeTest {
     public void respectsMaxThreeChipsAndOnlyAdaptsWhenHabitCountReachesThreshold() {
         byte[] dummy = "x".getBytes(StandardCharsets.UTF_8);
         CapturedMedia.Item photo = new CapturedMedia.Item(
-                CapturedMedia.Kind.IMAGE, "recu.jpg", "image/jpeg", dummy, CapturedMedia.sha256Hex(dummy), null);
+                CapturedMedia.Kind.IMAGE, "recu.jpg", "image/jpeg", dummy, Digests.sha256Hex(dummy), null);
 
         // Below threshold (< 3): default calm ordering preserved.
         List<SmartIntake.Suggestion> below = SmartIntake.suggest(null, List.of(photo), Map.of("save_note", 2));

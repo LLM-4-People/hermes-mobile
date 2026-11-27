@@ -74,6 +74,8 @@ public final class ProfileHubSheet implements AutoCloseable {
     private Button inviteButton;
     private boolean isAdmin;
     private boolean closed;
+    private final java.util.concurrent.atomic.AtomicBoolean pairingInFlight =
+            new java.util.concurrent.atomic.AtomicBoolean();
 
     public ProfileHubSheet(
             Activity activity,
@@ -210,36 +212,54 @@ public final class ProfileHubSheet implements AutoCloseable {
 
     /** Immediately triggers the 1-tap "Add another device" 5-min QR pairing flow. */
     public void triggerPairDevice() {
+        triggerPairDevice(null);
+    }
+
+    private void triggerPairDevice(Button trigger) {
         if (closed || !canAct.getAsBoolean() || io.isShutdown()) return;
         boolean standalone = sheetDialog == null;
-        if (!submitIo(() -> {
-            OnboardingModels.PairingTicket ticket = null;
-            try {
-                JSONObject req = new JSONObject();
-                req.put("mode", "device");
-                ticket = OnboardingModels.parsePairingTicket(api.createPairing(req));
-                Diagnostics.event("profile_hub", "device_pairing_created");
-            } catch (Exception err) {
-                Diagnostics.warning("profile_hub", "device_pairing_failed");
-            }
-            OnboardingModels.PairingTicket created = ticket;
-            main.post(() -> {
-                if (closed) return;
-                if (!canAct.getAsBoolean() || activity.isFinishing() || activity.isDestroyed()) {
+        if (!ProfileInviteDialogs.submitSingleFlight(
+                pairingInFlight,
+                this::submitIo,
+                () -> {
+                    if (trigger != null) trigger.setEnabled(false);
+                },
+                () -> {
+                    if (trigger != null) trigger.setEnabled(true);
                     if (standalone) close();
-                    return;
-                }
-                if (created == null) {
-                    Toast.makeText(activity, R.string.profile_hub_qr_unavailable, Toast.LENGTH_LONG).show();
-                    if (standalone) close();
-                    return;
-                }
-                if (shareSheet != null) shareSheet.close();
-                shareSheet = PairingShareSheet.show(activity, created, api, io, canAct,
-                        standalone ? null : this::refreshRemoteState, standalone ? this::close : null);
-            });
-        }) && standalone) {
-            close();
+                },
+                () -> {
+                    OnboardingModels.PairingTicket ticket = null;
+                    try {
+                        JSONObject req = new JSONObject();
+                        req.put("mode", "device");
+                        ticket = OnboardingModels.parsePairingTicket(api.createPairing(req));
+                        Diagnostics.event("profile_hub", "device_pairing_created");
+                    } catch (Exception err) {
+                        Diagnostics.warning("profile_hub", "device_pairing_failed");
+                    }
+                    OnboardingModels.PairingTicket created = ticket;
+                    if (!main.post(() -> {
+                        pairingInFlight.set(false);
+                        if (trigger != null) trigger.setEnabled(true);
+                        if (closed) return;
+                        if (!canAct.getAsBoolean() || activity.isFinishing() || activity.isDestroyed()) {
+                            if (standalone) close();
+                            return;
+                        }
+                        if (created == null) {
+                            Toast.makeText(activity, R.string.profile_hub_qr_unavailable, Toast.LENGTH_LONG).show();
+                            if (standalone) close();
+                            return;
+                        }
+                        if (shareSheet != null) shareSheet.close();
+                        shareSheet = PairingShareSheet.show(activity, created, api, io, canAct,
+                                standalone ? null : this::refreshRemoteState, standalone ? this::close : null);
+                    })) {
+                        pairingInFlight.set(false);
+                    }
+                })) {
+            return;
         }
     }
 
@@ -278,7 +298,7 @@ public final class ProfileHubSheet implements AutoCloseable {
         card.addView(top);
 
         Button pairBtn = Ui.filledButton(activity, activity.getString(R.string.profile_hub_pair_device_action),
-                v -> triggerPairDevice());
+                v -> triggerPairDevice((Button) v));
         card.addView(pairBtn, topMargin(14));
 
         inviteButton = Ui.outlinedButton(activity, activity.getString(R.string.profile_hub_invite_action),
@@ -430,7 +450,7 @@ public final class ProfileHubSheet implements AutoCloseable {
         LinearLayout actions = Ui.row(activity);
 
         Button pairBtn = Ui.tonalButton(activity, activity.getString(R.string.profile_hub_pair_device_action),
-                v -> inviteExistingProfile(profile.slug()));
+                v -> inviteExistingProfile(profile.slug(), (Button) v));
         actions.addView(pairBtn);
 
         Button editBtn = Ui.outlinedButton(activity, activity.getString(R.string.profile_hub_edit_action),
@@ -445,10 +465,10 @@ public final class ProfileHubSheet implements AutoCloseable {
         return card;
     }
 
-    private void inviteExistingProfile(String slug) {
+    private void inviteExistingProfile(String slug, Button trigger) {
         ProfileInviteDialogs.pairExistingProfileDevice(
                 activity, api, main, this::submitIo, () -> closed, canAct,
-                slug, "profile_hub", "invite_existing_failed",
+                pairingInFlight, trigger, slug, "profile_hub", "invite_existing_failed",
                 created -> {
                     if (shareSheet != null) shareSheet.close();
                     shareSheet = PairingShareSheet.show(activity, created, api, io, canAct, this::refreshRemoteState);

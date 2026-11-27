@@ -222,8 +222,7 @@ public final class OnboardingApiContractTest {
         assertEquals("tkt_001", ticket.ticketId());
         assertEquals("invite", ticket.mode());
         assertEquals(200L, ticket.remainingSeconds(1_800_000_100L));
-        assertFalse(ticket.isExpired(1_800_000_100L));
-        assertTrue(ticket.isExpired(1_800_000_300L));
+        assertEquals(0L, ticket.remainingSeconds(1_800_000_300L));
 
         OnboardingModels.PairingClaim claim = OnboardingModels.parsePairingClaimMap(Map.of(
                 "server_url", "https://hermes.example.com",

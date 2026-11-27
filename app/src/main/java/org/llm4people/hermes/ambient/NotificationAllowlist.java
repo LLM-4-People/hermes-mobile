@@ -120,12 +120,6 @@ public final class NotificationAllowlist {
         return allowedPackages();
     }
 
-    public synchronized boolean isAllowed(String packageName) {
-        String normalized = normalizePackage(packageName);
-        if (normalized == null || NotificationPrivacyGuard.isHardBlockedPackage(normalized)) return false;
-        return allowedPackages().contains(normalized);
-    }
-
     /** Add or remove one package. Throws {@link IllegalArgumentException} for invalid or hard-blocked packages. */
     public synchronized void setAllowed(String packageName, boolean allowed) {
         String normalized = normalizePackage(packageName);

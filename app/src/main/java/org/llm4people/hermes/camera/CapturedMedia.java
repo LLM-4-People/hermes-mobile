@@ -11,6 +11,7 @@ import android.net.Uri;
 import android.provider.OpenableColumns;
 
 import org.llm4people.hermes.Diagnostics;
+import org.llm4people.hermes.Digests;
 import org.llm4people.hermes.HermesConfig;
 import org.llm4people.hermes.PlainTextSanitizer;
 import org.llm4people.hermes.perf.BitmapSampling;
@@ -152,7 +153,7 @@ public final class CapturedMedia {
         if (normalized.startsWith("image/")) {
             return stripImageExif(raw, name, limit);
         }
-        return new Item(Kind.DOCUMENT, name, normalized, raw, sha256Hex(raw), null);
+        return new Item(Kind.DOCUMENT, name, normalized, raw, Digests.sha256Hex(raw), null);
     }
 
     /** Re-encode a still image into fresh sRGB opaque pixels, honoring a caller-resolved byte ceiling. */
@@ -197,7 +198,7 @@ public final class CapturedMedia {
                 String preview;
                 try { preview = Base64.getEncoder().encodeToString(compress(thumb, Bitmap.CompressFormat.JPEG, 70)); }
                 finally { if (thumb != opaque) thumb.recycle(); }
-                return new Item(Kind.IMAGE, sanitizeFilename(name, "Photo"), mime, bytes, sha256Hex(bytes), preview);
+                return new Item(Kind.IMAGE, sanitizeFilename(name, "Photo"), mime, bytes, Digests.sha256Hex(bytes), preview);
             } finally {
                 opaque.recycle();
             }
@@ -239,9 +240,5 @@ public final class CapturedMedia {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         if (!bitmap.compress(format, quality, out)) throw new IOException("Image compression failed");
         return out.toByteArray();
-    }
-
-    public static String sha256Hex(byte[] bytes) {
-        return org.llm4people.hermes.Digests.sha256Hex(bytes);
     }
 }

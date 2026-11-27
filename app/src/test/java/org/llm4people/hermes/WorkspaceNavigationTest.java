@@ -130,8 +130,6 @@ public class WorkspaceNavigationTest {
         ShellRoutes routes = new ShellRoutes();
         routes.register("brain", (r, f) -> events.add("route:" + r + ":" + f));
         routes.setFallback((r, f) -> events.add("fallback:" + r));
-        assertTrue(routes.hasRoute("brain"));
-        assertFalse(routes.hasRoute("unknown"));
         assertTrue(routes.render("brain", true));
         assertTrue(routes.render("page/notes", false));
         assertFalse(routes.render(null, false));

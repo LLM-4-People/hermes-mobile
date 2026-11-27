@@ -37,10 +37,6 @@ public final class OnboardingModels {
         public long remainingSeconds(long nowEpochSec) {
             return Math.max(0L, expiresAtEpochSec - nowEpochSec);
         }
-
-        public boolean isExpired(long nowEpochSec) {
-            return expiresAtEpochSec > 0L && nowEpochSec >= expiresAtEpochSec;
-        }
     }
 
     public record StarterPrompt(String id, String title, String prompt, String category) {}

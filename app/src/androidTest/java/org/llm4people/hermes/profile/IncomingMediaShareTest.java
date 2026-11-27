@@ -3,6 +3,7 @@ package org.llm4people.hermes.profile;
 import android.content.Context;
 import android.test.InstrumentationTestCase;
 
+import org.llm4people.hermes.Digests;
 import org.llm4people.hermes.camera.CapturedMedia;
 
 import java.nio.charset.StandardCharsets;
@@ -14,7 +15,7 @@ public final class IncomingMediaShareTest extends InstrumentationTestCase {
         Context context = getInstrumentation().getTargetContext();
         byte[] content = "données confidentielles".getBytes(StandardCharsets.UTF_8);
         CapturedMedia.Item doc = new CapturedMedia.Item(
-                CapturedMedia.Kind.DOCUMENT, "secret.txt", "text/plain", content, CapturedMedia.sha256Hex(content), null);
+                CapturedMedia.Kind.DOCUMENT, "secret.txt", "text/plain", content, Digests.sha256Hex(content), null);
 
         try (WorkspaceAccountFixture first = new WorkspaceAccountFixture(context);
              WorkspaceAccountFixture second = new WorkspaceAccountFixture(context)) {

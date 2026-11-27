@@ -94,7 +94,7 @@ public final class ClipboardPastePill {
         GradientDrawable bg = new GradientDrawable();
         bg.setCornerRadius(Ui.dp(context, Ui.BUTTON_CORNER_DP));
         bg.setColor(context.getColor(R.color.accent_surface));
-        bg.setStroke(Math.max(1, Ui.dp(context, 1)), context.getColor(R.color.line));
+        bg.setStroke(Math.max(1, Ui.dp(context, 1)), context.getColor(R.color.muted));
         pill.setBackground(Ui.roundedRipple(context, Ui.BUTTON_CORNER_DP, bg));
         Ui.pad(pill, 12, 6);
         pill.setMinimumHeight(Ui.dp(context, 48));

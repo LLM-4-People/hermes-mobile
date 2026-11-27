@@ -26,26 +26,26 @@ public final class InstrumentStateStoreTest {
 
         storeA.putBoolean("thread_1", "page/suivi", "verifie", true);
         storeA.putNumber("thread_1", "page/suivi", "priorite", 3.5);
-        storeA.putString("thread_1", "page/suivi", "note", "Ligne 1, virgule\nLigne 2\\fin");
         storeA.putStringList("thread_1", "page/suivi", "etiquettes", Arrays.asList("Urgent", "Code, revue"));
+        Map<String, Object> withNote = storeA.load("thread_1", "page/suivi");
+        withNote.put("note", "Ligne 1, virgule\nLigne 2\\fin");
+        storeA.save("thread_1", "page/suivi", withNote);
 
         // Reopen with fresh store handle on profile A (simulates restart).
         InstrumentStateStore reopenedA = new InstrumentStateStore(profileA);
-        assertTrue(reopenedA.getBoolean("thread_1", "page/suivi", "verifie", false));
-        assertEquals(3.5, reopenedA.getNumber("thread_1", "page/suivi", "priorite", 0), 0.0001);
-        assertEquals("Ligne 1, virgule\nLigne 2\\fin", reopenedA.getString("thread_1", "page/suivi", "note", ""));
-        assertEquals(Arrays.asList("Urgent", "Code, revue"),
-                reopenedA.getStringList("thread_1", "page/suivi", "etiquettes", Collections.emptyList()));
+        Map<String, Object> loadedA = reopenedA.load("thread_1", "page/suivi");
+        assertEquals(Boolean.TRUE, loadedA.get("verifie"));
+        assertEquals(3.5, ((Number) loadedA.get("priorite")).doubleValue(), 0.0001);
+        assertEquals("Ligne 1, virgule\nLigne 2\\fin", loadedA.get("note"));
+        assertEquals(Arrays.asList("Urgent", "Code, revue"), loadedA.get("etiquettes"));
 
         // Profile B must not observe any state from Profile A.
-        assertFalse(storeB.getBoolean("thread_1", "page/suivi", "verifie", false));
-        assertEquals(0.0, storeB.getNumber("thread_1", "page/suivi", "priorite", 0), 0.0001);
         assertTrue(storeB.load("thread_1", "page/suivi").isEmpty());
 
         // Different scope on same profile is also isolated.
         assertTrue(reopenedA.load("thread_2", "page/suivi").isEmpty());
 
-        reopenedA.clear("thread_1", "page/suivi");
+        reopenedA.save("thread_1", "page/suivi", Collections.emptyMap());
         assertTrue(reopenedA.load("thread_1", "page/suivi").isEmpty());
     }
 
@@ -68,11 +68,12 @@ public final class InstrumentStateStoreTest {
             fail("Expected Infinity rejection");
         } catch (IOException expected) {}
         try {
-            store.putString("atelier", "page/suivi", "BAD_ID", "x");
+            store.putBoolean("atelier", "page/suivi", "BAD_ID", true);
             fail("Expected invalid field id rejection");
         } catch (IOException expected) {}
         try {
-            store.putString("atelier", "page/suivi", "note", "a".repeat(InstrumentStateStore.MAX_STRING_LEN + 1));
+            store.putStringList("atelier", "page/suivi", "tags",
+                    Collections.singletonList("a".repeat(InstrumentStateStore.MAX_STRING_LEN + 1)));
             fail("Expected oversized string rejection");
         } catch (IOException expected) {}
         try {

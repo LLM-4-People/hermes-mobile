@@ -93,11 +93,6 @@ public final class InstrumentStateStore {
         putValue(scope, surfaceId, id, Double.valueOf(value));
     }
 
-    public void putString(String scope, String surfaceId, String id, String value) throws IOException {
-        if (value == null || value.length() > MAX_STRING_LEN) throw new IOException("Invalid string value");
-        putValue(scope, surfaceId, id, value);
-    }
-
     public void putStringList(String scope, String surfaceId, String id, List<String> values) throws IOException {
         if (values == null || values.size() > MAX_LIST_ITEMS) throw new IOException("Invalid list size");
         List<String> copy = new ArrayList<>(values.size());
@@ -113,31 +108,6 @@ public final class InstrumentStateStore {
         Map<String, Object> current = load(scope, surfaceId);
         current.put(id, value);
         save(scope, surfaceId, current);
-    }
-
-    public boolean getBoolean(String scope, String surfaceId, String id, boolean fallback) {
-        Object val = load(scope, surfaceId).get(id);
-        return val instanceof Boolean b ? b : fallback;
-    }
-
-    public double getNumber(String scope, String surfaceId, String id, double fallback) {
-        Object val = load(scope, surfaceId).get(id);
-        return val instanceof Number n && Double.isFinite(n.doubleValue()) ? n.doubleValue() : fallback;
-    }
-
-    public String getString(String scope, String surfaceId, String id, String fallback) {
-        Object val = load(scope, surfaceId).get(id);
-        return val instanceof String s ? s : fallback;
-    }
-
-    @SuppressWarnings("unchecked")
-    public List<String> getStringList(String scope, String surfaceId, String id, List<String> fallback) {
-        Object val = load(scope, surfaceId).get(id);
-        return val instanceof List<?> list ? (List<String>) list : fallback;
-    }
-
-    public void clear(String scope, String surfaceId) throws IOException {
-        store.remove(storageKey(scope, surfaceId));
     }
 
     /** Compact, unambiguous, pure-Java typed encoding (B:, N:, S:, L:). */
