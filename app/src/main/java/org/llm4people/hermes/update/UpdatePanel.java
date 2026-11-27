@@ -438,12 +438,16 @@ public final class UpdatePanel {
                 showFeedback(activity.getString(R.string.perm_update_install_still_off), true);
                 if (permissionButton != null) permissionButton.setVisibility(View.VISIBLE);
                 dismissDialogs();
+                boolean[] handled = {false};
                 activeDialog = Ui.secureDialog(new AlertDialog.Builder(activity)
                         .setTitle(R.string.update_permission_title)
                         .setMessage(R.string.update_permission_body)
                         .setNegativeButton(R.string.update_cancel_action, null)
-                        .setPositiveButton(R.string.update_permission_open_settings,
-                                (d, w) -> openInstallPermissionSettings()));
+                        .setPositiveButton(R.string.update_permission_open_settings, (d, w) -> {
+                            if (handled[0]) return;
+                            handled[0] = true;
+                            openInstallPermissionSettings();
+                        }));
             } else if (permissionButton != null) {
                 permissionButton.setVisibility(View.GONE);
             }

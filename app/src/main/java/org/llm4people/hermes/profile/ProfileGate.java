@@ -1710,11 +1710,16 @@ public final class ProfileGate {
 
     private void confirmForget(ProfileScreen screen, String id, String label) {
         dismissConfirmation();
+        boolean[] handled = {false};
         confirmation = Ui.secureDialog(new AlertDialog.Builder(activity)
                 .setTitle(activity.getString(R.string.profile_setup_remove_title, label))
                 .setMessage(activity.getString(R.string.profile_setup_remove_body))
                 .setNegativeButton(R.string.profile_setup_cancel, null)
-                .setPositiveButton(R.string.profile_setup_remove_confirm, (dialog, which) -> forget(screen, id)));
+                .setPositiveButton(R.string.profile_setup_remove_confirm, (dialog, which) -> {
+                    if (handled[0]) return;
+                    handled[0] = true;
+                    forget(screen, id);
+                }));
     }
 
     private void authenticateBiometric(
@@ -1816,9 +1821,9 @@ public final class ProfileGate {
             long waitMs = backoff.remainingMs(id);
             if (waitMs > 0L) {
                 Diagnostics.warning("profile", "unlock_throttled");
-                screen.setNote(probeStatus,
-                        activity.getString(R.string.profile_unlock_cooldown, UnlockBackoff.formatRemaining(waitMs)),
-                        R.color.danger);
+                probeStatus.setTextColor(activity.getColor(R.color.danger));
+                Ui.showInlineError(probeStatus,
+                        activity.getString(R.string.profile_unlock_cooldown, UnlockBackoff.formatRemaining(waitMs)));
                 return;
             }
             String bearer = checkedBearer(key);

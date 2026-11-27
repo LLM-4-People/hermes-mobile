@@ -338,13 +338,50 @@ public final class UiPolishR10ContractTest {
                 .contains("showHexError(eval.errorRes(), showInvalidSyntax);"));
         assertTrue(read("src/main/java/org/llm4people/hermes/panel/ThreadActions.java")
                 .contains("catch (ActivityNotFoundException | SecurityException unavailable)"));
-        assertTrue(read("src/main/java/org/llm4people/hermes/panel/GlobalSearchPanel.java")
-                .contains("if (!panel.request(resultsBox, () -> BrainJson.parseSearchPage("));
+        String globalSearch = read("src/main/java/org/llm4people/hermes/panel/GlobalSearchPanel.java");
+        assertTrue(globalSearch.contains("if (!panel.request(targetSlot, () -> BrainJson.parseSearchPage("));
+        assertTrue(globalSearch.contains("paginationSlot"));
         assertTrue(read("src/main/java/org/llm4people/hermes/panel/SkillBrowser.java")
                 .contains("if (!panel.request(status, () -> SkillInventory.parse("));
         assertTrue(read("src/main/java/org/llm4people/hermes/thread/ThreadWorkspace.java")
                 .contains("if (handled[0] || closed) return;"));
-        assertTrue(read("src/main/java/org/llm4people/hermes/thread/ThreadRun.java")
-                .contains("if (owner.current()) offerDismiss(owner);"));
+
+        // R41.8.3: ThreadRun enforces single-dispatch handled[0] guards in both offerDismiss and reviewLost.
+        String threadRun = read("src/main/java/org/llm4people/hermes/thread/ThreadRun.java");
+        int offerIdx = threadRun.indexOf("private void offerDismiss(");
+        int reviewIdx = threadRun.indexOf("private void reviewLost(");
+        assertTrue(offerIdx > 0 && reviewIdx > offerIdx);
+        String offerBody = threadRun.substring(offerIdx, reviewIdx);
+        String reviewBody = threadRun.substring(reviewIdx, Math.min(threadRun.length(), reviewIdx + 900));
+        assertTrue("ThreadRun.offerDismiss must guard actions with handled[0]",
+                offerBody.contains("if (handled[0]) return;"));
+        assertTrue("ThreadRun.reviewLost must guard actions with handled[0]",
+                reviewBody.contains("if (handled[0]) return;"));
+
+        // R41 PR B contracts: UniversalSearchSheet theme + spinner tint, ProfileGate cooldown + forget guard,
+        // SkillStudio/MemoryPanel loadSeq, ProfileDefaultsPanel saving reset + discard guards, MainActivity route reuse,
+        // SessionSettings/MessageText/UpdatePanel dialog guards.
+        assertTrue(searchSheet.contains("ContextThemeWrapper(wrapped, R.style.Theme_Hermes)"));
+        assertTrue(searchSheet.contains("spinner.setIndeterminateTintList("));
+        assertTrue(profileGate.contains("Ui.showInlineError(probeStatus,"));
+        assertTrue(profileGate.contains("if (handled[0]) return;"));
+        String skillStudio = read("src/main/java/org/llm4people/hermes/panel/SkillStudio.java");
+        assertTrue(skillStudio.contains("pendingToggles.clear();"));
+        assertTrue(skillStudio.contains("if (!loadFailed) renderList();"));
+        String profDefaults = read("src/main/java/org/llm4people/hermes/panel/ProfileDefaultsPanel.java");
+        assertTrue(profDefaults.contains("if (handled[0]) return;"));
+        String mainActivity = read("src/main/java/org/llm4people/hermes/MainActivity.java");
+        assertTrue(mainActivity.contains("activeAmbientPanel.refreshAll();"));
+        assertTrue(mainActivity.contains("activeDoctorPanel.refresh();"));
+        assertTrue(mainActivity.contains("activePermissionsPanel.refresh();"));
+        assertTrue(mainActivity.contains("activeTemplatesPanel.refreshCustomSection();"));
+        assertTrue(read("src/main/java/org/llm4people/hermes/panel/MemoryPanel.java")
+                .contains("if (seq != loadSeq) return;"));
+        assertTrue(read("src/main/java/org/llm4people/hermes/panel/SessionSettings.java")
+                .contains("if (handled[0]) return;"));
+        assertTrue(read("src/main/java/org/llm4people/hermes/thread/MessageText.java")
+                .contains("if (handled[0]) return;"));
+        assertTrue(read("src/main/java/org/llm4people/hermes/update/UpdatePanel.java")
+                .contains("if (handled[0]) return;"));
     }
 }

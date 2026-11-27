@@ -85,14 +85,18 @@ final class SessionSettings {
         try { saved = SessionPanel.runOptions(panel.account, id); }
         catch (IllegalStateException error) {
             panel.failure(box, error, null);
-            panel.action(box, R.string.panel_reset_settings, () -> panel.present(
-                    new android.app.AlertDialog.Builder(panel.activity).setTitle(R.string.panel_reset_settings)
-                            .setMessage(R.string.panel_reset_confirm)
-                            .setNegativeButton(R.string.panel_cancel, null)
-                            .setPositiveButton(R.string.panel_reset, (d, which) -> {
-                                try { panel.resetOptions(id); show(); }
-                                catch (IllegalStateException failure) { panel.failure(box, failure, null); }
-                            }).create()));
+            panel.action(box, R.string.panel_reset_settings, () -> {
+                boolean[] handled = {false};
+                panel.present(new android.app.AlertDialog.Builder(panel.activity).setTitle(R.string.panel_reset_settings)
+                        .setMessage(R.string.panel_reset_confirm)
+                        .setNegativeButton(R.string.panel_cancel, null)
+                        .setPositiveButton(R.string.panel_reset, (d, which) -> {
+                            if (handled[0]) return;
+                            handled[0] = true;
+                            try { panel.resetOptions(id); show(); }
+                            catch (IllegalStateException failure) { panel.failure(box, failure, null); }
+                        }).create());
+            });
             return;
         }
         capabilitiesLoaded = false;
