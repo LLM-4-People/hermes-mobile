@@ -11,12 +11,8 @@ import sys
 from time import monotonic
 from xml.etree import ElementTree
 
-try:
-    from verification.device.app_strings import AppStrings
-    from verification.device.run import APP, cleanup_all
-except ImportError:
-    from device.app_strings import AppStrings
-    from device.run import APP, cleanup_all
+from verification.device.app_strings import AppStrings
+from verification.device.run import APP, cleanup_all
 from .shade import bounds, current_notice, show_notice
 from .stack import eventually
 

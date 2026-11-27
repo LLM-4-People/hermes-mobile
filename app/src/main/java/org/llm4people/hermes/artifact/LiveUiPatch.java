@@ -16,6 +16,7 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.llm4people.hermes.Diagnostics;
+import org.llm4people.hermes.Digests;
 import org.llm4people.hermes.JsonValues;
 import org.llm4people.hermes.PlainTextSanitizer;
 import org.llm4people.hermes.SecretPatterns;
@@ -1392,9 +1393,8 @@ public final class LiveUiPatch {
                 char c = s.charAt(i);
                 if (c != '%') { sb.append(c); continue; }
                 if (i + 2 >= s.length()) throw new IOException("Truncated escape");
-                String hex = s.substring(i + 1, i + 3);
-                try { sb.append((char) Integer.parseInt(hex, 16)); }
-                catch (NumberFormatException e) { throw new IOException("Invalid escape", e); }
+                try { sb.append((char) Digests.parseUnsignedHex(s, i + 1, 2)); }
+                catch (IllegalArgumentException e) { throw new IOException("Invalid escape", e); }
                 i += 2;
             }
             return sb.toString();

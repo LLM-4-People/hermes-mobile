@@ -177,5 +177,21 @@ public final class UiPolishR10ContractTest {
         String profileGate = read("src/main/java/org/llm4people/hermes/profile/ProfileGate.java");
         assertTrue(profileGate.contains("TextView stagedSummary = screen.note(\"\");"));
         assertFalse(profileGate.contains("TextView stagedSummary = screen.liveNote(\"\");"));
+
+        // R35.6.1-6: Single-dispatch dialog guards across all 6 confirmation/picker dialogs.
+        for (String rel : new String[]{
+                "src/main/java/org/llm4people/hermes/profile/ProfileInviteDialogs.java",
+                "src/main/java/org/llm4people/hermes/profile/AdminConsoleSheet.java",
+                "src/main/java/org/llm4people/hermes/templates/TemplatesPanel.java",
+                "src/main/java/org/llm4people/hermes/settings/AppearanceSettingsPanel.java",
+                "src/main/java/org/llm4people/hermes/WorkspaceDialogs.java"
+        }) {
+            String src = read(rel);
+            assertTrue(rel + " must guard positive button with if (submitted[0]) return;",
+                    src.contains("if (submitted[0]) return;"));
+        }
+        String appLang = read("src/main/java/org/llm4people/hermes/AppLanguage.java");
+        assertTrue("AppLanguage.showPicker must guard single-choice click with if (handled[0]) return;",
+                appLang.contains("if (handled[0]) return;"));
     }
 }

@@ -826,7 +826,9 @@ public final class AdminConsoleSheet implements AutoCloseable {
         childDialog = dialog;
         Button positive = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
         if (positive != null) {
+            boolean[] submitted = {false};
             positive.setOnClickListener(v -> {
+                if (submitted[0]) return;
                 String typed = confirmInput.getText().toString();
                 if (!canConfirmDelete(profile.slug(), typed)) {
                     Ui.showInlineError(inlineError, activity.getString(
@@ -836,6 +838,8 @@ public final class AdminConsoleSheet implements AutoCloseable {
                 }
                 Ui.clearLiveStatus(inlineError);
                 if (closed || io.isShutdown()) return;
+                submitted[0] = true;
+                positive.setEnabled(false);
                 dialog.dismiss();
                 submitIo(() -> {
                     boolean ok = false;

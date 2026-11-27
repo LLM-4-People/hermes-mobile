@@ -229,7 +229,9 @@ public final class TemplatesPanel {
         dialog.setOnDismissListener(d -> { if (activeDialog == dialog) activeDialog = null; });
         Button saveBtn = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
         if (saveBtn != null) {
+            boolean[] submitted = {false};
             saveBtn.setOnClickListener(v -> {
+                if (submitted[0]) return;
                 if (!canAct()) {
                     dialog.dismiss();
                     return;
@@ -240,6 +242,8 @@ public final class TemplatesPanel {
                             titleInput.getText().toString(),
                             subInput.getText().toString(),
                             draftInput.getText().toString());
+                    submitted[0] = true;
+                    saveBtn.setEnabled(false);
                     dialog.dismiss();
                     refreshCustomSection();
                 } catch (WorkflowTemplate.SecretRejectedException secret) {

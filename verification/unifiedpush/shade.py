@@ -6,10 +6,7 @@ import sys
 import time
 from dataclasses import dataclass
 
-try:
-    from verification.device.run import APP
-except ImportError:
-    from device.run import APP
+from verification.device.run import APP
 from .stack import eventually
 
 

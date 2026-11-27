@@ -258,6 +258,7 @@ final class ProfileInviteDialogs {
         Button positive = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
         if (positive != null) {
             positive.setOnClickListener(v -> {
+                if (submitted[0]) return;
                 String displayName = nameField.getText().toString().trim();
                 String slug = slugField.getText().toString().trim().toLowerCase(Locale.ROOT);
                 if (!ProfileHubSheet.isValidNewSlug(slug)) {
@@ -269,6 +270,7 @@ final class ProfileInviteDialogs {
                 if (isClosed.getAsBoolean()) return;
                 boolean grantAdmin = allowAdminToggle && adminToggle.isChecked();
                 submitted[0] = true;
+                positive.setEnabled(false);
                 dialog.dismiss();
                 if (!submitIo.test(() -> {
                     OnboardingModels.PairingTicket ticket = null;

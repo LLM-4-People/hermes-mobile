@@ -362,7 +362,9 @@ final class WorkspaceDialogs {
                 .setPositiveButton(R.string.security_lock_mode_save, null));
         Button saveBtn = modeDialog.getButton(AlertDialog.BUTTON_POSITIVE);
         if (saveBtn != null) {
+            boolean[] submitted = {false};
             saveBtn.setOnClickListener(v -> {
+                if (submitted[0]) return;
                 ProfileLockPolicy.Mode target = chosen[0];
                 int errRes = lockModeValidationErrorRes(target, first.getText(), confirm.getText(), bioAvailable);
                 if (errRes != 0) {
@@ -377,6 +379,8 @@ final class WorkspaceDialogs {
                     first.getText().clear();
                     confirm.getText().clear();
                 }
+                submitted[0] = true;
+                saveBtn.setEnabled(false);
                 modeDialog.dismiss();
                 if (activeEnroll[0] != null) activeEnroll[0].cancel();
                 activeEnroll[0] = gate.updateLockMode(account, target, secret, ok -> {
