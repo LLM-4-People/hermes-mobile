@@ -22,7 +22,7 @@ wait_emulator_offline() {
   local connectivity=""
   local i
 
-  disable_emulator_network "$serial"
+  disable_emulator_network "$serial" || true
 
   for ((i = 0; i < max_attempts; i++)); do
     airplane=$(adb -s "$serial" shell settings get global airplane_mode_on 2>/dev/null | tr -d '\r' || true)
@@ -35,7 +35,7 @@ wait_emulator_offline() {
       fi
     else
       if (( offline_hits > 0 || (i > 0 && reassert_every > 0 && i % reassert_every == 0) )); then
-        disable_emulator_network "$serial"
+        disable_emulator_network "$serial" || true
       fi
       offline_hits=0
     fi
