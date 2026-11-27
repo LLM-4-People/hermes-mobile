@@ -103,10 +103,10 @@ public final class DeviceBridgeContractTest extends InstrumentationTestCase {
 
         ThreadCameraCapture restored = new ThreadCameraCapture(null, saved);
         assertTrue(restored.onActivityResult(0x5401, Activity.RESULT_OK));
-        assertTrue(restored.isReady());
 
         Bundle resaved = new Bundle();
         restored.save(resaved);
+        assertTrue(resaved.getBoolean("camera_ready"));
         assertEquals(slotStr, resaved.getString("camera_slot"));
 
         Intent intent = ThreadCameraCapture.buildCaptureIntent(Uri.parse(slotStr));

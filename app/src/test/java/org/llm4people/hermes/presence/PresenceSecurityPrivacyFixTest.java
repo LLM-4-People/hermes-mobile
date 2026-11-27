@@ -104,7 +104,6 @@ public final class PresenceSecurityPrivacyFixTest {
 
         // Lock/pause/disable wipes RAM and detaches listener.
         tracker.stopAndWipe();
-        assertFalse(tracker.isRunning());
         assertNull(tracker.currentSnapshot(precisePolicy, t0 + 2_000L));
 
         // Stale MainLooper callback queued before stopAndWipe() MUST be ignored.

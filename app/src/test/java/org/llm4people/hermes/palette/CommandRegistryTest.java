@@ -92,7 +92,7 @@ public final class CommandRegistryTest {
         CommandRegistry registry = new CommandRegistry(java.util.Collections.emptyList());
         registry.add(new CommandItem("dup", CommandItem.Category.ACTION, "First", "", "", null));
         registry.add(new CommandItem("dup", CommandItem.Category.ACTION, "Updated", "", "", null));
-        assertEquals(1, registry.size());
+        assertEquals(1, registry.search("").size());
         assertEquals("Updated", registry.search("updated").get(0).title);
     }
 

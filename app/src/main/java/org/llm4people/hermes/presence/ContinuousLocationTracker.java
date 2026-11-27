@@ -300,12 +300,6 @@ public final class ContinuousLocationTracker {
         }
     }
 
-    public boolean isRunning() {
-        synchronized (lock) {
-            return running;
-        }
-    }
-
     /** Stops all Android listeners and wipes all in-memory fixes immediately (lock/pause/disable/forget). */
     public void stopAndWipe() {
         synchronized (lock) {

@@ -59,10 +59,6 @@ public final class CommandRegistry {
         return this;
     }
 
-    public synchronized int size() {
-        return items.size();
-    }
-
     /** Returns true when a hardware keyboard shortcut invokes the palette (Ctrl+K or Cmd+K). */
     public static boolean isPaletteShortcut(int keyCode, boolean ctrlPressed, boolean metaPressed) {
         return keyCode == KeyEvent.KEYCODE_K && (ctrlPressed || metaPressed);

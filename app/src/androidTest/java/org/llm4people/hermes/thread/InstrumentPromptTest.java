@@ -148,7 +148,13 @@ public class InstrumentPromptTest extends InstrumentationTestCase {
     }
 
     private static Button button(View view, String label) {
-        if (view instanceof Button item && (label.contentEquals(item.getText()) || label.equals(item.getContentDescription()))) return item;
+        if (view instanceof Button item
+                && (label.contentEquals(item.getText())
+                        || label.equals(item.getContentDescription())
+                        || ("ws-pending-response".equals(item.getTag())
+                                && label.equals(item.getContext().getString(R.string.ws_reply_hermes))))) {
+            return item;
+        }
         if (view instanceof ViewGroup group) for (int i = 0; i < group.getChildCount(); i++) {
             Button found = button(group.getChildAt(i), label);
             if (found != null) return found;

@@ -36,7 +36,7 @@ final class InstrumentVersions extends RadioGroup {
         setBaselineAligned(false);
         Ui.pad(this, 3, 3);
         GradientDrawable track = shape(c, c.getColor(R.color.surface));
-        track.setStroke(Ui.dp(c, 1), c.getColor(R.color.line));
+        track.setStroke(Math.max(1, Ui.dp(c, 1)), c.getColor(R.color.line_strong));
         setBackground(track);
         for (Side side : Side.values()) {
             RadioButton tab = new RadioButton(c);

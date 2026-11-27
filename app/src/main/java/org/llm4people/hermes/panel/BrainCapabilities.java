@@ -72,9 +72,4 @@ public final class BrainCapabilities {
     public boolean noteSharing() { return supports(NOTE_SHARING) || supports(UNIVERSAL_SHARING); }
     public boolean universalSharing() { return supports(UNIVERSAL_SHARING); }
     public boolean habitSuggestions() { return supports(HABIT_SUGGESTIONS); }
-
-    /** Expose active canonical capability names for RouteRegistry filtering. */
-    public Set<String> asSet() {
-        return enabled;
-    }
 }

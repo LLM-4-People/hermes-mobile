@@ -125,9 +125,6 @@ public final class InfiniteScrollController implements AbsListView.OnScrollListe
         updatePillUi();
     }
 
-    public boolean isAtTail() { return atTail; }
-    public int unreadCount() { return unreadCount; }
-
     @Override public void onScrollStateChanged(AbsListView view, int scrollState) {}
 
     @Override public void onScroll(AbsListView view, int firstVisibleItem, int visibleItemCount, int totalItemCount) {

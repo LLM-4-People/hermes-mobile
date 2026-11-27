@@ -279,11 +279,11 @@ public final class UniversalDeliveryTest extends InstrumentationTestCase {
         assertNull(DeliveryRouter.parseSafeDeviceAction(null, new JSONObject().put("kind", "shell_exec")));
 
         RouteRegistry registry = new RouteRegistry();
-        DeliveryRouter.registerRoutes(registry, null, () -> {}, () -> {});
-        assertEquals(1, registry.destinationsIn(RouteRegistry.Section.NOTES_TASKS, null).size());
-        assertEquals(1, registry.destinationsIn(RouteRegistry.Section.SETTINGS, null).size());
-        assertNotNull(registry.destination(DeliveryRouter.ROUTE_DELIVERIES));
-        assertNotNull(registry.destination(DeliveryRouter.ROUTE_PUSH_POLICY));
+        int[] routeHits = {0};
+        DeliveryRouter.registerRoutes(registry, null, () -> routeHits[0]++, () -> routeHits[0]++);
+        assertTrue(registry.dispatch(DeliveryRouter.ROUTE_DELIVERIES));
+        assertTrue(registry.dispatch(DeliveryRouter.ROUTE_PUSH_POLICY));
+        assertEquals(2, routeHits[0]);
     }
 
     private StatusBarNotification awaitNotification(String tag) {

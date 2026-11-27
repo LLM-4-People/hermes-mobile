@@ -96,7 +96,7 @@ final class WorkspacePages {
             GradientDrawable bg = new GradientDrawable();
             bg.setCornerRadius(Ui.dp(activity, Ui.BUTTON_CORNER_DP));
             bg.setColor(palette.accentSurface);
-            bg.setStroke(Math.max(1, Ui.dp(activity, 1)), palette.line);
+            bg.setStroke(Math.max(1, Ui.dp(activity, 1)), WorkspaceForms.editorUnfocusedStrokeColor(palette));
             chip.setBackground(Ui.roundedRipple(activity, Ui.BUTTON_CORNER_DP, bg));
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
             lp.setMarginEnd(Ui.dp(activity, 8));

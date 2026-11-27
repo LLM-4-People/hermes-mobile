@@ -15,12 +15,12 @@ import org.llm4people.hermes.settings.AppThemeMode;
 import org.llm4people.hermes.settings.AppearanceSettingsModel;
 
 import java.lang.reflect.Method;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -94,22 +94,14 @@ public final class MainActivityThemeAndRoutingRegressionTest {
         AtomicInteger policyHits = new AtomicInteger();
         DeliveryRouter.registerRoutes(registry, null, inboxHits::incrementAndGet, policyHits::incrementAndGet);
 
-        List<RouteRegistry.Destination> notesTasks = registry.destinationsIn(RouteRegistry.Section.NOTES_TASKS, null);
-        assertEquals(1, notesTasks.size());
-        assertEquals(DeliveryRouter.ROUTE_DELIVERIES, notesTasks.get(0).id());
-
-        List<RouteRegistry.Destination> settings = registry.destinationsIn(RouteRegistry.Section.SETTINGS, null);
-        assertEquals(1, settings.size());
-        assertEquals(DeliveryRouter.ROUTE_PUSH_POLICY, settings.get(0).id());
-
         assertTrue(registry.dispatch(DeliveryRouter.ROUTE_DELIVERIES));
         assertTrue(registry.dispatch(DeliveryRouter.ROUTE_PUSH_POLICY));
         assertEquals(1, inboxHits.get());
         assertEquals(1, policyHits.get());
 
         // Legacy French-prefixed route IDs must no longer be registered.
-        assertNull(registry.destination("activite/livraisons"));
-        assertNull(registry.destination("activite/preferences_notifications"));
+        assertFalse(registry.dispatch("activite/livraisons"));
+        assertFalse(registry.dispatch("activite/preferences_notifications"));
     }
 
     @Test

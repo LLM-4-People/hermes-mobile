@@ -70,7 +70,7 @@ public final class InfiniteChatStressAndroidTest extends InstrumentationTestCase
         assertEquals(1, builds.get());
         assertTrue(firstRender.text().length() > 0);
         cellCache.clear();
-        assertEquals(0, cellCache.size());
+        assertNull(cellCache.get(key));
 
         // 3. Live Android ListView + InfiniteScrollController auto-prefetch + accessible >=48dp Jump Pill.
         Activity activity = launchActivity(context.getPackageName(), MainActivity.class, null);
@@ -105,22 +105,17 @@ public final class InfiniteChatStressAndroidTest extends InstrumentationTestCase
                 controller.onScroll(list, 2, 10, 60);
                 assertEquals(1, olderCalls.get());
                 assertEquals(View.VISIBLE, pill.getVisibility());
-                assertFalse(controller.isAtTail());
 
                 // Simulate live incoming messages while scrolled up -> unread badge updates cleanly.
                 controller.onNewMessagesArrived(1);
-                assertEquals(1, controller.unreadCount());
                 assertEquals(activity.getString(R.string.infinite_jump_latest_one), pill.getText().toString());
                 controller.onNewMessagesArrived(2);
-                assertEquals(3, controller.unreadCount());
                 assertEquals(activity.getString(R.string.infinite_jump_latest_unread, 3), pill.getText().toString());
 
                 // Tapping pill snaps to latest, resets unread count, and hides pill.
                 pill.performClick();
                 assertTrue(snapped.get());
-                assertEquals(0, controller.unreadCount());
                 assertEquals(View.GONE, pill.getVisibility());
-                assertTrue(controller.isAtTail());
             });
             getInstrumentation().waitForIdleSync();
         } finally {

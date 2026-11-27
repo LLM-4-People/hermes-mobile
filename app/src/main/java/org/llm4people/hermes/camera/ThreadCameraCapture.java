@@ -139,10 +139,6 @@ public final class ThreadCameraCapture {
         }
     }
 
-    public boolean isReady() {
-        return readyToImport && pendingSlot != null;
-    }
-
     /**
      * Synchronously claims the ready private capture slot on the UI thread when owned by
      * {@code account}/{@code sessionId}. Clears and deletes the slot on owner/thread mismatch;

@@ -20,9 +20,6 @@ public final class StreamCoalescer {
     private String lastFlushed;
     private long lastFlushMs = Long.MIN_VALUE;
     private boolean emittedNonEmpty;
-    private int offered;
-    private int flushed;
-    private int coalesced;
 
     public StreamCoalescer(long frameBudgetMs, Consumer<String> sink) {
         if (frameBudgetMs < MIN_FRAME_BUDGET_MS || frameBudgetMs > MAX_FRAME_BUDGET_MS) {
@@ -32,9 +29,6 @@ public final class StreamCoalescer {
         this.sink = Objects.requireNonNull(sink, "sink");
     }
 
-    public int offeredCount() { return offered; }
-    public int flushedCount() { return flushed; }
-    public int coalescedCount() { return coalesced; }
     public boolean hasPending() { return pending != null; }
 
     /**
@@ -43,7 +37,6 @@ public final class StreamCoalescer {
      */
     public boolean offer(String cumulativeText, long nowMs) {
         String text = cumulativeText == null ? "" : cumulativeText;
-        offered++;
         if (text.equals(pending) || (pending == null && text.equals(lastFlushed))) {
             return false;
         }
@@ -51,12 +44,10 @@ public final class StreamCoalescer {
         boolean firstNonEmpty = !emittedNonEmpty && !text.isEmpty();
         boolean due = firstEmit || firstNonEmpty || (nowMs - lastFlushMs >= frameBudgetMs);
         if (due) {
-            if (pending != null) coalesced++;
             pending = null;
             emit(text, nowMs);
             return true;
         }
-        if (pending != null) coalesced++;
         pending = text;
         return false;
     }
@@ -84,16 +75,12 @@ public final class StreamCoalescer {
         lastFlushed = null;
         lastFlushMs = Long.MIN_VALUE;
         emittedNonEmpty = false;
-        offered = 0;
-        flushed = 0;
-        coalesced = 0;
     }
 
     private void emit(String text, long nowMs) {
         lastFlushed = text;
         lastFlushMs = nowMs;
         if (!text.isEmpty()) emittedNonEmpty = true;
-        flushed++;
         sink.accept(text);
     }
 }

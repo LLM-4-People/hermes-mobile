@@ -3,15 +3,13 @@ package org.llm4people.hermes.os;
 import android.content.Context;
 
 import org.json.JSONArray;
-import org.json.JSONException;
 import org.json.JSONObject;
+import org.llm4people.hermes.Base64Url;
 import org.llm4people.hermes.PlainTextSanitizer;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.SecretPatterns;
 
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -186,19 +184,19 @@ public final class HermesWidgetSpec {
     /** Pure Java lossless persistence codec usable identically on Android and host JVM tests. */
     public String encode() {
         StringBuilder out = new StringBuilder("v2\n");
-        out.append(b64(widgetId)).append('\n');
-        out.append(b64(title)).append('\n');
-        out.append(b64(subtitle)).append('\n');
+        out.append(Base64Url.encode(widgetId)).append('\n');
+        out.append(Base64Url.encode(title)).append('\n');
+        out.append(Base64Url.encode(subtitle)).append('\n');
         out.append(template.wire).append('\n');
         out.append(homeScreenSafe ? '1' : '0').append('\n');
-        out.append(b64(accentHex == null ? "" : accentHex)).append('\n');
-        out.append(b64(ownerProfileId == null ? "" : ownerProfileId)).append('\n');
+        out.append(Base64Url.encode(accentHex == null ? "" : accentHex)).append('\n');
+        out.append(Base64Url.encode(ownerProfileId == null ? "" : ownerProfileId)).append('\n');
         out.append(items.size());
         for (Item item : items) {
             out.append('\n')
-                    .append(b64(item.label())).append('\t')
-                    .append(b64(item.value())).append('\t')
-                    .append(b64(item.actionDraft())).append('\t')
+                    .append(Base64Url.encode(item.label())).append('\t')
+                    .append(Base64Url.encode(item.value())).append('\t')
+                    .append(Base64Url.encode(item.actionDraft())).append('\t')
                     .append(item.checked() ? '1' : '0');
         }
         return out.toString();
@@ -212,17 +210,17 @@ public final class HermesWidgetSpec {
         int headerLines = v2 ? 9 : 8;
         String[] lines = raw.split("\n", -1);
         if (lines.length < headerLines) throw new IllegalArgumentException("Truncated widget record");
-        String id = unb64(lines[1]);
-        String title = unb64(lines[2]);
-        String subtitle = unb64(lines[3]);
+        String id = Base64Url.decode(lines[1]);
+        String title = Base64Url.decode(lines[2]);
+        String subtitle = Base64Url.decode(lines[3]);
         Template template = Template.parse(lines[4]);
         if (template == null) throw new IllegalArgumentException("Unsupported widget template");
         if (!"0".equals(lines[5]) && !"1".equals(lines[5])) {
             throw new IllegalArgumentException("Invalid safety flag");
         }
         boolean safe = "1".equals(lines[5]);
-        String accent = unb64(lines[6]);
-        String owner = v2 ? unb64(lines[7]) : "";
+        String accent = Base64Url.decode(lines[6]);
+        String owner = v2 ? Base64Url.decode(lines[7]) : "";
         int count;
         try {
             count = Integer.parseInt(lines[headerLines - 1]);
@@ -243,46 +241,11 @@ public final class HermesWidgetSpec {
                 }
                 checked = "1".equals(cols[3]);
             }
-            items.add(new Item(unb64(cols[0]), unb64(cols[1]), unb64(cols[2]), checked));
+            items.add(new Item(Base64Url.decode(cols[0]), Base64Url.decode(cols[1]),
+                    Base64Url.decode(cols[2]), checked));
         }
         return new HermesWidgetSpec(id, title, subtitle, template, items,
                 accent.isEmpty() ? null : accent, safe, owner.isEmpty() ? null : owner);
-    }
-
-    private static String b64(String text) {
-        return Base64.getUrlEncoder().withoutPadding()
-                .encodeToString((text == null ? "" : text).getBytes(StandardCharsets.UTF_8));
-    }
-
-    private static String unb64(String encoded) {
-        if (encoded == null || encoded.isEmpty()) return "";
-        return new String(Base64.getUrlDecoder().decode(encoded), StandardCharsets.UTF_8);
-    }
-
-    public JSONObject toJson() {
-        try {
-            JSONObject obj = new JSONObject();
-            obj.put("widget_id", widgetId);
-            obj.put("title", title);
-            obj.put("subtitle", subtitle);
-            obj.put("template", template.wire);
-            obj.put("home_screen_safe", homeScreenSafe);
-            if (accentHex != null) obj.put("accent_hex", accentHex);
-            if (ownerProfileId != null) obj.put("owner_profile_id", ownerProfileId);
-            JSONArray array = new JSONArray();
-            for (Item item : items) {
-                JSONObject row = new JSONObject();
-                row.put("label", item.label());
-                if (!item.value().isEmpty()) row.put("value", item.value());
-                if (!item.actionDraft().isEmpty()) row.put("action_draft", item.actionDraft());
-                if (item.checked()) row.put("checked", true);
-                array.put(row);
-            }
-            obj.put("items", array);
-            return obj;
-        } catch (JSONException unexpected) {
-            throw new IllegalStateException(unexpected);
-        }
     }
 
     public static HermesWidgetSpec fromJson(JSONObject obj) {

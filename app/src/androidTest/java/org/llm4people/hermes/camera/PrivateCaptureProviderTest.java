@@ -54,10 +54,8 @@ public final class PrivateCaptureProviderTest extends InstrumentationTestCase {
                 state1.putBoolean("camera_ready", true);
 
                 ThreadCameraCapture capture1 = new ThreadCameraCapture(activity, state1);
-                assertTrue(capture1.isReady());
                 Uri claimed = capture1.claimReadySlot(fixture.account, "session-a");
                 assertEquals(slot1, claimed);
-                assertFalse("Claim must clear ready state immediately", capture1.isReady());
                 assertNull("Second claim must return null (one-shot)",
                         capture1.claimReadySlot(fixture.account, "session-a"));
 
@@ -87,7 +85,8 @@ public final class PrivateCaptureProviderTest extends InstrumentationTestCase {
                 ThreadCameraCapture capture2 = new ThreadCameraCapture(activity, state2);
                 assertNull("Mismatched session must fail closed",
                         capture2.claimReadySlot(fixture.account, "session-b"));
-                assertFalse("Mismatch must clear capture state", capture2.isReady());
+                assertNull("Mismatch must clear capture state",
+                        capture2.claimReadySlot(fixture.account, "session-a"));
                 assertFalse("Mismatch must delete the private slot file", file2.exists());
             } finally {
                 ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);

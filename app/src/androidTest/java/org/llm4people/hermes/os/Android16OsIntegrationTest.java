@@ -126,7 +126,20 @@ public final class Android16OsIntegrationTest extends InstrumentationTestCase {
                         org.llm4people.hermes.artifact.ThemePalette.adaptAccentForMode(0xFF225C50, true),
                         nightBadge.getCurrentTextColor());
             }
-            HermesWidgetSpec fromJson = HermesWidgetSpec.fromJson(safe.toJson());
+            org.json.JSONObject specJson = new org.json.JSONObject()
+                    .put("widget_id", id)
+                    .put("title", "Tableau Hermes")
+                    .put("subtitle", "Statut public")
+                    .put("template", "quick_actions")
+                    .put("home_screen_safe", true)
+                    .put("accent_hex", "#225C50")
+                    .put("owner_profile_id", "profile-a")
+                    .put("items", new org.json.JSONArray()
+                            .put(new org.json.JSONObject()
+                                    .put("label", "Nouvelle note")
+                                    .put("value", "1")
+                                    .put("action_draft", "Crée une note")));
+            HermesWidgetSpec fromJson = HermesWidgetSpec.fromJson(specJson);
             assertEquals("Tableau Hermes", fromJson.title);
             assertEquals(HermesWidgetSpec.Template.QUICK_ACTIONS, fromJson.template);
             assertEquals("Crée une note", fromJson.items.get(0).actionDraft());
@@ -138,7 +151,7 @@ public final class Android16OsIntegrationTest extends InstrumentationTestCase {
 
             // Cross-feature delivery widget bridge enforces home_screen_safe: true and persists into HermesWidgetStore.
             org.json.JSONObject validDelivery = new org.json.JSONObject()
-                    .put("widget", safe.toJson());
+                    .put("widget", specJson);
             assertTrue(org.llm4people.hermes.artifact.HomePinBridge.applyDeliveryWidgetUpdate(context, validDelivery, "profile-a"));
             assertEquals("Tableau Hermes", store.spec(id).title);
 

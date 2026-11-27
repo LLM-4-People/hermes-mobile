@@ -922,6 +922,7 @@ public final class ThreadViews {
             if (notice.getVisibility() != View.GONE) {
                 notice.setVisibility(View.GONE);
             }
+            status.setText("");
             remedy.setVisibility(View.GONE);
             remedy.setOnClickListener(null);
             return;
@@ -929,15 +930,15 @@ public final class ThreadViews {
         boolean wasVisible = notice.getVisibility() == View.VISIBLE;
         notice.setBackground(Ui.shape(activity, Ui.CARD_CORNER_DP,
                 action != null ? R.color.warning_surface : R.color.surface_container, 0, 0));
-        if (!wasVisible || !next.contentEquals(status.getText())) {
-            status.setText(next);
-        }
-        if (!wasVisible) {
-            notice.setVisibility(View.VISIBLE);
-        }
         remedy.setVisibility(action == null ? View.GONE : View.VISIBLE);
         remedy.setText(label);
         remedy.setOnClickListener(action == null ? null : v -> action.run());
+        if (!wasVisible) {
+            notice.setVisibility(View.VISIBLE);
+        }
+        if (!wasVisible || !next.contentEquals(status.getText())) {
+            Ui.announceLiveStatus(status, next);
+        }
     }
 
     AlertDialog show(AlertDialog.Builder builder) {

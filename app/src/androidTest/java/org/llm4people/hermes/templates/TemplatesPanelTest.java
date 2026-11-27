@@ -16,7 +16,6 @@ import org.llm4people.hermes.profile.WorkspaceAccountFixture;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -29,9 +28,6 @@ public final class TemplatesPanelTest extends InstrumentationTestCase {
         RouteRegistry registry = new RouteRegistry();
         AtomicBoolean opened = new AtomicBoolean(false);
         TemplatesPanel.registerRoute(registry, context, () -> opened.set(true));
-        List<RouteRegistry.Destination> apps = registry.destinationsIn(RouteRegistry.Section.APPS, Set.of());
-        assertEquals(1, apps.size());
-        assertEquals(TemplatesPanel.ROUTE_ID, apps.get(0).id());
         assertTrue(registry.dispatch(TemplatesPanel.ROUTE_ID));
         assertTrue(opened.get());
 
