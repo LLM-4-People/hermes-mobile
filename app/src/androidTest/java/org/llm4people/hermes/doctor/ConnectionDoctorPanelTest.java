@@ -29,13 +29,13 @@ public final class ConnectionDoctorPanelTest extends InstrumentationTestCase {
         for (int i = 0; i < 50; i++) fullFeatures.put("cap_" + i, true);
         fullFeatures.put("smart_notes", true);
         ConnectionDoctor.CapabilitiesProbe full = ConnectionDoctor.parseCapabilitiesJson(
-                new JSONObject().put("features", fullFeatures));
+                new JSONObject().put("features", fullFeatures), org.llm4people.hermes.HermesConfig.DEFAULT_EXPECTED_FORK_CAPABILITIES);
         assertTrue(full.companionForkDetected());
         assertFalse(full.upstreamNonFork());
         assertEquals(51, full.enabledCount());
 
         ConnectionDoctor.CapabilitiesProbe upstream = ConnectionDoctor.parseCapabilitiesJson(
-                new JSONObject().put("features", new JSONObject()));
+                new JSONObject().put("features", new JSONObject()), org.llm4people.hermes.HermesConfig.DEFAULT_EXPECTED_FORK_CAPABILITIES);
         assertTrue(upstream.upstreamNonFork());
         assertFalse(upstream.companionForkDetected());
         assertEquals(0, upstream.enabledCount());

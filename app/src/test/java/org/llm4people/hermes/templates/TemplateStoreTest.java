@@ -74,6 +74,15 @@ public final class TemplateStoreTest {
         assertIoRejected(() -> store.saveCustom(null, "Title", "", "   "));
         assertIoRejected(() -> store.saveCustom(null, "Title\nLine2", "", "Draft"));
         assertIoRejected(() -> store.saveCustom(null, "Title", "", "Draft\u0000nul"));
+        assertIoRejected(() -> store.saveCustom(null, "Title", "", "\u3164\u00A0"));
+        assertIoRejected(() -> store.saveCustom(null, "Title", "", "Draft\u200Bzwsp"));
+        assertIoRejected(() -> store.saveCustom(null, "Title", "", "Draft\u202Espoof"));
+        assertIoRejected(() -> store.saveCustom(null, "Title", "", "Draft\uDB40\uDC41tag"));
+        assertIoRejected(() -> store.saveCustom(null, "Title", "", "Draft\u2028lineSep"));
+        assertIoRejected(() -> store.saveCustom(null, "Title", "", "Draft\u2029paraSep"));
+        // ZWJ emoji sequences remain accepted in multiline drafts.
+        WorkflowTemplate zwj = store.saveCustom(null, "Emoji", "", "Famille \uD83D\uDC68\u200D\uD83D\uDC69");
+        assertTrue(store.deleteCustom(zwj.id));
         assertIoRejected(() -> store.saveCustom(null, "a".repeat(WorkflowTemplate.MAX_TITLE_CHARS + 1), "", "Draft"));
         assertIoRejected(() -> store.saveCustom(null, "Title", "b".repeat(WorkflowTemplate.MAX_SUBTITLE_CHARS + 1), "Draft"));
         assertIoRejected(() -> store.saveCustom(null, "Title", "", "c".repeat(WorkflowTemplate.MAX_DRAFT_CHARS + 1)));

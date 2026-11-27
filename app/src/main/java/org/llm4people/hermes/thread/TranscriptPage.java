@@ -195,10 +195,6 @@ final class TranscriptPage {
     boolean hasMore() { return next.offset < source.length(); }
 
     /** Fence-aware extraction of {@code <think>}/{@code <reasoning>} tags from assistant text. */
-    static ReasoningSplit splitReasoning(String source) {
-        return splitReasoning(source, "");
-    }
-
     static ReasoningSplit splitReasoning(String source, String structuredReasoning) {
         StringBuilder reasoning = new StringBuilder();
         if (structuredReasoning != null && !structuredReasoning.trim().isEmpty()) {

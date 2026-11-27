@@ -52,7 +52,7 @@ public final class RichMarkdownViewTest extends InstrumentationTestCase {
         AlertDialog[] dialog = {null};
         try {
             runTestOnUiThread(() -> {
-                TranscriptPage.ReasoningSplit split = TranscriptPage.splitReasoning(source);
+                TranscriptPage.ReasoningSplit split = TranscriptPage.splitReasoning(source, "");
                 TranscriptPage page = new TranscriptPage(split.visible(), new TranscriptPage.Cursor(), true, TranscriptPage.PAGE_CHARS);
 
                 LinearLayout root = Ui.column(activity);

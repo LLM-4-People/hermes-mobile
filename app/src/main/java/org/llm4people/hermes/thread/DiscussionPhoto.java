@@ -34,10 +34,6 @@ final class DiscussionPhoto {
         return fromBytes(source, name(resolver, uri), limit);
     }
 
-    static DiscussionPhoto fromBytes(byte[] source, String name) throws IOException {
-        return fromBytes(source, name, CapturedMedia.effectiveByteLimit(0L));
-    }
-
     static DiscussionPhoto fromBytes(byte[] source, String name, long maxSourceBytes) throws IOException {
         CapturedMedia.Item item = CapturedMedia.stripImageExif(source, name, maxSourceBytes);
         JSONObject info = new JSONObject();

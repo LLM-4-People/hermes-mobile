@@ -50,8 +50,8 @@ public class HermesOsPrivacyAndWidgetTest {
                 HermesWidgetSpec.Template.BRIEFING,
                 List.of(new HermesWidgetSpec.Item("Confidential", "1234", "Send secret")),
                 "#225C50",
-                false);
-        HermesWidgetSpec redacted = privateSpec.redactedForHomeScreen();
+                false, null);
+        HermesWidgetSpec redacted = privateSpec.redactedForHomeScreen(null);
         assertEquals("Hermes", redacted.title);
         assertFalse(redacted.subtitle.contains("salary"));
         assertTrue(redacted.items.isEmpty());
@@ -77,7 +77,7 @@ public class HermesOsPrivacyAndWidgetTest {
 
         // Invalid IDs, blank titles, and unsupported templates must fail cleanly.
         try {
-            new HermesWidgetSpec("../bad", "Titre", "", HermesWidgetSpec.Template.STATUS, List.of(), null, true);
+            new HermesWidgetSpec("../bad", "Titre", "", HermesWidgetSpec.Template.STATUS, List.of(), null, true, null);
             fail("Invalid widget ID accepted");
         } catch (IllegalArgumentException expected) {}
 
@@ -94,7 +94,7 @@ public class HermesOsPrivacyAndWidgetTest {
         assertEquals("daily_brief", decoded.widgetId);
         assertEquals("profile-alpha", decoded.ownerProfileId);
         assertFalse(decoded.homeScreenSafe);
-        assertEquals("Hermes", decoded.redactedForHomeScreen().title);
+        assertEquals("Hermes", decoded.redactedForHomeScreen(null).title);
 
         String legacyV1 = "v1\n" + java.util.Base64.getUrlEncoder().withoutPadding()
                 .encodeToString("legacy_w".getBytes(java.nio.charset.StandardCharsets.UTF_8)) + "\n"
@@ -161,7 +161,7 @@ public class HermesOsPrivacyAndWidgetTest {
                         new HermesWidgetSpec.Item("Météo", "18 °C", "Donne la météo du jour")
                 ),
                 "#225c50",
-                true);
+                true, null);
         store.upsertSpec(v1);
         store.savePendingPin("tok-1", "kpi_morning");
         assertEquals("kpi_morning", store.consumePendingPin("tok-1"));
@@ -183,7 +183,7 @@ public class HermesOsPrivacyAndWidgetTest {
                 HermesWidgetSpec.Template.CHECKLIST,
                 Collections.singletonList(new HermesWidgetSpec.Item("Appeler Marie", "14h", "")),
                 null,
-                true);
+                true, null);
         store.upsertSpec(v2);
         assertEquals("Après-midi", store.specForInstance(101).title);
         assertEquals("Après-midi", store.specForInstance(102).title);
@@ -266,7 +266,7 @@ public class HermesOsPrivacyAndWidgetTest {
 
     private static HermesWidgetSpec brief(String widgetId, String title, String draft) {
         return new HermesWidgetSpec(widgetId, title, "Résumé", HermesWidgetSpec.Template.QUICK_ACTIONS,
-                List.of(new HermesWidgetSpec.Item("Ouvrir", "", draft)), null, true);
+                List.of(new HermesWidgetSpec.Item("Ouvrir", "", draft)), null, true, null);
     }
 
     @Test public void widgetStoreRefusesCrossProfileOverwriteOwnerStripAndRemoval() {

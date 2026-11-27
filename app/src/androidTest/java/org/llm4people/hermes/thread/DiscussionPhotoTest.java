@@ -28,7 +28,7 @@ public final class DiscussionPhotoTest extends InstrumentationTestCase {
             exif.setAttribute(ExifInterface.TAG_GPS_LATITUDE_REF, "N");
             exif.setAttribute(ExifInterface.TAG_GPS_LATITUDE, "45/1,30/1,0/1");
             exif.saveAttributes();
-            DiscussionPhoto photo = DiscussionPhoto.fromBytes(Files.readAllBytes(file.toPath()), "Capture privée.jpg");
+            DiscussionPhoto photo = DiscussionPhoto.fromBytes(Files.readAllBytes(file.toPath()), "Capture privée.jpg", org.llm4people.hermes.camera.CapturedMedia.effectiveByteLimit(0L));
             byte[] bytes = Base64.getDecoder().decode(photo.pixels);
             assertTrue(bytes.length <= DiscussionPhoto.PAYLOAD_LIMIT);
             Bitmap actual = BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
@@ -45,7 +45,7 @@ public final class DiscussionPhotoTest extends InstrumentationTestCase {
     }
 
     public void testRejectsNonImageBytes() {
-        try { DiscussionPhoto.fromBytes(new byte[]{1, 2, 3}, "test"); fail(); }
+        try { DiscussionPhoto.fromBytes(new byte[]{1, 2, 3}, "test", org.llm4people.hermes.camera.CapturedMedia.effectiveByteLimit(0L)); fail(); }
         catch (IOException | IllegalArgumentException expected) { /* Invalid data never enters the draft. */ }
     }
 }

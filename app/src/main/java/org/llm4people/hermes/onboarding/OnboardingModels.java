@@ -179,7 +179,7 @@ public final class OnboardingModels {
         if (map == null || map.isEmpty()) throw new IllegalArgumentException("Missing pairing ticket");
         String ticketId = PlainTextSanitizer.collapseBounded(str(map.get("ticket_id")), 96);
         String code = str(map.get("code")).trim();
-        long expiresAt = parseEpochSeconds(map.get("expires_at"));
+        long expiresAt = org.llm4people.hermes.EpochTimestamps.parseEpochSeconds(map.get("expires_at"));
         Object rawTtl = map.containsKey("ttl_seconds") ? map.get("ttl_seconds") : map.get("ttl_remaining_seconds");
         int ttl = JsonValues.parseNonNegativeInt(rawTtl, 0);
         String deepLink = str(map.get("deep_link")).trim();
@@ -241,7 +241,7 @@ public final class OnboardingModels {
         String slug = safeSlug(str(map.get("profile_slug")));
         String displayName = PlainTextSanitizer.collapseBounded(str(map.get("display_name")), 64);
         String mode = normalizeMode(str(map.get("mode")));
-        long expiresAt = parseEpochSeconds(map.get("expires_at"));
+        long expiresAt = org.llm4people.hermes.EpochTimestamps.parseEpochSeconds(map.get("expires_at"));
         Object rawTtl = map.containsKey("ttl_remaining_seconds")
                 ? map.get("ttl_remaining_seconds") : map.get("ttl_seconds");
         int ttl = JsonValues.parseNonNegativeInt(rawTtl, 0);
@@ -408,7 +408,7 @@ public final class OnboardingModels {
         String badgeColor = safeHexColor(str(src.get("badge_color")));
         int activeRuns = JsonValues.parseNonNegativeInt(src.get("active_runs"), 0);
         int threadCount = JsonValues.parseNonNegativeInt(src.get("thread_count"), 0);
-        long lastActive = parseEpochSeconds(src.get("last_active"));
+        long lastActive = org.llm4people.hermes.EpochTimestamps.parseEpochSeconds(src.get("last_active"));
         boolean isAdmin = src.get("is_admin") instanceof Boolean b
                 ? b : "admin".equalsIgnoreCase(str(src.get("role")));
         boolean isolatedDbOk = bool(src.get("isolated_db_ok"), true);
@@ -472,10 +472,6 @@ public final class OnboardingModels {
             return JsonValues.parseNonNegativeInt(m.get("count"), 0);
         }
         return 0;
-    }
-
-    private static long parseEpochSeconds(Object value) {
-        return org.llm4people.hermes.EpochTimestamps.parseEpochSeconds(value);
     }
 
     private static String str(Object value) {

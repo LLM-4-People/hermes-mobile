@@ -436,10 +436,6 @@ public final class DeliveryRouter {
         }
     }
 
-    static ReviewedAction parseSafeDeviceAction(JSONObject payload) {
-        return parseSafeDeviceAction(null, payload);
-    }
-
     static ReviewedAction parseSafeDeviceAction(Context context, JSONObject payload) {
         if (payload == null) return null;
         Context localized = context == null ? null : AppLanguage.wrapContext(context);

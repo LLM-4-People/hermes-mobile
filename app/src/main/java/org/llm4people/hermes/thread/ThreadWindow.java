@@ -10,11 +10,6 @@ import java.util.function.BooleanSupplier;
 /** Read the latest transcript through the previously loaded window, preserving authoritative rows and order. */
 record ThreadWindow(JSONObject metadata, JSONArray rows, int rawCount, boolean more) {
     static ThreadWindow read(ThreadContext.Read api, String query, int start, int loaded, long priorTotal,
-                             ThreadData.RowId oldest, BooleanSupplier current) throws IOException {
-        return read(api, query, start, loaded, priorTotal, oldest, current, ThreadData.PAGE);
-    }
-
-    static ThreadWindow read(ThreadContext.Read api, String query, int start, int loaded, long priorTotal,
                              ThreadData.RowId oldest, BooleanSupplier current, int pageSize) throws IOException {
         int limit = Math.max(1, pageSize);
         JSONObject metadata = null;

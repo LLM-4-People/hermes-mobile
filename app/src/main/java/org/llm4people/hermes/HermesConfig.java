@@ -88,38 +88,6 @@ public final class HermesConfig {
 
     public HermesConfig(int httpConnectTimeoutMs, int httpReadTimeoutMs, int httpJsonMaxBytes, int httpEventMaxBytes,
                         int nearbyTimeoutMs, int nearbyFusedGraceMs, long artifactDefaultMaxBytes,
-                        long artifactHardMaxBytes, int diagnosticsRingCapacity, int threadPageSize, int maxReconnects) {
-        this(httpConnectTimeoutMs, httpReadTimeoutMs, httpJsonMaxBytes, httpEventMaxBytes,
-                nearbyTimeoutMs, nearbyFusedGraceMs, artifactDefaultMaxBytes, artifactHardMaxBytes,
-                diagnosticsRingCapacity, threadPageSize, maxReconnects,
-                DEFAULT_UPDATE_REPO, DEFAULT_UPDATE_API_BASE,
-                DEFAULT_UPDATE_MAX_APK_BYTES, DEFAULT_UPDATE_CHECK_INTERVAL_MS,
-                DEFAULT_GITHUB_WEB_BASE_URL, DEFAULT_OSM_BASE_URL,
-                DEFAULT_DOCTOR_CHECK_TIMEOUT_MS, DEFAULT_SLOW_LATENCY_THRESHOLD_MS,
-                DEFAULT_EXPECTED_FORK_CAPABILITIES, DEFAULT_PROBE_TIMEOUT_MS,
-                DEFAULT_VOICE_SERVICE_TIMEOUT_MS, DEFAULT_TTS_INIT_TIMEOUT_MS,
-                DEFAULT_VOICE_MODEL_RELEASE_TIMEOUT_MS, DEFAULT_HTTP_MAX_REDIRECTS);
-    }
-
-    public HermesConfig(int httpConnectTimeoutMs, int httpReadTimeoutMs, int httpJsonMaxBytes, int httpEventMaxBytes,
-                        int nearbyTimeoutMs, int nearbyFusedGraceMs, long artifactDefaultMaxBytes,
-                        long artifactHardMaxBytes, int diagnosticsRingCapacity, int threadPageSize, int maxReconnects,
-                        String updateRepo, String updateApiBase, long updateMaxApkBytes, long updateCheckIntervalMs,
-                        String githubWebBaseUrl, String openStreetMapBaseUrl, int doctorCheckTimeoutMs,
-                        int slowLatencyThresholdMs, int expectedForkCapabilities, int probeTimeoutMs,
-                        int voiceServiceTimeoutMs, int ttsInitTimeoutMs) {
-        this(httpConnectTimeoutMs, httpReadTimeoutMs, httpJsonMaxBytes, httpEventMaxBytes,
-                nearbyTimeoutMs, nearbyFusedGraceMs, artifactDefaultMaxBytes, artifactHardMaxBytes,
-                diagnosticsRingCapacity, threadPageSize, maxReconnects,
-                updateRepo, updateApiBase, updateMaxApkBytes, updateCheckIntervalMs,
-                githubWebBaseUrl, openStreetMapBaseUrl, doctorCheckTimeoutMs,
-                slowLatencyThresholdMs, expectedForkCapabilities, probeTimeoutMs,
-                voiceServiceTimeoutMs, ttsInitTimeoutMs,
-                DEFAULT_VOICE_MODEL_RELEASE_TIMEOUT_MS, DEFAULT_HTTP_MAX_REDIRECTS);
-    }
-
-    public HermesConfig(int httpConnectTimeoutMs, int httpReadTimeoutMs, int httpJsonMaxBytes, int httpEventMaxBytes,
-                        int nearbyTimeoutMs, int nearbyFusedGraceMs, long artifactDefaultMaxBytes,
                         long artifactHardMaxBytes, int diagnosticsRingCapacity, int threadPageSize, int maxReconnects,
                         String updateRepo, String updateApiBase, long updateMaxApkBytes, long updateCheckIntervalMs,
                         String githubWebBaseUrl, String openStreetMapBaseUrl, int doctorCheckTimeoutMs,

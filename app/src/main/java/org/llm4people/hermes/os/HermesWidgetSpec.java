@@ -70,11 +70,6 @@ public final class HermesWidgetSpec {
     public final String ownerProfileId;
 
     public HermesWidgetSpec(String widgetId, String title, String subtitle, Template template,
-                            List<Item> items, String accentHex, boolean homeScreenSafe) {
-        this(widgetId, title, subtitle, template, items, accentHex, homeScreenSafe, null);
-    }
-
-    public HermesWidgetSpec(String widgetId, String title, String subtitle, Template template,
                             List<Item> items, String accentHex, boolean homeScreenSafe, String ownerProfileId) {
         if (!validWidgetId(widgetId)) throw new IllegalArgumentException("Invalid widget_id");
         if (template == null) throw new IllegalArgumentException("Invalid widget template");
@@ -166,10 +161,6 @@ public final class HermesWidgetSpec {
      * Returns a strictly home-screen-safe copy. If {@code homeScreenSafe} is false, all custom
      * titles, subtitles, and items are replaced with generic privacy copy.
      */
-    public HermesWidgetSpec redactedForHomeScreen() {
-        return redactedForHomeScreen(null);
-    }
-
     public HermesWidgetSpec redactedForHomeScreen(Context context) {
         if (homeScreenSafe) return this;
         Context localized = context == null ? null : org.llm4people.hermes.AppLanguage.wrapContext(context);

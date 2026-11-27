@@ -120,6 +120,7 @@ public final class GithubReleaseClientTest {
                 UpdateApkProvider.fileNameForTag(release.tagName()),
                 release.apkSizeBytes(),
                 HermesConfig.defaults().updateMaxApkBytes,
+                HermesConfig.DEFAULT_HTTP_MAX_REDIRECTS,
                 (pct, downloaded, total) -> maxPct.set(Math.max(maxPct.get(), pct)),
                 new AtomicBoolean(false));
 
@@ -318,7 +319,7 @@ public final class GithubReleaseClientTest {
         try {
             ApkUpdateInstaller.downloadAndVerifyChecksum(
                     evilRedirect, apkUrl, "a".repeat(64), updatesDir,
-                    "hermes-update-v1.2.0.apk", 100, 10_000, null, new AtomicBoolean(false));
+                    "hermes-update-v1.2.0.apk", 100, 10_000, HermesConfig.DEFAULT_HTTP_MAX_REDIRECTS, null, new AtomicBoolean(false));
             fail("Followed redirect to disallowed host");
         } catch (IOException expected) {
             assertEquals(0, updatesDir.listFiles().length);
@@ -338,7 +339,7 @@ public final class GithubReleaseClientTest {
                     url -> new ApkUpdateInstaller.StreamResponse(200, null, tamperedBytes.length,
                             new ByteArrayInputStream(tamperedBytes)),
                     apkUrl, wrongHex, dir, "hermes-update-v1.2.0.apk",
-                    tamperedBytes.length, 1024 * 1024, null, new AtomicBoolean(false));
+                    tamperedBytes.length, 1024 * 1024, HermesConfig.DEFAULT_HTTP_MAX_REDIRECTS, null, new AtomicBoolean(false));
             fail("Accepted checksum mismatch");
         } catch (ApkUpdateInstaller.VerificationException expected) {
             assertEquals(ApkUpdateInstaller.VerificationException.Reason.CHECKSUM_MISMATCH, expected.reason);
@@ -352,7 +353,7 @@ public final class GithubReleaseClientTest {
                     url -> new ApkUpdateInstaller.StreamResponse(200, null, -1L,
                             new ByteArrayInputStream(largeBytes)),
                     apkUrl, sha256(largeBytes), dir, "hermes-update-v1.2.0.apk",
-                    largeBytes.length, 512, null, new AtomicBoolean(false));
+                    largeBytes.length, 512, HermesConfig.DEFAULT_HTTP_MAX_REDIRECTS, null, new AtomicBoolean(false));
             fail("Accepted oversized APK");
         } catch (ApkUpdateInstaller.VerificationException expected) {
             assertEquals(ApkUpdateInstaller.VerificationException.Reason.TOO_LARGE, expected.reason);
@@ -366,7 +367,7 @@ public final class GithubReleaseClientTest {
                     url -> new ApkUpdateInstaller.StreamResponse(200, null, tamperedBytes.length,
                             new ByteArrayInputStream(tamperedBytes)),
                     apkUrl, sha256(tamperedBytes), dir, "hermes-update-v1.2.0.apk",
-                    tamperedBytes.length, 1024 * 1024, null, cancelled);
+                    tamperedBytes.length, 1024 * 1024, HermesConfig.DEFAULT_HTTP_MAX_REDIRECTS, null, cancelled);
             fail("Completed cancelled download");
         } catch (ApkUpdateInstaller.VerificationException expected) {
             assertEquals(ApkUpdateInstaller.VerificationException.Reason.CANCELLED, expected.reason);
