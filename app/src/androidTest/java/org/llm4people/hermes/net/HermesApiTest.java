@@ -77,10 +77,10 @@ public class HermesApiTest extends TestCase {
                 "data: \"delta\":\"é\",\"seq\":12}\r\n\r\n: keepalive\n\n";
         try (Exchange server = new Exchange("200 OK", "Content-Type: text/event-stream; charset=utf-8\r\n", stream);
              HermesApi.RunEvents events = server.api().runEvents("r1", 11)) {
-            JSONObject frame = events.next();
+            JSONObject frame = events.next(false);
             assertEquals(12L, frame.getLong("seq"));
             assertEquals("é", frame.getString("delta"));
-            assertNull(events.next());
+            assertNull(events.next(false));
             String wire = server.observed();
             assertTrue(wire.startsWith("GET /p/travail/v1/runs/r1/events "));
             assertTrue(wire.toLowerCase(Locale.ROOT).contains("last-event-id: 11"));
@@ -89,10 +89,10 @@ public class HermesApiTest extends TestCase {
 
     public void testMissingFrameBoundaryAndOversizedReplyAreRejected() throws Exception {
         byte[] partial = "data: {\"seq\":3}\n".getBytes(StandardCharsets.UTF_8);
-        try { new SseReader(new ByteArrayInputStream(partial), 100).next(); fail("partial frame"); }
+        try { new SseReader(new ByteArrayInputStream(partial), 100).next(false); fail("partial frame"); }
         catch (EOFException expected) { }
         byte[] large = "data: {\"seq\":1}\n\n".getBytes(StandardCharsets.UTF_8);
-        try { new SseReader(new ByteArrayInputStream(large), 8).next(); fail("large frame"); }
+        try { new SseReader(new ByteArrayInputStream(large), 8).next(false); fail("large frame"); }
         catch (IOException expected) { }
         try (Exchange server = new Exchange("200 OK", JSON, "{\"content\":\"12345678901234567890\"}")) {
             HermesApi client = new HermesApi(server.endpoint(), TOKEN, new HermesApi.Limits(2000, 2000, 16, 32));
@@ -120,19 +120,19 @@ public class HermesApiTest extends TestCase {
                 }
                 return null;
             });
-            HermesApi client = new HermesApi("http://127.0.0.1:" + listener.getLocalPort(), TOKEN);
+            HermesApi client = new HermesApi("http://127.0.0.1:" + listener.getLocalPort(), TOKEN, org.llm4people.hermes.net.HermesApi.Limits.defaults());
             try (HermesApi.RunEvents events = client.runEvents("r1", -1)) {
-                assertEquals(0, events.next().getInt("seq"));
+                assertEquals(0, events.next(false).getInt("seq"));
                 CountDownLatch reading = new CountDownLatch(1);
                 Future<?> reader = workers.submit(() -> {
                     reading.countDown();
-                    try { assertNull(events.next()); } catch (IOException closed) { }
+                    try { assertNull(events.next(false)); } catch (IOException closed) { }
                     return null;
                 });
                 assertTrue(reading.await(2, TimeUnit.SECONDS));
                 events.close();
                 reader.get(3, TimeUnit.SECONDS);
-                assertNull(events.next());
+                assertNull(events.next(false));
             } finally {
                 finish.countDown();
             }
@@ -162,7 +162,7 @@ public class HermesApiTest extends TestCase {
                 "file:///server", "https://user:password@server", "https://server?token=secret",
                 "https://server/p/../x", "https://server/#fragment"};
         for (String value : invalid) {
-            try { new HermesApi(value, TOKEN); fail("accepted endpoint " + value); }
+            try { new HermesApi(value, TOKEN, org.llm4people.hermes.net.HermesApi.Limits.defaults()); fail("accepted endpoint " + value); }
             catch (IllegalArgumentException expected) { }
         }
         Endpoint endpoint = new Endpoint("https://example.org/p/travail/");
@@ -173,8 +173,8 @@ public class HermesApiTest extends TestCase {
         assertEquals("a%20b%C3%A9%3F", HermesApi.segment("a bé?"));
         assertEquals("https://example.org/p/travail/api/sessions?limit=3",
                 endpoint.url("/api/sessions?limit=3").toString());
-        HermesApi.RunEvents unopened = new HermesApi("https://example.org", TOKEN).runEvents("r1", -1);
+        HermesApi.RunEvents unopened = new HermesApi("https://example.org", TOKEN, org.llm4people.hermes.net.HermesApi.Limits.defaults()).runEvents("r1", -1);
         unopened.close();
-        assertNull(unopened.next());
+        assertNull(unopened.next(false));
     }
 }

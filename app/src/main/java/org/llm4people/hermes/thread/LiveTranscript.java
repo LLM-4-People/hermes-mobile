@@ -17,8 +17,6 @@ final class LiveTranscript {
     TranscriptPage.Cursor readerStart() { return origin.cursor(prior); }
     boolean excerpt() { return origin.offset > 0; }
 
-    boolean update(String source) { return update(source, RunPreview.Origin.FIRST); }
-
     boolean update(String source, RunPreview.Origin start) {
         boolean moved = start != origin;
         if (!moved && source.length() == prior.length() && source.equals(prior)) return false;

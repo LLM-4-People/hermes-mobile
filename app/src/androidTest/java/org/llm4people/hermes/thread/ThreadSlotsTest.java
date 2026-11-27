@@ -33,7 +33,7 @@ public class ThreadSlotsTest extends InstrumentationTestCase {
         Activity activity = getInstrumentation().startActivitySync(launch);
         try {
             runTestOnUiThread(() -> {
-                ThreadViews view = new ThreadViews(activity);
+                ThreadViews view = new ThreadViews(activity, new org.llm4people.hermes.voice.VoiceDrafts(activity));
                 AtomicInteger sends = new AtomicInteger();
                 view.chat("texte déjà saisi", text -> {}, sends::incrementAndGet, () -> {}, () -> {});
                 activity.setContentView(view.root);
@@ -141,7 +141,7 @@ public class ThreadSlotsTest extends InstrumentationTestCase {
         Activity activity = getInstrumentation().startActivitySync(launch);
         try {
             runTestOnUiThread(() -> {
-                ThreadViews thread = new ThreadViews(activity);
+                ThreadViews thread = new ThreadViews(activity, new org.llm4people.hermes.voice.VoiceDrafts(activity));
                 thread.chat("", ignored -> {}, () -> fail("Unexpected send"), () -> {}, () -> {});
                 ThreadStarters starters = new ThreadStarters(thread.list, ignored -> {});
                 activity.setContentView(thread.root);
@@ -178,7 +178,7 @@ public class ThreadSlotsTest extends InstrumentationTestCase {
             Activity activity = getInstrumentation().startActivitySync(launch);
             try {
                 runTestOnUiThread(() -> {
-                    ThreadViews view = new ThreadViews(activity);
+                    ThreadViews view = new ThreadViews(activity, new org.llm4people.hermes.voice.VoiceDrafts(activity));
                     AtomicInteger admissions = new AtomicInteger();
                     ThreadWorkspace.Host host = new ThreadWorkspace.Host() {
                         public void selected(String id, String title) {}
@@ -191,7 +191,7 @@ public class ThreadSlotsTest extends InstrumentationTestCase {
                     };
                     ThreadWorkspace page = new ThreadWorkspace(activity, null, fixture.account, host, view.voice);
                     page.screen = view;
-                    page.journal = new ThreadJournal(fixture.account, "discussion");
+                    page.journal = new ThreadJournal(fixture.account, "discussion", org.llm4people.hermes.HermesConfig.DEFAULT_MAX_RECONNECTS);
                     try {
                         ThreadRun run = new ThreadRun(page);
                         view.chat("", page.journal::draft, run::send, () -> {}, () -> {});

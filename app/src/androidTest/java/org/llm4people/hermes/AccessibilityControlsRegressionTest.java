@@ -315,7 +315,7 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
                     // 2. ThreadWorkspace.rename() EditText retains thread_rename_title hint when cleared.
                     VoiceDrafts voice = new VoiceDrafts(activity);
                     voiceRef.set(voice);
-                    HermesApi api = new HermesApi("http://127.0.0.1:1", "tok");
+                    HermesApi api = new HermesApi("http://127.0.0.1:1", "tok", org.llm4people.hermes.net.HermesApi.Limits.defaults());
                     ThreadWorkspace workspace = new ThreadWorkspace(
                             activity, api, fixture.account, new ThreadWorkspace.Host() {
                                 @Override public void selected(String sessionId, String title) {}
@@ -494,7 +494,7 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
                             screenRow.getChildAt(1).getImportantForAccessibility());
 
                     // Shared SessionPanel fixture for NotesPanel & ProfileDefaultsPanel.
-                    HermesApi api = new HermesApi("http://127.0.0.1:1", "tok");
+                    HermesApi api = new HermesApi("http://127.0.0.1:1", "tok", org.llm4people.hermes.net.HermesApi.Limits.defaults());
                     SessionPanel sessionPanel = new SessionPanel(activity, api, fixture.account);
                     sessionPanelRef.set(sessionPanel);
 
@@ -552,7 +552,7 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
                     assertTrue(sharedCd.contains("Onboarding checklist"));
 
                     // R14.5.3: CommandPalette rowView hides header & subtitle and announces Button role.
-                    CommandPalette palette = new CommandPalette(activity, new CommandRegistry(), () -> true);
+                    CommandPalette palette = new CommandPalette(activity, new CommandRegistry(java.util.Collections.emptyList()), () -> true);
                     Method rowViewMethod = CommandPalette.class.getDeclaredMethod("rowView", CommandItem.class);
                     rowViewMethod.setAccessible(true);
                     CommandItem withSub = new CommandItem(
@@ -719,7 +719,7 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
             try {
                 runTestOnUiThread(() -> {
                 try {
-                    HermesApi api = new HermesApi("http://127.0.0.1:1", "tok");
+                    HermesApi api = new HermesApi("http://127.0.0.1:1", "tok", org.llm4people.hermes.net.HermesApi.Limits.defaults());
                     SessionPanel sessionPanel = new SessionPanel(activity, api, fixture.account);
                     sessionPanelRef.set(sessionPanel);
                     int minTouchPx = Ui.dp(activity, 48);
@@ -1005,7 +1005,7 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
                             greetingError.getAccessibilityLiveRegion());
 
                     // R16.5.3: NotesPanel & MemoryPanel editor dialog validation errorViews announce politely.
-                    HermesApi api = new HermesApi("http://127.0.0.1:1", "tok");
+                    HermesApi api = new HermesApi("http://127.0.0.1:1", "tok", org.llm4people.hermes.net.HermesApi.Limits.defaults());
                     SessionPanel sessionPanel = new SessionPanel(activity, api, fixture.account);
                     sessionPanelRef.set(sessionPanel);
                     Field childDialogField = SessionPanel.class.getDeclaredField("child");
@@ -1136,7 +1136,7 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
             try {
                 runTestOnUiThread(() -> {
                     try {
-                        HermesApi api = new HermesApi("http://127.0.0.1:1", "tok");
+                        HermesApi api = new HermesApi("http://127.0.0.1:1", "tok", org.llm4people.hermes.net.HermesApi.Limits.defaults());
                         int dangerColor = activity.getColor(R.color.danger);
 
                         // R17.5.1: NotesTasksPanel.showErrorCard announces error message politely.
@@ -1329,7 +1329,7 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
             try {
                 runTestOnUiThread(() -> {
                     try {
-                        HermesApi api = new HermesApi("http://127.0.0.1:1", "tok");
+                        HermesApi api = new HermesApi("http://127.0.0.1:1", "tok", org.llm4people.hermes.net.HermesApi.Limits.defaults());
                         SessionPanel sessionPanel = new SessionPanel(activity, api, fixture.account);
                         sessionPanelRef.set(sessionPanel);
 
@@ -1684,7 +1684,7 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
             try {
                 runTestOnUiThread(() -> {
                     try {
-                        HermesApi api = new HermesApi("http://127.0.0.1:1", "tok");
+                        HermesApi api = new HermesApi("http://127.0.0.1:1", "tok", org.llm4people.hermes.net.HermesApi.Limits.defaults());
                         SessionPanel sessionPanel = new SessionPanel(activity, api, fixture.account);
                         sessionPanelRef.set(sessionPanel);
 
@@ -1943,7 +1943,7 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
                                     @Override public boolean isLoadingNewer() { return false; }
                                     @Override public void loadOlder() {}
                                     @Override public void loadNewer() {}
-                                });
+                                }, InfiniteScrollController.DEFAULT_TOP_THRESHOLD, InfiniteScrollController.DEFAULT_BOTTOM_THRESHOLD, 0, 0);
                         Button jumpPill = scrollController.createJumpPill(activity, null);
                         assertEquals(View.ACCESSIBILITY_LIVE_REGION_POLITE, jumpPill.getAccessibilityLiveRegion());
                         assertEquals(View.GONE, jumpPill.getVisibility());
@@ -2047,7 +2047,7 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
 
                         // R20.5.4: ProfileDefaultsPanel removes POLITE from SOUL.md counterPill and guards
                         // toolsetCountPill & statusPill against unchanged text.
-                        HermesApi api = new HermesApi("http://127.0.0.1:1", "tok");
+                        HermesApi api = new HermesApi("http://127.0.0.1:1", "tok", org.llm4people.hermes.net.HermesApi.Limits.defaults());
                         SessionPanel sessionPanel = new SessionPanel(activity, api, fixture.account);
                         sessionPanelRef.set(sessionPanel);
 
@@ -2224,7 +2224,7 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
                         assertEquals(3, counterMutations.get());
 
                         // R20.5.7: CommandPalette guards countAnnouncement.setText against unchanged counts.
-                        CommandRegistry cmdRegistry = new CommandRegistry();
+                        CommandRegistry cmdRegistry = new CommandRegistry(java.util.Collections.emptyList());
                         cmdRegistry.add(new CommandItem(
                                 "cmd-a", CommandItem.Category.ACTION, "New Chat", "", "", () -> {}));
                         cmdRegistry.add(new CommandItem(
@@ -2457,7 +2457,7 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
                         assertCheckableNode(searchUnsel, false);
 
                         // R21.5.3: NotesPanel.renderTabs exposes checkable state on filter pills.
-                        HermesApi api = new HermesApi("http://127.0.0.1:1", "tok");
+                        HermesApi api = new HermesApi("http://127.0.0.1:1", "tok", org.llm4people.hermes.net.HermesApi.Limits.defaults());
                         SessionPanel sessionPanel = new SessionPanel(activity, api, fixture.account);
                         sessionPanelRef.set(sessionPanel);
                         Class<?> notesPanelClass = Class.forName("org.llm4people.hermes.panel.NotesPanel");

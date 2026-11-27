@@ -144,6 +144,17 @@ public final class SparklineView extends View {
     private final int desiredHeightPx;
     private final int mutedBarColor;
 
+    /** Computes a muted bar fill with >= 3.0:1 non-text contrast against {@code palette.surface}. */
+    static int resolveMutedBarColor(ThemePalette palette) {
+        for (int step = 60; step <= 100; step += 5) {
+            int candidate = ThemePalette.blendTint(palette.accent, palette.paper, step / 100f);
+            if (ThemePalette.contrastRatio(candidate, palette.surface) >= 3.0) {
+                return candidate;
+            }
+        }
+        return palette.accent;
+    }
+
     public SparklineView(Context context, Series series, ThemePalette palette) {
         super(context);
         this.series = series;
@@ -151,7 +162,7 @@ public final class SparklineView extends View {
         this.dp = context.getResources().getDisplayMetrics().density;
         this.desiredWidthPx = Ui.dp(context, 240);
         this.desiredHeightPx = Ui.dp(context, 96);
-        this.mutedBarColor = ThemePalette.blendTint(this.palette.accent, this.palette.paper, 0.45f);
+        this.mutedBarColor = resolveMutedBarColor(this.palette);
         targetPaint.setStyle(Paint.Style.STROKE);
         targetPaint.setStrokeWidth(1.25f * dp);
         targetPaint.setColor(this.palette.muted);

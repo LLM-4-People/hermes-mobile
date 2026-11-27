@@ -24,7 +24,7 @@ public final class TypedProposalProjectionTest extends TestCase {
             JSONObject row = row(part("input_text", "Contexte\n" + example + "\nFIN-INPUT"),
                     part("input_image", ""), part("output_text", "ORIGINE\n" + FENCE + "\nFIN-OUTPUT"));
             String context = "Contexte\n" + example + "\nFIN-INPUT\n[image]\nORIGINE\n";
-            assertEquals(context + FENCE + "\nFIN-OUTPUT", MessageParts.display(row));
+            assertEquals(context + FENCE + "\nFIN-OUTPUT", MessageParts.display(row, "[image]"));
             assertEquals(context + "FIN-OUTPUT", project(row, ""));
             assertEquals(context + "Outil de revue\nFIN-OUTPUT", project(row, "Outil de revue"));
             assertTrue(MessageParts.display(row, "[Attached image]").contains("\n[Attached image]\n"));
@@ -51,9 +51,9 @@ public final class TypedProposalProjectionTest extends TestCase {
                 part("output_text", code));
         assertEquals(code + "\nExtrait\n" + code,
                 MessageParts.project(row, Collections.singletonMap(1, RAW), i -> "", MessageParts.DEFAULT_IMAGE_MARKER));
-        assertEquals(MessageParts.display(row), project(row, ""));
+        assertEquals(MessageParts.display(row, "[image]"), project(row, ""));
         row.put("role", "user");
-        assertEquals(MessageParts.display(row),
+        assertEquals(MessageParts.display(row, "[image]"),
                 MessageParts.project(row, Collections.singletonMap(1, RAW), i -> "", MessageParts.DEFAULT_IMAGE_MARKER));
     }
 }

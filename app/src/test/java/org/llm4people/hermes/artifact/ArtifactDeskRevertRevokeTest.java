@@ -28,8 +28,8 @@ public final class ArtifactDeskRevertRevokeTest {
     @Test
     public void revokeAllRevokesTrackedRevertClientsAndClearsRegistry() {
         try {
-            HermesApi first = new HermesApi("http://127.0.0.1:18080", "token-a");
-            HermesApi second = new HermesApi("http://127.0.0.1:18081", "token-b");
+            HermesApi first = new HermesApi("http://127.0.0.1:18080", "token-a", org.llm4people.hermes.net.HermesApi.Limits.defaults());
+            HermesApi second = new HermesApi("http://127.0.0.1:18081", "token-b", org.llm4people.hermes.net.HermesApi.Limits.defaults());
             ArtifactDesk.trackRevertClientForTest(first);
             ArtifactDesk.trackRevertClientForTest(second);
             assertFalse(first.isRevoked());

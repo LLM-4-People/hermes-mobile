@@ -87,7 +87,7 @@ public final class TranscriptPageTest {
             TranscriptPage.Style style = marker.length() == 2 ? TranscriptPage.Style.BOLD : TranscriptPage.Style.ITALIC;
             assertEquals("Voir [Image jointe] et [Image jointe]", marked(page, style));
             LiveTranscript live = new LiveTranscript();
-            live.update(source);
+            live.update(source, RunPreview.Origin.FIRST);
             assertEquals(page.text.toString(), live.latest.text.toString());
         }
         String crossing = "Préface **" + image + " fin**.";

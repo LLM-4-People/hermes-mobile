@@ -33,7 +33,7 @@ public final class InfiniteChatTest {
 
     @Test public void simulates100kMessagesWithBoundedWindowZeroDuplicatesAndExactAnchors() {
         final long totalMessages = 100_000L;
-        final int pageSize = InfiniteTranscriptWindow.DEFAULT_PAGE_SIZE;
+        final int pageSize = org.llm4people.hermes.HermesConfig.DEFAULT_THREAD_PAGE_SIZE;
         InfiniteTranscriptWindow<FakeRow> window = newWindow();
 
         // 1. Open latest page (99,961..100,000).
@@ -44,9 +44,9 @@ public final class InfiniteChatTest {
         assertFalse(window.hasNewer());
         assertEquals(Long.valueOf(99_961L), window.oldestId());
         assertEquals(Long.valueOf(100_000L), window.newestId());
-        assertEquals("limit=40&order=latest&before_id=99961", window.olderQueryParams(pageSize, true));
-        assertEquals("limit=40&offset=40&order=latest", window.olderQueryParams(pageSize, false));
-        assertEquals("limit=40&order=oldest&after_id=100000", window.newerQueryParams(pageSize));
+        assertEquals("limit=40&order=latest&visible_only=true&include_compacted=true&before_id=99961", window.olderQueryParams(pageSize, true));
+        assertEquals("limit=40&offset=40&order=latest&visible_only=true&include_compacted=true", window.olderQueryParams(pageSize, false));
+        assertEquals("limit=40&order=oldest&visible_only=true&include_compacted=true&after_id=100000", window.newerQueryParams(pageSize));
 
         // 2. Walk backward across ALL 2,499 remaining pages (all the way to message #1 across 4 compaction segments!).
         Set<Long> seen = new HashSet<>();
@@ -100,7 +100,7 @@ public final class InfiniteChatTest {
         // 4. Snap to latest + O(1) after_id live delta append (3 new messages arrive).
         window.replaceLatest(range(99_961L, 100_000L), true, 99_961L, 100_000L, (int) totalMessages);
         assertTrue(window.atLiveTail());
-        assertEquals("limit=40&order=oldest&after_id=100000", window.newerQueryParams(40));
+        assertEquals("limit=40&order=oldest&visible_only=true&include_compacted=true&after_id=100000", window.newerQueryParams(40));
 
         InfiniteTranscriptWindow.PageResult delta = window.appendNewer(range(100_001L, 100_003L), false, 100_003L, 100_003);
         assertEquals(3, delta.appendedCount());
@@ -112,15 +112,20 @@ public final class InfiniteChatTest {
 
     @Test public void queryParamsFollowGatewayContractAndNeverEmitInvalidOrderDesc() {
         InfiniteTranscriptWindow<FakeRow> empty = newWindow();
-        assertEquals("limit=40&offset=0&order=latest", empty.olderQueryParams(40, true));
-        assertEquals("limit=1&offset=0&order=latest", empty.olderQueryParams(0, false));
-        assertEquals("limit=200&order=latest", empty.newerQueryParams(500));
+        assertEquals("limit=40&offset=0&order=latest&visible_only=true&include_compacted=true",
+                empty.olderQueryParams(40, true));
+        assertEquals("limit=1&offset=0&order=latest&visible_only=true&include_compacted=true",
+                empty.olderQueryParams(0, false));
+        assertEquals("limit=200&order=latest&visible_only=true&include_compacted=true",
+                empty.newerQueryParams(500));
         assertFalse(empty.olderQueryParams(40, true).contains("order=desc"));
         assertFalse(empty.newerQueryParams(40).contains("order=desc"));
 
         empty.replaceLatest(range(501L, 540L), true, 501L, 540L, 540);
-        assertEquals("limit=40&order=latest&before_id=501", empty.olderQueryParams(40, true));
-        assertEquals("limit=40&order=oldest&after_id=540", empty.newerQueryParams(40));
+        assertEquals("limit=40&order=latest&visible_only=true&include_compacted=true&before_id=501",
+                empty.olderQueryParams(40, true));
+        assertEquals("limit=40&order=oldest&visible_only=true&include_compacted=true&after_id=540",
+                empty.newerQueryParams(40));
     }
 
     @Test public void tailCacheEnforcesLruProfileEpochFencingVaultBoundsAndFastRestore() {

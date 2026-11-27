@@ -1015,14 +1015,7 @@ public final class ThreadWorkspace implements AutoCloseable {
         Long keysetBeforeId = older && gatewaySupportsKeyset ? transcriptWindow.oldestId() : null;
         request(() -> {
             if (keysetBeforeId != null) {
-                JSONObject response = api.get(query + pageSize + "&before_id=" + keysetBeforeId);
-                JSONArray pageRows = response.optJSONArray("data");
-                if (pageRows == null) throw new java.io.IOException("Missing transcript");
-                JSONObject pag = response.optJSONObject("pagination");
-                boolean moreFlag = pag != null
-                        ? pag.optBoolean("has_more", pageRows.length() >= pageSize)
-                        : pageRows.length() >= pageSize;
-                return new ThreadWindow(response, pageRows, pageRows.length(), moreFlag);
+                return parsePagedWindow(api.get(path + "/messages?" + transcriptWindow.olderQueryParams(pageSize, true)), pageSize);
             }
             return ThreadWindow.read(api::get, query, offset, retained, priorTotal, oldest,
                     () -> owner == generation && requestNo == transcriptRequest, pageSize);
@@ -1117,6 +1110,16 @@ public final class ThreadWorkspace implements AutoCloseable {
         });
     }
 
+    private static ThreadWindow parsePagedWindow(JSONObject response, int pageSize) throws java.io.IOException {
+        JSONArray pageRows = response.optJSONArray("data");
+        if (pageRows == null) throw new java.io.IOException("Missing transcript");
+        JSONObject pag = response.optJSONObject("pagination");
+        boolean hasMore = pag != null
+                ? pag.optBoolean("has_more", pageRows.length() >= pageSize)
+                : pageRows.length() >= pageSize;
+        return new ThreadWindow(response, pageRows, pageRows.length(), hasMore);
+    }
+
     /** Real downward keyset paging ({@code after_id}) when scrolling forward from deep history. */
     void loadNewerMessages() {
         if (closed || loading || session == null) return;
@@ -1128,18 +1131,8 @@ public final class ThreadWorkspace implements AutoCloseable {
         loading = true;
         int requestNo = ++transcriptRequest;
         String path = ThreadData.path(session);
-        String url = path + "/messages?order=oldest&visible_only=true&include_compacted=true&limit="
-                + pageSize + "&after_id=" + afterId;
-        request(() -> {
-            JSONObject response = api.get(url);
-            JSONArray pageRows = response.optJSONArray("data");
-            if (pageRows == null) throw new java.io.IOException("Missing transcript");
-            JSONObject pag = response.optJSONObject("pagination");
-            boolean moreNewer = pag != null
-                    ? pag.optBoolean("has_more", pageRows.length() >= pageSize)
-                    : pageRows.length() >= pageSize;
-            return new ThreadWindow(response, pageRows, pageRows.length(), moreNewer);
-        }, window -> {
+        String url = path + "/messages?" + transcriptWindow.newerQueryParams(pageSize);
+        request(() -> parsePagedWindow(api.get(url), pageSize), window -> {
             if (requestNo != transcriptRequest) return;
             loading = false;
             JSONObject data = window.metadata();

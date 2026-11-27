@@ -463,7 +463,7 @@ public final class OnboardingApiContractTest {
             assertEquals("fr", observedHeaders.get().get("x-hermes-lang"));
 
             // 2. deleteProfile rejects mismatched confirmSlug BEFORE network call
-            HermesApi api = new HermesApi(base, "member_bearer_token_12345");
+            HermesApi api = new HermesApi(base, "member_bearer_token_12345", org.llm4people.hermes.net.HermesApi.Limits.defaults());
             try {
                 api.deleteProfile("alex", "other");
                 fail("Expected confirm_slug mismatch rejection");

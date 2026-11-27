@@ -150,7 +150,7 @@ public final class ActiveRunTrackerTest {
         ThreadWorkspace.revokeApiSafely(null);
         ThreadWorkspace.notifyIdleSafely(null);
 
-        HermesApi client = new HermesApi("http://127.0.0.1:9", "secret");
+        HermesApi client = new HermesApi("http://127.0.0.1:9", "secret", org.llm4people.hermes.net.HermesApi.Limits.defaults());
         assertFalse(client.isRevoked());
         ThreadWorkspace.revokeApiSafely(client);
         assertTrue(client.isRevoked());

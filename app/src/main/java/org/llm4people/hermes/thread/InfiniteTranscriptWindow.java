@@ -2,7 +2,6 @@ package org.llm4people.hermes.thread;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
-import org.llm4people.hermes.HermesConfig;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -20,7 +19,6 @@ import java.util.Set;
  */
 public final class InfiniteTranscriptWindow<T> {
     public static final int MAX_WINDOW_ROWS = 400;
-    public static final int DEFAULT_PAGE_SIZE = HermesConfig.DEFAULT_THREAD_PAGE_SIZE;
 
     public interface RowIdentity<T> {
         String stableKey(T row);
@@ -182,18 +180,19 @@ public final class InfiniteTranscriptWindow<T> {
     public synchronized String olderQueryParams(int limit, boolean supportsKeyset) {
         int safeLimit = Math.max(1, Math.min(200, limit));
         if (supportsKeyset && oldestId != null && oldestId > 0L) {
-            return "limit=" + safeLimit + "&order=latest&before_id=" + oldestId;
+            return "limit=" + safeLimit + "&order=latest&visible_only=true&include_compacted=true&before_id=" + oldestId;
         }
-        return "limit=" + safeLimit + "&offset=" + Math.max(0, legacyOffset) + "&order=latest";
+        return "limit=" + safeLimit + "&offset=" + Math.max(0, legacyOffset)
+                + "&order=latest&visible_only=true&include_compacted=true";
     }
 
     /** Builds query string for O(1) incremental delta sync or downward paging via {@code after_id}. */
     public synchronized String newerQueryParams(int limit) {
         int safeLimit = Math.max(1, Math.min(200, limit));
         if (newestId == null || newestId <= 0L) {
-            return "limit=" + safeLimit + "&order=latest";
+            return "limit=" + safeLimit + "&order=latest&visible_only=true&include_compacted=true";
         }
-        return "limit=" + safeLimit + "&order=oldest&after_id=" + newestId;
+        return "limit=" + safeLimit + "&order=oldest&visible_only=true&include_compacted=true&after_id=" + newestId;
     }
 
     public synchronized List<T> snapshot() {

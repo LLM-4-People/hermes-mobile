@@ -107,10 +107,6 @@ final class ArtifactCatalog {
         return scan;
     }
 
-    ArtifactCatalog(JSONArray messages) {
-        this(null, messages);
-    }
-
     ArtifactCatalog(Context context, JSONArray messages) {
         Scan scan = scan(messages);
         limited = scan.limited;

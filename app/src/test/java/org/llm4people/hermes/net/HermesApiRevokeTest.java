@@ -256,7 +256,7 @@ public final class HermesApiRevokeTest {
                 AtomicReference<Throwable> readerError = new AtomicReference<>();
                 Thread reader = new Thread(() -> {
                     try {
-                        events.next();
+                        events.next(false);
                     } catch (Throwable err) {
                         readerError.set(err);
                     } finally {
@@ -276,14 +276,14 @@ public final class HermesApiRevokeTest {
 
                 // Subsequent reads on revoked RunEvents fail closed with IOException("Client revoked").
                 try {
-                    events.next();
-                    fail("Expected IOException on revoked RunEvents.next()");
+                    events.next(false);
+                    fail("Expected IOException on revoked RunEvents.next(false)");
                 } catch (IOException expected) {
                     assertTrue(expected.getMessage().contains("revoked"));
                 }
             }
             try (HermesApi.RunEvents fresh = api.runEvents("r-after-revoke", -1)) {
-                fresh.next();
+                fresh.next(false);
                 fail("Expected IOException on new RunEvents after revoke()");
             } catch (IOException expected) {
                 assertTrue(expected.getMessage().contains("revoked"));

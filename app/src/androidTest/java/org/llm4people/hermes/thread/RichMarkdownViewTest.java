@@ -118,7 +118,7 @@ public final class RichMarkdownViewTest extends InstrumentationTestCase {
         List<RunFollower.Frame> frames = new ArrayList<>();
         try (Exchange gateway = new Exchange("200 OK", running,
                 new Exchange.Reply("Content-Type: text/event-stream\r\n", events), done)) {
-            new RunFollower(new HermesApi(gateway.endpoint(), "tok"), "r1", new JSONObject(), -1,
+            new RunFollower(new HermesApi(gateway.endpoint(), "tok", org.llm4people.hermes.net.HermesApi.Limits.defaults()), "r1", new JSONObject(), -1,
                     new RunFollower.Listener() {
                         @Override public void update(RunFollower.Frame frame) { frames.add(frame); }
                         @Override public void complete(JSONObject status, long firstTextMs, long elapsedMs) {}

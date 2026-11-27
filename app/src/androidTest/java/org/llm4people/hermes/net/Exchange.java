@@ -76,7 +76,7 @@ public final class Exchange implements Closeable {
     }
 
     public String endpoint() { return "http://127.0.0.1:" + listener.getLocalPort() + "/p/travail/"; }
-    HermesApi api() { return new HermesApi(endpoint(), "test-only"); }
+    HermesApi api() { return new HermesApi(endpoint(), "test-only", org.llm4people.hermes.net.HermesApi.Limits.defaults()); }
     public String observed() throws Exception { return observation.get(4, TimeUnit.SECONDS); }
     @Override public void close() throws IOException { listener.close(); }
 }

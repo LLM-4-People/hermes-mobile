@@ -160,35 +160,43 @@ public final class HomePinBridge {
                     activity.getString(R.string.home_pin_shortcut_unsupported_body));
             return false;
         }
-        ShortcutManager manager = activity.getSystemService(ShortcutManager.class);
-        if (manager == null || !manager.isRequestPinShortcutSupported()) {
-            Diagnostics.event("home_pin", "shortcut_unsupported");
+        Context app = activity.getApplicationContext();
+        try {
+            ShortcutManager manager = app.getSystemService(ShortcutManager.class);
+            if (manager == null || !manager.isRequestPinShortcutSupported()) {
+                Diagnostics.event("home_pin", "shortcut_unsupported");
+                guidance(activity, activity.getString(R.string.home_pin_shortcut_unsupported_title),
+                        activity.getString(R.string.home_pin_shortcut_unsupported_body));
+                return false;
+            }
+            Intent launch = new Intent(app, MainActivity.class)
+                    .setAction(Intent.ACTION_VIEW)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+            if (surfaceId != null && WorkspaceLayout.custom(surfaceId)) {
+                launch.putExtra(EXTRA_SURFACE_ID, surfaceId);
+            }
+            if (widgetId != null && DraftForm.validId(widgetId)) {
+                launch.putExtra(EXTRA_WIDGET_ID, widgetId);
+            }
+            String safeLabel = HermesWidgetSpec.sanitizeHomeText(label, 50);
+            if (safeLabel.isEmpty()) return false;
+            String shortLabel = safeShortShortcutLabel(safeLabel);
+            if (shortLabel.isEmpty()) return false;
+            ShortcutInfo info = new ShortcutInfo.Builder(app, shortcutId)
+                    .setShortLabel(shortLabel)
+                    .setLongLabel(safeLabel)
+                    .setIcon(Icon.createWithResource(app, R.mipmap.ic_launcher))
+                    .setIntent(launch)
+                    .build();
+            boolean requested = manager.requestPinShortcut(info, null);
+            Diagnostics.event("home_pin", requested ? "shortcut_requested" : "shortcut_declined");
+            return requested;
+        } catch (RuntimeException failed) {
+            Diagnostics.warning("home_pin", "shortcut_pin_failed");
             guidance(activity, activity.getString(R.string.home_pin_shortcut_unsupported_title),
                     activity.getString(R.string.home_pin_shortcut_unsupported_body));
             return false;
         }
-        Intent launch = new Intent(activity, MainActivity.class)
-                .setAction(Intent.ACTION_VIEW)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-        if (surfaceId != null && WorkspaceLayout.custom(surfaceId)) {
-            launch.putExtra(EXTRA_SURFACE_ID, surfaceId);
-        }
-        if (widgetId != null && DraftForm.validId(widgetId)) {
-            launch.putExtra(EXTRA_WIDGET_ID, widgetId);
-        }
-        String safeLabel = HermesWidgetSpec.sanitizeHomeText(label, 50);
-        if (safeLabel.isEmpty()) return false;
-        String shortLabel = safeShortShortcutLabel(safeLabel);
-        if (shortLabel.isEmpty()) return false;
-        ShortcutInfo info = new ShortcutInfo.Builder(activity, shortcutId)
-                .setShortLabel(shortLabel)
-                .setLongLabel(safeLabel)
-                .setIcon(Icon.createWithResource(activity, R.mipmap.ic_launcher))
-                .setIntent(launch)
-                .build();
-        boolean requested = manager.requestPinShortcut(info, null);
-        Diagnostics.event("home_pin", requested ? "shortcut_requested" : "shortcut_declined");
-        return requested;
     }
 
     private static void launchWidgetPin(Activity activity, LiveUiPatch.WidgetSpec spec, String ownerProfileId) {
@@ -250,6 +258,11 @@ public final class HomePinBridge {
         }
     }
 
+    static boolean canRefreshWidget(HermesWidgetSpec existing, String ownerProfileId) {
+        return existing != null
+                && (existing.ownerProfileId == null || existing.ownerProfileId.equals(ownerProfileId));
+    }
+
     /** Applies a Hermes-pushed widget_update delivery bound to an owner profile into HermesWidgetStore. */
     public static boolean applyDeliveryWidgetUpdate(Context context, JSONObject payload, String ownerProfileId) {
         if (context == null || payload == null) return false;
@@ -270,6 +283,11 @@ public final class HomePinBridge {
         }
         String widgetId = candidate.optString("widget_id", "").trim();
         if (HermesWidgetSpec.validWidgetId(widgetId) && !candidate.has("title")) {
+            HermesWidgetSpec existing = new HermesWidgetStore(app).spec(widgetId);
+            if (!canRefreshWidget(existing, ownerProfileId)) {
+                Diagnostics.warning("widget", "delivery_widget_refresh_denied");
+                return false;
+            }
             HermesWidgetProvider.refreshWidget(app, widgetId);
             broadcastWidgetUpdated(app, widgetId);
             Diagnostics.event("widget", "delivery_widget_refreshed");

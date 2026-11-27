@@ -9,7 +9,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 public final class RunActionTest extends TestCase {
-    private final ThreadJournal journal = new ThreadJournal("chat", "owner", null, ignored -> {});
+    private final ThreadJournal journal = new ThreadJournal("chat", "owner", null, ignored -> {}, null, org.llm4people.hermes.HermesConfig.DEFAULT_MAX_RECONNECTS);
     private int page = 1;
     private long observation = 1;
 

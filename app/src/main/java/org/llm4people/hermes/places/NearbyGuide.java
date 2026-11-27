@@ -153,8 +153,7 @@ public final class NearbyGuide extends LinearLayout {
             String catLabel = cat.label(getContext());
             Button chip = chipButton(catLabel, selected, "places-cat-" + cat.id,
                     v -> actions.explore(cat, activeRadius));
-            chip.setContentDescription(getContext().getString(
-                    selected ? R.string.places_guide_cat_selected_desc : R.string.places_guide_cat_desc, catLabel));
+            chip.setContentDescription(getContext().getString(R.string.places_guide_cat_desc, catLabel));
             LayoutParams lp = new LayoutParams(-2, -2);
             lp.setMarginEnd(dp(8));
             chips.addView(chip, lp);

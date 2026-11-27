@@ -27,7 +27,7 @@ public final class PhotoJournalTest extends InstrumentationTestCase {
             this.pixels = pixels;
         }
         ThreadJournal load(String owner) {
-            return new ThreadJournal("root", owner, state, next -> state = next, this);
+            return new ThreadJournal("root", owner, state, next -> state = next, this, org.llm4people.hermes.HermesConfig.DEFAULT_MAX_RECONNECTS);
         }
     }
 

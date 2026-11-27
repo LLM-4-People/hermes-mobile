@@ -206,24 +206,13 @@ public final class ActiveRunTracker {
         final long token;
         synchronized (this) {
             Entry existing = tasks.get(sessionId);
-            LiveRunNotification.Snapshot safe = lastProgress != null && lastProgress.active()
-                    ? lastProgress
-                    : new LiveRunNotification.Snapshot(LiveRunNotification.Phase.WORKING, 0, 0, false, true);
-            if (existing == null) {
-                if (tasks.size() >= MAX_CONCURRENT_RUNS) return false;
-                existing = new Entry(sessionId, runId, safe);
-                tasks.put(sessionId, existing);
-            } else {
-                closeBackgroundHandle(existing, false);
-                existing.runId = runId;
-                existing.progress = safe;
-            }
-            existing.backgrounded = true;
-            existing.backgroundJournal = journal;
-            existing.latestFrame = lastFrame;
-            existing.bgToken = ++nextToken;
-            entry = existing;
-            token = existing.bgToken;
+            if (existing != null) closeBackgroundHandle(existing, false);
+            if (!markBackgrounded(sessionId, runId, lastProgress)) return false;
+            entry = tasks.get(sessionId);
+            entry.backgroundJournal = journal;
+            entry.latestFrame = lastFrame;
+            entry.bgToken = ++nextToken;
+            token = entry.bgToken;
         }
 
         RunFollower bgFollower = new RunFollower(api, runId, receipt, -1L, new RunFollower.Listener() {

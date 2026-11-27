@@ -35,17 +35,16 @@ public final class LiveUiStateManagerTest {
                 "light", "#1B4D89", "compact", 1, "outlined", false);
         LiveUiPatch.WidgetSpec widget = new LiveUiPatch.WidgetSpec(
                 "briefing_matin", "Résumé du jour", "2 tâches en cours", "briefing",
-                List.of(new LiveUiPatch.WidgetItem("Focus", "Revue mobile", "Fais le point sur mes tâches")),
-                "#1B4D89", true);
+                List.of(new LiveUiPatch.WidgetItem("Focus", "Revue mobile", null, "Fais le point sur mes tâches")),
+                "#1B4D89", null, true);
 
         LiveUiPatch rev1 = new LiveUiPatch("rev-001", "", "atelier", "Thème bleu et raccourcis",
                 Arrays.asList(
                         new LiveUiPatch.Op.UpsertSurface("page/suivi", "{\"version\":2}", "Suivi"),
                         new LiveUiPatch.Op.UpsertTab(new LiveUiPatch.CustomTab("tab_suivi", "Suivi", "page/suivi")),
-                        new LiveUiPatch.Op.UpsertQuickAction(new LiveUiPatch.QuickAction("qa_resume", "Résumer", "Résume ce fil en 3 points.", null)),
+                        new LiveUiPatch.Op.UpsertQuickAction(new LiveUiPatch.QuickAction("qa_resume", "Résumer", "Résume ce fil en 3 points.", null, null, null)),
                         new LiveUiPatch.Op.SetThemeOverride(blueTheme),
-                        new LiveUiPatch.Op.UpsertWidget(widget)),
-                true);
+                        new LiveUiPatch.Op.UpsertWidget(widget)), java.util.Collections.emptyList(), java.util.Collections.emptyList(), true, LiveUiPatch.MAX_OPS);
         manager.apply(rev1);
 
         // Reload in a fresh manager (simulates restart) and verify full persistence.
@@ -64,21 +63,20 @@ public final class LiveUiStateManagerTest {
         LiveUiPatch rev2 = new LiveUiPatch("rev-002", "rev-001", "atelier", "Mise à jour du suivi",
                 Arrays.asList(
                         new LiveUiPatch.Op.UpsertSurface("page/suivi", "{\"version\":2,\"v\":2}", "Suivi v2"),
-                        new LiveUiPatch.Op.ResetTheme()),
-                true);
+                        new LiveUiPatch.Op.ResetTheme()), java.util.Collections.emptyList(), java.util.Collections.emptyList(), true, LiveUiPatch.MAX_OPS);
         reloaded.apply(rev2);
         assertEquals("{\"version\":2,\"v\":2}", surfaces.readCurrent("page/suivi"));
         assertTrue(reloaded.theme().isDefault());
         assertEquals(2, reloaded.history().size());
 
         // 1-tap rollback of rev-002 restores rev-001 state exactly.
-        reloaded.rollbackLast();
+        reloaded.rollbackAllTo("rev-002");
         assertEquals("{\"version\":2}", surfaces.readCurrent("page/suivi"));
         assertEquals("#1B4D89", reloaded.theme().accentHex);
         assertEquals(1, reloaded.history().size());
 
         // Rollback to rev-001 restores initial clean state.
-        reloaded.rollbackTo("rev-001");
+        reloaded.rollbackAllTo("rev-001");
         assertEquals("", surfaces.readCurrent("page/suivi"));
         assertTrue(reloaded.tabs().isEmpty());
         assertTrue(reloaded.quickActions().isEmpty());
@@ -89,24 +87,24 @@ public final class LiveUiStateManagerTest {
 
     @Test public void rejectsInvalidQuickActionsTabsWidgetsAndPatchBounds() {
         // Quick action must have exactly one of draft or page (never both, never neither).
-        assertThrowsIo(() -> new LiveUiPatch.QuickAction("qa_a", "Test", null, null));
-        assertThrowsIo(() -> new LiveUiPatch.QuickAction("qa_a", "Test", "Brouillon", "page/x"));
-        assertThrowsIo(() -> new LiveUiPatch.QuickAction("BAD ID", "Test", "Brouillon", null));
-        assertThrowsIo(() -> new LiveUiPatch.QuickAction("qa_a", "Test", null, "https://evil.example"));
+        assertThrowsIo(() -> new LiveUiPatch.QuickAction("qa_a", "Test", null, null, null, null));
+        assertThrowsIo(() -> new LiveUiPatch.QuickAction("qa_a", "Test", "Brouillon", "page/x", null, null));
+        assertThrowsIo(() -> new LiveUiPatch.QuickAction("BAD ID", "Test", "Brouillon", null, null, null));
+        assertThrowsIo(() -> new LiveUiPatch.QuickAction("qa_a", "Test", null, "https://evil.example", null, null));
 
         // Widget must opt in explicitly with home_screen_safe: true and valid template + contrast + no secrets.
         assertThrowsIo(() -> new LiveUiPatch.WidgetSpec(
                 "w1", "Titre", "", "metric",
-                List.of(new LiveUiPatch.WidgetItem("A", "1", null)), null, false));
+                List.of(new LiveUiPatch.WidgetItem("A", "1", null, null)), null, null, false));
         assertThrowsIo(() -> new LiveUiPatch.WidgetSpec(
                 "w1", "Titre", "", "unknown_tpl",
-                List.of(new LiveUiPatch.WidgetItem("A", "1", null)), null, true));
+                List.of(new LiveUiPatch.WidgetItem("A", "1", null, null)), null, null, true));
         assertThrowsIo(() -> new LiveUiPatch.WidgetSpec(
                 "w1", "Titre", "", "metric",
-                List.of(new LiveUiPatch.WidgetItem("A", "1", null)), "#808080", true));
+                List.of(new LiveUiPatch.WidgetItem("A", "1", null, null)), "#808080", null, true));
         assertThrowsIo(() -> new LiveUiPatch.WidgetSpec(
                 "w1", "Bearer abcdefghijklmnopqrstuvwx", "", "status",
-                Collections.emptyList(), null, true));
+                Collections.emptyList(), null, null, true));
         // Fork PR #15 allows 0..8 items + checked + accent_ink_hex
         try {
             LiveUiPatch.WidgetSpec emptyItemsOk = new LiveUiPatch.WidgetSpec(
@@ -138,27 +136,27 @@ public final class LiveUiStateManagerTest {
 
         // Patch revision id & ops count bounds.
         assertThrowsIo(() -> new LiveUiPatch("", "", "thread", "Bad",
-                List.of(new LiveUiPatch.Op.ResetTheme()), true));
+                List.of(new LiveUiPatch.Op.ResetTheme()), java.util.Collections.emptyList(), java.util.Collections.emptyList(), true, LiveUiPatch.MAX_OPS));
         assertThrowsIo(() -> new LiveUiPatch("rev/../bad", "", "thread", "Bad",
-                List.of(new LiveUiPatch.Op.ResetTheme()), true));
+                List.of(new LiveUiPatch.Op.ResetTheme()), java.util.Collections.emptyList(), java.util.Collections.emptyList(), true, LiveUiPatch.MAX_OPS));
         assertThrowsIo(() -> new LiveUiPatch("rev-1", "", "thread", "Empty",
-                Collections.emptyList(), true));
+                Collections.emptyList(), java.util.Collections.emptyList(), java.util.Collections.emptyList(), true, LiveUiPatch.MAX_OPS));
 
         // Suggested actions must specify exactly one valid target (draft, custom page, or allowlisted action).
         try {
-            LiveUiPatch.SuggestedAction okDraft = new LiveUiPatch.SuggestedAction("Créer un rappel", "Crée un rappel pour demain matin.", null, null);
+            LiveUiPatch.SuggestedAction okDraft = new LiveUiPatch.SuggestedAction("", "Créer un rappel", "prompt", "Crée un rappel pour demain matin.", null, null, null);
             assertEquals("Créer un rappel", okDraft.label);
-            LiveUiPatch.SuggestedAction okPage = new LiveUiPatch.SuggestedAction("Ouvrir le suivi", null, "page/suivi", null);
+            LiveUiPatch.SuggestedAction okPage = new LiveUiPatch.SuggestedAction("", "Ouvrir le suivi", "open_surface", null, "page/suivi", null, null);
             assertEquals("page/suivi", okPage.page);
-            LiveUiPatch.SuggestedAction okAction = new LiveUiPatch.SuggestedAction("Voir mes rappels", null, null, "reminders");
+            LiveUiPatch.SuggestedAction okAction = new LiveUiPatch.SuggestedAction("", "Voir mes rappels", "prompt", null, null, "reminders", null);
             assertEquals("reminders", okAction.action);
         } catch (IOException unexpected) {
             fail("Valid suggested actions rejected: " + unexpected);
         }
-        assertThrowsIo(() -> new LiveUiPatch.SuggestedAction("Aucun cible", null, null, null));
-        assertThrowsIo(() -> new LiveUiPatch.SuggestedAction("Deux cibles", "Brouillon", "page/suivi", null));
-        assertThrowsIo(() -> new LiveUiPatch.SuggestedAction("Action inconnue", null, null, "shell_exec"));
-        assertThrowsIo(() -> new LiveUiPatch.SuggestedAction("Page invalide", null, "https://evil.example", null));
+        assertThrowsIo(() -> new LiveUiPatch.SuggestedAction("", "Aucun cible", "prompt", null, null, null, null));
+        assertThrowsIo(() -> new LiveUiPatch.SuggestedAction("", "Deux cibles", "open_surface", "Brouillon", "page/suivi", null, null));
+        assertThrowsIo(() -> new LiveUiPatch.SuggestedAction("", "Action inconnue", "prompt", null, null, "shell_exec", null));
+        assertThrowsIo(() -> new LiveUiPatch.SuggestedAction("", "Page invalide", "open_surface", null, "https://evil.example", null, null));
     }
 
     private interface IoRunnable { void run() throws IOException; }
@@ -173,9 +171,9 @@ public final class LiveUiStateManagerTest {
         assertFalse(manager.canRollback());
 
         LiveUiPatch patch = new LiveUiPatch("rev-new", "", "atelier", "Test",
-                List.of(new LiveUiPatch.Op.ResetTheme()), true);
+                List.of(new LiveUiPatch.Op.ResetTheme()), java.util.Collections.emptyList(), java.util.Collections.emptyList(), true, LiveUiPatch.MAX_OPS);
         assertThrowsIo(() -> manager.apply(patch));
-        assertThrowsIo(manager::rollbackLast);
+        assertThrowsIo(() -> manager.rollbackAllTo("rev-001"));
         // Corrupted record must still be intact (never silently wiped on apply).
         assertEquals("CORRUPT\tLINE", store.read("workspace.live_ui.v2"));
 
@@ -196,12 +194,11 @@ public final class LiveUiStateManagerTest {
                 "system", "#0D6E6E", "comfortable", 0, "paper", false);
         LiveUiPatch.WidgetSpec widget = new LiveUiPatch.WidgetSpec(
                 "briefing_matin", "Résumé du jour", "", "briefing",
-                Collections.emptyList(), "#0D6E6E", true);
+                Collections.emptyList(), "#0D6E6E", null, true);
         LiveUiPatch rev1 = new LiveUiPatch("rev-day-1", "", "atelier", "Accent sarcelle",
                 Arrays.asList(
                         new LiveUiPatch.Op.SetThemeOverride(systemTeal),
-                        new LiveUiPatch.Op.UpsertWidget(widget)),
-                true);
+                        new LiveUiPatch.Op.UpsertWidget(widget)), java.util.Collections.emptyList(), java.util.Collections.emptyList(), true, LiveUiPatch.MAX_OPS);
         dayManager.apply(rev1);
 
         // Reload in Dark mode -> must NOT become corrupted!
@@ -215,7 +212,7 @@ public final class LiveUiStateManagerTest {
         ThemePalette.OverrideSpec systemMint = ThemePalette.OverrideSpec.validated(
                 "system", "#A0D7BC", "comfortable", 0, "paper", true);
         LiveUiPatch rev2 = new LiveUiPatch("rev-night-2", "rev-day-1", "atelier", "Accent menthe",
-                List.of(new LiveUiPatch.Op.SetThemeOverride(systemMint)), true);
+                List.of(new LiveUiPatch.Op.SetThemeOverride(systemMint)), java.util.Collections.emptyList(), java.util.Collections.emptyList(), true, LiveUiPatch.MAX_OPS);
         nightManager.apply(rev2);
 
         LiveUiPatch.StateManager dayAgain = new LiveUiPatch.StateManager(store, surfaces, false);
@@ -247,8 +244,7 @@ public final class LiveUiStateManagerTest {
         LiveUiPatch patch = new LiveUiPatch("rev-atomic", "", "atelier", "Deux écrans",
                 Arrays.asList(
                         new LiveUiPatch.Op.UpsertSurface("page/a", "{\"v\":1}", "A"),
-                        new LiveUiPatch.Op.UpsertSurface("page/b", "{\"v\":1}", "B")),
-                true);
+                        new LiveUiPatch.Op.UpsertSurface("page/b", "{\"v\":1}", "B")), java.util.Collections.emptyList(), java.util.Collections.emptyList(), true, LiveUiPatch.MAX_OPS);
         try {
             manager.apply(patch);
             fail("Expected failure on second surface");

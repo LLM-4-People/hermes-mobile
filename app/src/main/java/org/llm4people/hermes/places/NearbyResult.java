@@ -76,18 +76,10 @@ public final class NearbyResult {
         }
     }
 
-    public static NearbyResult parse(JSONObject response) throws JSONException {
-        return parse(response, (IntFunction<String>) null, HermesConfig.DEFAULT_OSM_BASE_URL);
-    }
-
     public static NearbyResult parse(Context context, JSONObject response) throws JSONException {
         Context localized = context == null ? null : AppLanguage.wrapContext(context);
         String osmBaseUrl = HermesConfig.load(context).openStreetMapBaseUrl;
         return parse(response, localized == null ? null : localized::getString, osmBaseUrl);
-    }
-
-    public static NearbyResult parse(JSONObject response, IntFunction<String> strings) throws JSONException {
-        return parse(response, strings, HermesConfig.DEFAULT_OSM_BASE_URL);
     }
 
     public static NearbyResult parse(JSONObject response, IntFunction<String> strings, String osmBaseUrl) throws JSONException {
@@ -193,7 +185,8 @@ public final class NearbyResult {
         for (int i = 0; i < text.length();) {
             int cp = text.codePointAt(i), type = Character.getType(cp);
             if (Character.isISOControl(cp) || type == Character.SURROGATE || type == Character.LINE_SEPARATOR
-                    || type == Character.PARAGRAPH_SEPARATOR || (type == Character.FORMAT && cp != 0x200C && cp != 0x200D))
+                    || type == Character.PARAGRAPH_SEPARATOR || PlainTextSanitizer.isStrippableInvisible(cp)
+                    || (type == Character.FORMAT && cp != 0x200C && cp != 0x200D))
                 return "";
             i += Character.charCount(cp);
         }

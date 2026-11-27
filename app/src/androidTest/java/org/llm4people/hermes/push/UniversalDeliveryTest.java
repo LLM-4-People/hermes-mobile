@@ -13,6 +13,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.Diagnostics;
+import org.llm4people.hermes.HermesConfig;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.RouteRegistry;
 import org.llm4people.hermes.net.Exchange;
@@ -147,7 +148,7 @@ public final class UniversalDeliveryTest extends InstrumentationTestCase {
              WorkspaceAccountFixture profileA = new WorkspaceAccountFixture(context, listExchange.endpoint());
              WorkspaceAccountFixture profileB = new WorkspaceAccountFixture(context, listExchange.endpoint())) {
             DeliveryInbox inbox = new DeliveryInbox();
-            HermesApi apiList = new HermesApi(profileA.account.endpoint, profileA.account.bearer);
+            HermesApi apiList = new HermesApi(profileA.account.endpoint, profileA.account.bearer, HermesApi.Limits.from(HermesConfig.defaults()));
             List<DeliveryItem> synced = inbox.sync(profileA.account, apiList);
             assertEquals(1, synced.size());
             assertEquals("Point quotidien", synced.get(0).title);
@@ -173,7 +174,7 @@ public final class UniversalDeliveryTest extends InstrumentationTestCase {
                     .put("object", "list")
                     .put("data", new JSONArray().put(delivery).put(sameSecondDelivery));
             try (Exchange overlapExchange = new Exchange("200 OK", "", overlapResp.toString())) {
-                HermesApi apiOverlap = new HermesApi(overlapExchange.endpoint(), profileA.account.bearer);
+                HermesApi apiOverlap = new HermesApi(overlapExchange.endpoint(), profileA.account.bearer, HermesApi.Limits.from(HermesConfig.defaults()));
                 List<DeliveryItem> afterOverlap = inbox.sync(profileA.account, apiOverlap);
                 assertEquals(2, afterOverlap.size());
                 assertTrue(overlapExchange.observed().contains("since=1700000099"));
@@ -193,14 +194,14 @@ public final class UniversalDeliveryTest extends InstrumentationTestCase {
                     .put("has_more", false)
                     .put("next_cursor", 51L);
             try (Exchange paged = new Exchange("200 OK", "", page1.toString(), page2.toString())) {
-                HermesApi apiPaged = new HermesApi(paged.endpoint(), profileA.account.bearer);
+                HermesApi apiPaged = new HermesApi(paged.endpoint(), profileA.account.bearer, HermesApi.Limits.from(HermesConfig.defaults()));
                 List<DeliveryItem> afterPaged = inbox.sync(profileA.account, apiPaged);
                 assertEquals(4, afterPaged.size());
                 assertTrue(paged.observed().contains("&after=50"));
             }
 
             // Acknowledge delivery and verify encrypted persistence.
-            HermesApi apiAck = new HermesApi(ackExchange.endpoint(), profileA.account.bearer);
+            HermesApi apiAck = new HermesApi(ackExchange.endpoint(), profileA.account.bearer, HermesApi.Limits.from(HermesConfig.defaults()));
             DeliveryItem acked = inbox.acknowledge(profileA.account, apiAck, deliveryId);
             assertTrue(acked.isAcknowledged());
             assertEquals(3, inbox.unreadCount(profileA.account));

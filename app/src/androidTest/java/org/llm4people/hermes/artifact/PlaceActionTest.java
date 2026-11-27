@@ -17,7 +17,7 @@ public final class PlaceActionTest extends InstrumentationTestCase {
                 .put("website","https://example.invalid/").put("url","https://example.invalid/redirect");
         NearbyResult.Place place = NearbyResult.parse(new JSONObject().put("source","OpenStreetMap")
                 .put("attribution","© OpenStreetMap contributors").put("source_date","2026-11-22T13:05:00Z")
-                .put("radius_m",1500).put("places",new JSONArray().put(record))).places.get(0);
+                .put("radius_m",1500).put("places",new JSONArray().put(record)), null, org.llm4people.hermes.HermesConfig.DEFAULT_OSM_BASE_URL).places.get(0);
         DeviceAction map = new DeviceAction.PlaceMap(place);
         assertEquals("Café A & B\n\n" + context.getString(R.string.ws_dev_place_coords, "0.0000015,-73.5674"), map.preview(context));
         Intent geo = map.target();

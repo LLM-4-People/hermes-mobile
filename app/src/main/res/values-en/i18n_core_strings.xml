@@ -145,7 +145,6 @@
 
     <string name="places_guide_choose_area">Choose the area to search with OpenStreetMap.</string>
     <string name="places_guide_cat_desc">Category %1$s</string>
-    <string name="places_guide_cat_selected_desc">Category %1$s, selected</string>
     <string name="places_guide_radius_chip">Radius · %1$s</string>
     <string name="places_guide_radius_desc">Current search radius: %1$s. Tap to change.</string>
     <string name="places_guide_radius_from_center">%1$s radius from area center</string>

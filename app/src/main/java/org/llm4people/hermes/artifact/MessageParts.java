@@ -16,10 +16,6 @@ public final class MessageParts {
 
     private MessageParts() {}
 
-    public static String display(JSONObject message) {
-        return display(message, DEFAULT_IMAGE_MARKER);
-    }
-
     public static String display(JSONObject message, Context context) {
         return display(message, imageMarker(context));
     }

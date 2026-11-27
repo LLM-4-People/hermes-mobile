@@ -24,7 +24,7 @@ public final class ThreadWorkspaceDualPaneDialogTest extends InstrumentationTest
                             activity, null, fixture.account, null, new VoiceDrafts(activity));
                     try {
                         // Simulate dual-pane state where screen is a distinct discussion view while index hosts a shared-thread dialog.
-                        workspace.screen = new ThreadViews(activity);
+                        workspace.screen = new ThreadViews(activity, new org.llm4people.hermes.voice.VoiceDrafts(activity));
                         assertNotSame(workspace.index, workspace.screen);
 
                         AlertDialog d1 = workspace.index.show(new AlertDialog.Builder(activity)

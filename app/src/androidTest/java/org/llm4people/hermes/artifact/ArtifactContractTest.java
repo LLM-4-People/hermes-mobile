@@ -15,7 +15,7 @@ public final class ArtifactContractTest extends InstrumentationTestCase {
 
     public void testRunInstructionsContainRecognizedFormPhoneActionsAndNearbyGuide() throws Exception {
         String instructions = WorkspaceLayout.instructions() + WorkspaceLayout.pinnedReference("page/revue", "12", 0);
-        ArtifactCatalog catalog = new ArtifactCatalog(new JSONArray().put(message("assistant", instructions)));
+        ArtifactCatalog catalog = new ArtifactCatalog(null, new JSONArray().put(message("assistant", instructions)));
         assertEquals(4, catalog.records.size());
         Map<String, WorkspaceLayout> pages = new HashMap<>();
         for (ArtifactCatalog.Record record : catalog.records) {
@@ -81,9 +81,9 @@ public final class ArtifactContractTest extends InstrumentationTestCase {
         for (int revision = 1; revision <= 257; revision++)
             older.append("~~~txt file=build.txt\n").append(revision).append("\n~~~\n");
         JSONArray rows = new JSONArray().put(message("assistant", older.toString()));
-        assertWindow(new ArtifactCatalog(rows), "2", "257");
+        assertWindow(new ArtifactCatalog(null, rows), "2", "257");
         rows.put(message("assistant", "~~~txt file=build.txt\n258\n~~~\n~~~txt file=build.txt\nunfinished"));
-        assertWindow(new ArtifactCatalog(rows), "3", "258");
+        assertWindow(new ArtifactCatalog(null, rows), "3", "258");
     }
 
     private static void assertWindow(ArtifactCatalog catalog, String oldest, String latest) {
@@ -103,7 +103,7 @@ public final class ArtifactContractTest extends InstrumentationTestCase {
             for (Object content : new Object[]{full,
                     new JSONArray().put(part("output_text", full)),
                     new JSONArray().put(part("text", prefix)).put(part("output_text", fence))}) {
-                ArtifactCatalog catalog = new ArtifactCatalog(new JSONArray().put(message("assistant", content)));
+                ArtifactCatalog catalog = new ArtifactCatalog(null, new JSONArray().put(message("assistant", content)));
                 boolean tooLong = full.length() > ArtifactCatalog.MAX_MESSAGE_CHARS;
                 assertEquals(tooLong, catalog.limited);
                 assertEquals(tooLong ? 0 : 1, catalog.records.size());
@@ -149,7 +149,7 @@ public final class ArtifactContractTest extends InstrumentationTestCase {
         for (String name : new String[]{"Dockerfile", "Makefile", "Dockerfile"}) {
             rows.put(message("assistant", "```text file=" + name + "\n" + rows.length() + "\n```"));
         }
-        ArtifactCatalog catalog = new ArtifactCatalog(rows);
+        ArtifactCatalog catalog = new ArtifactCatalog(null, rows);
         assertEquals(2, catalog.records.size());
         assertEquals("Dockerfile", catalog.records.get(0).title);
         assertEquals(2, catalog.records.get(0).versions.size());

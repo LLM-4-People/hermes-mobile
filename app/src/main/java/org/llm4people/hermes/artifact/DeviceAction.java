@@ -449,6 +449,7 @@ public sealed interface DeviceAction {
         int type = Character.getType(cp);
         return !Character.isISOControl(cp) && type != Character.SURROGATE
                 && type != Character.LINE_SEPARATOR && type != Character.PARAGRAPH_SEPARATOR
+                && !PlainTextSanitizer.isStrippableInvisible(cp)
                 && (type != Character.FORMAT || cp == 0x200C || cp == 0x200D);
     }
 

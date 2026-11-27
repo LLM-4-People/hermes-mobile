@@ -28,9 +28,9 @@ public final class ConversationPanesTest extends InstrumentationTestCase {
         Activity activity = getInstrumentation().startActivitySync(launch);
         try {
             runTestOnUiThread(() -> {
-                ThreadViews index = new ThreadViews(activity);
+                ThreadViews index = new ThreadViews(activity, new org.llm4people.hermes.voice.VoiceDrafts(activity));
                 index.inbox(() -> {}, () -> {}, row -> {}, () -> {}, null);
-                ThreadViews chat = new ThreadViews(activity);
+                ThreadViews chat = new ThreadViews(activity, new org.llm4people.hermes.voice.VoiceDrafts(activity));
                 chat.chat("Brouillon à garder", text -> {}, () -> fail("Unexpected send"), () -> {}, () -> {});
                 InstrumentViewport viewport = chat.attachInstrumentViewport();
                 AtomicBoolean inspector = new AtomicBoolean(false);
@@ -181,7 +181,7 @@ public final class ConversationPanesTest extends InstrumentationTestCase {
             ThreadWorkspace[] holder = new ThreadWorkspace[1];
             try {
                 runTestOnUiThread(() -> {
-                    holder[0] = new ThreadWorkspace(activity, new HermesApi(server.endpoint(), "test"),
+                    holder[0] = new ThreadWorkspace(activity, new HermesApi(server.endpoint(), "test", org.llm4people.hermes.net.HermesApi.Limits.defaults()),
                             fixture.account, host, new VoiceDrafts(activity));
                     activity.setContentView(holder[0].view());
                     holder[0].inbox();

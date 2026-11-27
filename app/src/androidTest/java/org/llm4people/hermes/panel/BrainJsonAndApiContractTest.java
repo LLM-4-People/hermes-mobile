@@ -200,7 +200,7 @@ public final class BrainJsonAndApiContractTest extends InstrumentationTestCase {
         catch (IllegalArgumentException expected) {}
 
         try (Exchange server = new Exchange("200 OK", JSON, "{\"session\":{\"id\":\"s1\",\"pinned\":true}}")) {
-            JSONObject res = new HermesApi(server.endpoint(), "test-only").setSessionPinned("s1", true);
+            JSONObject res = new HermesApi(server.endpoint(), "test-only", org.llm4people.hermes.net.HermesApi.Limits.defaults()).setSessionPinned("s1", true);
             assertTrue(res.getJSONObject("session").getBoolean("pinned"));
             String wire = server.observed();
             assertTrue(wire.startsWith("PATCH /p/travail/api/sessions/s1 HTTP/1.1"));
@@ -208,7 +208,7 @@ public final class BrainJsonAndApiContractTest extends InstrumentationTestCase {
         }
 
         try (Exchange server = new Exchange("201 Created", JSON, "{\"session\":{\"id\":\"fork-2\"}}")) {
-            JSONObject forked = new HermesApi(server.endpoint(), "test-only").forkSession("s1", 42L, true);
+            JSONObject forked = new HermesApi(server.endpoint(), "test-only", org.llm4people.hermes.net.HermesApi.Limits.defaults()).forkSession("s1", 42L, true);
             assertEquals("fork-2", forked.getJSONObject("session").getString("id"));
             String wire = server.observed();
             assertTrue(wire.startsWith("POST /p/travail/api/sessions/s1/fork HTTP/1.1"));
@@ -218,7 +218,7 @@ public final class BrainJsonAndApiContractTest extends InstrumentationTestCase {
 
         ByteArrayOutputStream sink = new ByteArrayOutputStream();
         try (Exchange server = new Exchange("200 OK", "Content-Type: text/markdown\r\n", "# Discussion\nBonjour")) {
-            long bytes = new HermesApi(server.endpoint(), "test-only").exportSession("s1", "markdown", sink, 4096);
+            long bytes = new HermesApi(server.endpoint(), "test-only", org.llm4people.hermes.net.HermesApi.Limits.defaults()).exportSession("s1", "markdown", sink, 4096);
             assertEquals("# Discussion\nBonjour", sink.toString(StandardCharsets.UTF_8));
             assertEquals(sink.size(), bytes);
             assertTrue(server.observed().startsWith("GET /p/travail/api/sessions/s1/export?format=markdown HTTP/1.1"));

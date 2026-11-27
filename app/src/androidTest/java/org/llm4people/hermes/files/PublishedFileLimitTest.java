@@ -21,7 +21,7 @@ public final class PublishedFileLimitTest extends AndroidTestCase {
     public void testServerAdvertisedLimitIsEnforcedInsteadOfHardcoded64Mb() throws Exception {
         // Default client bound matches server DEFAULT_LIMIT (16 MB), rejecting a 20 MB row by default.
         try {
-            new PublishedFile("/api/mobile/files/s1", row(20L * 1024 * 1024));
+            new PublishedFile("/api/mobile/files/s1", row(20L * 1024 * 1024), org.llm4people.hermes.camera.CapturedMedia.effectiveByteLimit(0L));
             fail("Expected default 16 MB bound to reject 20 MB file");
         } catch (IOException expected) {
             // ok
@@ -74,13 +74,13 @@ public final class PublishedFileLimitTest extends AndroidTestCase {
                 "rapport\u2028.pdf", "rapport\u2029.pdf", "rapport\uD83D.pdf",
                 "\uFE0F", "\u00A0"}) {
             try {
-                new PublishedFile("/api/mobile/files/s1", row(1024).put("name", badName));
+                new PublishedFile("/api/mobile/files/s1", row(1024).put("name", badName), org.llm4people.hermes.camera.CapturedMedia.effectiveByteLimit(0L));
                 fail("Expected unsafe PublishedFile name to be rejected");
             } catch (IOException expected) {
                 // ok
             }
         }
-        PublishedFile emojiName = new PublishedFile("/api/mobile/files/s1", row(1024).put("name", "rapport ☕\uFE0F.pdf"));
+        PublishedFile emojiName = new PublishedFile("/api/mobile/files/s1", row(1024).put("name", "rapport ☕\uFE0F.pdf"), org.llm4people.hermes.camera.CapturedMedia.effectiveByteLimit(0L));
         assertEquals("rapport ☕\uFE0F.pdf", emojiName.name);
     }
 }

@@ -1,7 +1,6 @@
 package org.llm4people.hermes.thread;
 
 import org.json.JSONObject;
-import org.llm4people.hermes.HermesConfig;
 import org.llm4people.hermes.profile.Account;
 
 import java.nio.charset.StandardCharsets;
@@ -31,10 +30,6 @@ final class ThreadJournal {
     private long committed;
     private boolean retired;
 
-    ThreadJournal(Account account, String session) {
-        this(account, session, HermesConfig.DEFAULT_MAX_RECONNECTS);
-    }
-
     ThreadJournal(Account account, String session, int maxReconnects) {
         this(session, scope(account.id, account.endpoint, account.bearer, session), account.read("thread:" + session),
                 value -> account.write("thread:" + session, value), new PhotoStore() {
@@ -46,14 +41,6 @@ final class ThreadJournal {
                         account.writeTogether(changes);
                     }
                 }, maxReconnects);
-    }
-
-    ThreadJournal(String session, String owner, String encoded, Consumer<String> write) {
-        this(session, owner, encoded, write, null, HermesConfig.DEFAULT_MAX_RECONNECTS);
-    }
-
-    ThreadJournal(String session, String owner, String encoded, Consumer<String> write, PhotoStore photos) {
-        this(session, owner, encoded, write, photos, HermesConfig.DEFAULT_MAX_RECONNECTS);
     }
 
     ThreadJournal(String session, String owner, String encoded, Consumer<String> write, PhotoStore photos,

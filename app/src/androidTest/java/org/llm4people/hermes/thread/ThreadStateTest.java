@@ -15,10 +15,10 @@ public class ThreadStateTest extends InstrumentationTestCase {
     }
     public void testShareReceiptSurvivesReopenAndNeverReplacesTheDraft() {
         AtomicReference<String> saved = new AtomicReference<>();
-        ThreadJournal journal = new ThreadJournal("thread", "owner", null, saved::set);
+        ThreadJournal journal = new ThreadJournal("thread", "owner", null, saved::set, null, org.llm4people.hermes.HermesConfig.DEFAULT_MAX_RECONNECTS);
         journal.draft("avant");
         journal.appendShare("receipt", "  code();\n");
-        ThreadJournal recovered = new ThreadJournal("thread", "owner", saved.get(), saved::set);
+        ThreadJournal recovered = new ThreadJournal("thread", "owner", saved.get(), saved::set, null, org.llm4people.hermes.HermesConfig.DEFAULT_MAX_RECONNECTS);
         recovered.appendShare("receipt", "  code();\n");
         assertEquals("avant\n  code();\n", recovered.draft());
         assertNull(recovered.pending());
@@ -38,7 +38,7 @@ public class ThreadStateTest extends InstrumentationTestCase {
                 .put("status", "waiting_for_approval").put("execution_generation", 3)
                 .put("pending_controls", new JSONArray().put(prompt));
         AtomicReference<String> stored = new AtomicReference<>();
-        ThreadJournal secondPhone = new ThreadJournal("thread", "owner", null, stored::set);
+        ThreadJournal secondPhone = new ThreadJournal("thread", "owner", null, stored::set, null, org.llm4people.hermes.HermesConfig.DEFAULT_MAX_RECONNECTS);
         assertNull(secondPhone.pending());
         assertTrue(ThreadIdentity.hasPendingPrompt("thread", "run", approval, status));
         secondPhone.observe("run");
@@ -102,13 +102,13 @@ public class ThreadStateTest extends InstrumentationTestCase {
 
     public void testObservedRunSurvivesRestartAndRestoresOriginalAdmissionAndDraft() {
         AtomicReference<String> saved = new AtomicReference<>();
-        ThreadJournal journal = new ThreadJournal("thread", "scope", null, saved::set);
+        ThreadJournal journal = new ThreadJournal("thread", "scope", null, saved::set, null, org.llm4people.hermes.HermesConfig.DEFAULT_MAX_RECONNECTS);
         journal.stage(ThreadData.body("tip", "message", null), 100, 2, 60, true, null);
         journal.setRunId("mobile-run");
         assertEquals(1000L, journal.nextReconnectDelayMillis());
         journal.draft("unfinished draft");
         journal.observe("remote-run");
-        ThreadJournal resumed = new ThreadJournal("thread", "scope", saved.get(), saved::set);
+        ThreadJournal resumed = new ThreadJournal("thread", "scope", saved.get(), saved::set, null, org.llm4people.hermes.HermesConfig.DEFAULT_MAX_RECONNECTS);
         assertTrue(resumed.sameOwner());
         assertEquals("remote-run", ThreadData.string(resumed.pending(), "run_id"));
         assertFalse(resumed.pending().has("key"));
@@ -125,7 +125,7 @@ public class ThreadStateTest extends InstrumentationTestCase {
 
     public void testUnacknowledgedSendRestoresSameKeyAndExactBodyAcrossRestart() throws Exception {
         AtomicReference<String> stored = new AtomicReference<>();
-        ThreadJournal first = new ThreadJournal("abc", "original", null, stored::set);
+        ThreadJournal first = new ThreadJournal("abc", "original", null, stored::set, null, org.llm4people.hermes.HermesConfig.DEFAULT_MAX_RECONNECTS);
         first.draft("corrige le test");
         first.flush();
         JSONObject options = new JSONObject().put("model", "m").put("provider", "p")
@@ -133,7 +133,7 @@ public class ThreadStateTest extends InstrumentationTestCase {
                 .put("session_id", "untrusted").put("input", "overwritten");
         JSONObject body = ThreadData.body("abc", first.draft(), options);
         JSONObject sent = first.stage(body, 10_000, 3, 60, true, null);
-        ThreadJournal resumed = new ThreadJournal("abc", "original", stored.get(), stored::set);
+        ThreadJournal resumed = new ThreadJournal("abc", "original", stored.get(), stored::set, null, org.llm4people.hermes.HermesConfig.DEFAULT_MAX_RECONNECTS);
         assertEquals("", resumed.draft());
         assertEquals(sent.getString("key"), resumed.pending().getString("key"));
         assertEquals(body.toString(), resumed.pending().getJSONObject("body").toString());
@@ -145,19 +145,19 @@ public class ThreadStateTest extends InstrumentationTestCase {
         resumed.draft("autre message");
         resumed.checkpoint(4, "bonjour", RunPreview.Origin.FIRST, 0);
         resumed.flush();
-        ThreadJournal followed = new ThreadJournal("abc", "original", stored.get(), stored::set);
+        ThreadJournal followed = new ThreadJournal("abc", "original", stored.get(), stored::set, null, org.llm4people.hermes.HermesConfig.DEFAULT_MAX_RECONNECTS);
         assertEquals("r7", followed.pending().getString("run_id"));
         assertEquals(4, followed.pending().getInt("seq"));
         assertEquals("bonjour", followed.pending().getString("preview"));
         followed.finish();
-        ThreadJournal done = new ThreadJournal("abc", "original", stored.get(), stored::set);
+        ThreadJournal done = new ThreadJournal("abc", "original", stored.get(), stored::set, null, org.llm4people.hermes.HermesConfig.DEFAULT_MAX_RECONNECTS);
         assertNull(done.pending());
         assertEquals("autre message", done.draft());
     }
 
     public void testConsecutiveRunsReceiveIndependentReconnectBudgets() {
         AtomicReference<String> saved = new AtomicReference<>();
-        ThreadJournal journal = new ThreadJournal("thread", "owner", null, saved::set);
+        ThreadJournal journal = new ThreadJournal("thread", "owner", null, saved::set, null, org.llm4people.hermes.HermesConfig.DEFAULT_MAX_RECONNECTS);
         for (int turn = 1; turn <= 6; turn++) {
             journal.stage(ThreadData.body("thread", "turn " + turn, null), turn, 1, 60, true, null);
             journal.setRunId("run-" + turn);
@@ -169,7 +169,7 @@ public class ThreadStateTest extends InstrumentationTestCase {
 
     public void testReopenAndReceiptReplayPreserveRetriesUntilExplicitResumeOrFinish() {
         AtomicReference<String> saved = new AtomicReference<>();
-        ThreadJournal journal = new ThreadJournal("thread", "owner", null, saved::set);
+        ThreadJournal journal = new ThreadJournal("thread", "owner", null, saved::set, null, org.llm4people.hermes.HermesConfig.DEFAULT_MAX_RECONNECTS);
         journal.stage(ThreadData.body("thread", "first", null), 1, 1, 60, true, null);
         journal.setRunId("first-run");
         long[] expected = {1000, 2000, 4000, 8000, 16000};
@@ -177,17 +177,17 @@ public class ThreadStateTest extends InstrumentationTestCase {
             assertFalse(journal.reconnectsExhausted());
             assertEquals(delay, journal.nextReconnectDelayMillis());
             journal.retire();
-            journal = new ThreadJournal("thread", "owner", saved.get(), saved::set);
+            journal = new ThreadJournal("thread", "owner", saved.get(), saved::set, null, org.llm4people.hermes.HermesConfig.DEFAULT_MAX_RECONNECTS);
             journal.setRunId("first-run");
         }
         assertEquals(-1L, journal.nextReconnectDelayMillis());
         journal.retire();
-        journal = new ThreadJournal("thread", "owner", saved.get(), saved::set);
+        journal = new ThreadJournal("thread", "owner", saved.get(), saved::set, null, org.llm4people.hermes.HermesConfig.DEFAULT_MAX_RECONNECTS);
         assertTrue(journal.reconnectsExhausted());
         assertEquals(-1L, journal.nextReconnectDelayMillis());
         journal.resetReconnects();
         journal.retire();
-        journal = new ThreadJournal("thread", "owner", saved.get(), saved::set);
+        journal = new ThreadJournal("thread", "owner", saved.get(), saved::set, null, org.llm4people.hermes.HermesConfig.DEFAULT_MAX_RECONNECTS);
         assertFalse(journal.reconnectsExhausted());
         assertEquals(1000L, journal.nextReconnectDelayMillis());
         journal.finish();
@@ -202,7 +202,7 @@ public class ThreadStateTest extends InstrumentationTestCase {
         ThreadJournal journal = new ThreadJournal("thread", "owner", null, value -> {
             if (!writable.get()) throw new IllegalStateException("Storage unavailable");
             saved.set(value);
-        });
+        }, null, org.llm4people.hermes.HermesConfig.DEFAULT_MAX_RECONNECTS);
         journal.stage(ThreadData.body("thread", "first", null), 1, 1, 60, true, null);
         journal.setRunId("run");
         writable.set(false);
@@ -219,7 +219,7 @@ public class ThreadStateTest extends InstrumentationTestCase {
     }
 
     public void testFailedOutboxCommitCannotAdmitAndRetainsDraft() {
-        ThreadJournal journal = new ThreadJournal("thread", "original", null, ignored -> { throw new IllegalStateException("full"); });
+        ThreadJournal journal = new ThreadJournal("thread", "original", null, ignored -> { throw new IllegalStateException("full"); }, null, org.llm4people.hermes.HermesConfig.DEFAULT_MAX_RECONNECTS);
         journal.draft("bonjour");
         try {
             journal.stage(ThreadData.body("thread", journal.draft(), null), 100, 2, 3, true, null);
@@ -243,29 +243,29 @@ public class ThreadStateTest extends InstrumentationTestCase {
     public void testBearerRotationAndEndpointSwitchFenceAmbiguousReceipt() {
         String initial = ThreadJournal.scope("account", "https://one/p/a", "bearer1", "s");
         AtomicReference<String> saved = new AtomicReference<>();
-        ThreadJournal original = new ThreadJournal("s", initial, null, saved::set);
+        ThreadJournal original = new ThreadJournal("s", initial, null, saved::set, null, org.llm4people.hermes.HermesConfig.DEFAULT_MAX_RECONNECTS);
         original.stage(ThreadData.body("tip-id", "bonjour", null), 10, 1, 60, true, null);
         for (String other : new String[]{
                 ThreadJournal.scope("account", "https://one/p/a", "bearer2", "s"),
                 ThreadJournal.scope("account", "https://one/p/b", "bearer1", "s"),
                 ThreadJournal.scope("account", "https://two/p/a", "bearer1", "s"),
                 ThreadJournal.scope("different", "https://one/p/a", "bearer1", "s")}) {
-            assertFalse(new ThreadJournal("s", other, saved.get(), saved::set).sameOwner());
+            assertFalse(new ThreadJournal("s", other, saved.get(), saved::set, null, org.llm4people.hermes.HermesConfig.DEFAULT_MAX_RECONNECTS).sameOwner());
         }
-        assertTrue(new ThreadJournal("s", initial, saved.get(), saved::set).sameOwner());
+        assertTrue(new ThreadJournal("s", initial, saved.get(), saved::set, null, org.llm4people.hermes.HermesConfig.DEFAULT_MAX_RECONNECTS).sameOwner());
         assertFalse(saved.get().contains("bearer1"));
     }
 
     public void testAtomicRejectionRetainsConcurrentDraftAndDiscardsStaleAsyncWrites() {
         AtomicReference<String> saved = new AtomicReference<>();
-        ThreadJournal journal = new ThreadJournal("root", "owner", null, saved::set);
+        ThreadJournal journal = new ThreadJournal("root", "owner", null, saved::set, null, org.llm4people.hermes.HermesConfig.DEFAULT_MAX_RECONNECTS);
         journal.draft("first");
         Runnable late = journal.snapshot();
         journal.stage(ThreadData.body("tip", journal.draft(), null), 10, 1, 60, true, null);
         journal.draft("next");
         journal.reject();
         late.run();
-        ThreadJournal restored = new ThreadJournal("root", "owner", saved.get(), saved::set);
+        ThreadJournal restored = new ThreadJournal("root", "owner", saved.get(), saved::set, null, org.llm4people.hermes.HermesConfig.DEFAULT_MAX_RECONNECTS);
         assertNull(restored.pending());
         assertEquals("first\nnext", restored.draft());
         journal.draft("old opened view");
@@ -274,14 +274,14 @@ public class ThreadStateTest extends InstrumentationTestCase {
         restored.draft("new opened view");
         restored.flush();
         lateAfterClose.run();
-        assertEquals("new opened view", new ThreadJournal("root", "owner", saved.get(), saved::set).draft());
+        assertEquals("new opened view", new ThreadJournal("root", "owner", saved.get(), saved::set, null, org.llm4people.hermes.HermesConfig.DEFAULT_MAX_RECONNECTS).draft());
     }
 
     public void testMalformedStateIsRefusedBeforeAdmission() {
         for (String bad : new String[]{"{", "{\"pending\":null}", "{\"draft\":{}}",
                 "{\"pending\":{\"body\":{\"session_id\":\"other\",\"input\":\"x\"},\"key\":\"id\"}}"}) {
             try {
-                new ThreadJournal("s", "owner", bad, ignored -> fail("corrupt state overwritten"));
+                new ThreadJournal("s", "owner", bad, ignored -> fail("corrupt state overwritten"), null, org.llm4people.hermes.HermesConfig.DEFAULT_MAX_RECONNECTS);
                 fail("malformed state accepted");
             } catch (IllegalStateException expected) {}
         }

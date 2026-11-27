@@ -46,14 +46,14 @@ public final class RunPreviewTest extends InstrumentationTestCase {
 
     public void testOpenDiffAndItsLineSurviveCheckpointRestartAndCloseAtTheOriginalFence() throws Exception {
         AtomicReference<String> saved = new AtomicReference<>();
-        ThreadJournal journal = new ThreadJournal("chat", "owner", null, saved::set);
+        ThreadJournal journal = new ThreadJournal("chat", "owner", null, saved::set, null, org.llm4people.hermes.HermesConfig.DEFAULT_MAX_RECONNECTS);
         journal.stage(ThreadData.body("chat", "demande", null), 10, 1, 60, true, null);
         journal.setRunId("run");
         RunPreview first = new RunPreview(journal.pending());
         first.append("~~~~diff\n+" + repeat("code ", 25_000));
         journal.checkpoint(40, first.toString(), first.origin(), first.pendingHighSurrogate());
         journal.flush();
-        JSONObject receipt = new ThreadJournal("chat", "owner", saved.get(), saved::set).pending();
+        JSONObject receipt = new ThreadJournal("chat", "owner", saved.get(), saved::set, null, org.llm4people.hermes.HermesConfig.DEFAULT_MAX_RECONNECTS).pending();
         assertEquals(40L, receipt.getLong("seq"));
         RunPreview restored = new RunPreview(receipt);
         assertEquals(first.origin().offset, restored.origin().offset);
@@ -69,7 +69,7 @@ public final class RunPreviewTest extends InstrumentationTestCase {
         assertTrue(visible(view).endsWith("Terminé"));
         assertTrue(view.latest.marks.stream().anyMatch(mark -> mark.style == TranscriptPage.Style.BOLD));
         String canonical = "Ouverture de la réponse\n" + repeat("page complète ", 8000) + "FIN";
-        view.update(canonical);
+        view.update(canonical, RunPreview.Origin.FIRST);
         assertSame(canonical, view.source());
         assertFalse(view.excerpt());
         assertTrue(view.latest.text.toString().startsWith("Ouverture de la réponse"));
@@ -116,7 +116,7 @@ public final class RunPreviewTest extends InstrumentationTestCase {
         JSONObject receipt = new JSONObject();
         try (Exchange wire = new Exchange("200 OK", headers, running, event(1, initial) + event(2, "marque"), running)) {
             Observer listener = new Observer();
-            new RunFollower(new HermesApi(wire.endpoint(), "test-only"), "r", receipt, -1, listener).follow();
+            new RunFollower(new HermesApi(wire.endpoint(), "test-only", org.llm4people.hermes.net.HermesApi.Limits.defaults()), "r", receipt, -1, listener).follow();
             assertTrue(listener.disconnected);
             assertEquals(2L, listener.last.seq);
             assertTrue(listener.last.text.endsWith("marque"));
@@ -129,7 +129,7 @@ public final class RunPreviewTest extends InstrumentationTestCase {
                 .put("output", initial + "marque fin").toString();
         try (Exchange wire = new Exchange("200 OK", headers, running, event(2, "doublon") + event(3, " fin"), complete)) {
             Observer listener = new Observer();
-            new RunFollower(new HermesApi(wire.endpoint(), "test-only"), "r", receipt, -1, listener).follow();
+            new RunFollower(new HermesApi(wire.endpoint(), "test-only", org.llm4people.hermes.net.HermesApi.Limits.defaults()), "r", receipt, -1, listener).follow();
             assertEquals(3L, listener.last.seq);
             assertTrue(listener.last.text.endsWith("marque fin"));
             assertFalse(listener.last.text.contains("doublon"));
@@ -142,7 +142,7 @@ public final class RunPreviewTest extends InstrumentationTestCase {
         JSONObject receipt = new JSONObject().put("seq", 12).put("preview", "Texte précédent");
         try (Exchange wire = new Exchange("503 Service Unavailable", "Content-Type: application/json\r\n", "{}", "{}")) {
             Observer listener = new Observer();
-            new RunFollower(new HermesApi(wire.endpoint(), "test-only"), "r", receipt, -1, listener).follow();
+            new RunFollower(new HermesApi(wire.endpoint(), "test-only", org.llm4people.hermes.net.HermesApi.Limits.defaults()), "r", receipt, -1, listener).follow();
             assertTrue(listener.disconnected);
             assertNull(listener.last);
         }
