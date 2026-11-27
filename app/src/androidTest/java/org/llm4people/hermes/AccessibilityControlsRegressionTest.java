@@ -2519,15 +2519,25 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
                         noticeMethod.invoke(threadViews, "Offline", "", null);
                         assertEquals(1, statusMutations.get());
 
-                        // Clearing notice hides banner without mutating status text.
+                        // R30.5.5: Clearing notice hides banner and clears status text so re-showing announces cleanly.
                         noticeMethod.invoke(threadViews, "", "", null);
                         assertEquals(View.GONE, noticeBox.getVisibility());
-                        assertEquals(1, statusMutations.get());
+                        assertEquals("", statusText.getText().toString());
+                        assertEquals(2, statusMutations.get());
 
                         // New notice updates and re-shows cleanly.
                         noticeMethod.invoke(threadViews, "Reconnected", "", null);
                         assertEquals(View.VISIBLE, noticeBox.getVisibility());
-                        assertEquals(2, statusMutations.get());
+                        assertEquals("Reconnected", statusText.getText().toString());
+                        assertEquals(3, statusMutations.get());
+
+                        // Re-showing the same notice after hiding re-announces cleanly.
+                        noticeMethod.invoke(threadViews, "", "", null);
+                        assertEquals(View.GONE, noticeBox.getVisibility());
+                        assertEquals(4, statusMutations.get());
+                        noticeMethod.invoke(threadViews, "Reconnected", "", null);
+                        assertEquals(View.VISIBLE, noticeBox.getVisibility());
+                        assertEquals(5, statusMutations.get());
 
                         // R21.5.3 & R21.5.2: NearbyGuide category chip checkable state & deduplicated live notices.
                         NearbyGuide guide = new NearbyGuide(activity, new NearbyGuide.Actions() {
