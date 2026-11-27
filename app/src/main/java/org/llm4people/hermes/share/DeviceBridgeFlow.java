@@ -147,23 +147,6 @@ public final class DeviceBridgeFlow {
         return Collections.unmodifiableList(caps);
     }
 
-    public static List<String> executableCapabilities(
-            boolean mapsAvailable, boolean alarmAvailable, boolean clipboardReadSupported,
-            NotificationAllowlist.Settings ambientSettings, boolean listenerEnabled,
-            boolean calendarPermissionGranted, boolean hasAllowlistedApps) {
-        List<String> caps = new ArrayList<>();
-        caps.add("calendar_draft");
-        if (alarmAvailable) caps.add("alarm_timer");
-        if (mapsAvailable) caps.add("maps_handoff");
-        caps.add("share_sheet");
-        if (clipboardReadSupported) caps.add("clipboard_read");
-        caps.add("dial_draft");
-        caps.add("email_draft");
-        caps.addAll(ambientExecutableCapabilities(
-                ambientSettings, listenerEnabled, calendarPermissionGranted, hasAllowlistedApps));
-        return Collections.unmodifiableList(caps);
-    }
-
     /** Fail-closed subset of Track 9A/9B deep Android capabilities ready for the active profile right now. */
     public static List<String> deepExecutableCapabilities(PresencePolicy presencePolicy) {
         PresencePolicy safe = presencePolicy == null ? PresencePolicy.defaults() : presencePolicy;
@@ -185,8 +168,15 @@ public final class DeviceBridgeFlow {
             NotificationAllowlist.Settings ambientSettings, boolean listenerEnabled,
             boolean calendarPermissionGranted, boolean hasAllowlistedApps,
             PresencePolicy presencePolicy) {
-        List<String> caps = new ArrayList<>(executableCapabilities(
-                mapsAvailable, alarmAvailable, clipboardReadSupported,
+        List<String> caps = new ArrayList<>();
+        caps.add("calendar_draft");
+        if (alarmAvailable) caps.add("alarm_timer");
+        if (mapsAvailable) caps.add("maps_handoff");
+        caps.add("share_sheet");
+        if (clipboardReadSupported) caps.add("clipboard_read");
+        caps.add("dial_draft");
+        caps.add("email_draft");
+        caps.addAll(ambientExecutableCapabilities(
                 ambientSettings, listenerEnabled, calendarPermissionGranted, hasAllowlistedApps));
         caps.addAll(deepExecutableCapabilities(presencePolicy));
         return Collections.unmodifiableList(caps);
@@ -721,6 +711,10 @@ public final class DeviceBridgeFlow {
             once.finish(Status.UNAVAILABLE, null);
             return;
         }
+        if (activity == null || activity.isFinishing() || activity.isDestroyed()) {
+            once.finish(Status.UNAVAILABLE, null);
+            return;
+        }
         if (executor instanceof InteractiveExecutor interactive
                 && interactive.handleReviewed(activity, request, once, shown -> trackDialog(shown, once))) {
             return;
@@ -731,10 +725,6 @@ public final class DeviceBridgeFlow {
                     () -> once.finish(Status.COMPLETED, null),
                     () -> once.finish(Status.DENIED, null),
                     () -> once.finish(Status.UNAVAILABLE, null));
-            return;
-        }
-        if (activity == null || activity.isFinishing() || activity.isDestroyed()) {
-            once.finish(Status.UNAVAILABLE, null);
             return;
         }
         String reasonText = !PlainTextSanitizer.hasVisibleText(request.reason())

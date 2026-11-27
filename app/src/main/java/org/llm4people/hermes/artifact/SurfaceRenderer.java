@@ -100,11 +100,6 @@ final class SurfaceRenderer {
     }
 
     static View render(Activity activity, WorkspaceLayout layout, View nativeContent,
-                       ArtifactDesk.Host host, Runnable manage) {
-        return render(activity, layout, nativeContent, host, resolvePalette(activity, null, layout), null, "atelier", manage);
-    }
-
-    static View render(Activity activity, WorkspaceLayout layout, View nativeContent,
                        ArtifactDesk.Host host, ThemePalette colors, InstrumentStateStore store,
                        String stateScope, Runnable manage) {
         Context c = palette(activity, colors);

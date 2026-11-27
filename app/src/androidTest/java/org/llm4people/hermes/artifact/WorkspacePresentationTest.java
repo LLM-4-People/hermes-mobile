@@ -96,7 +96,8 @@ public final class WorkspacePresentationTest extends InstrumentationTestCase {
                         called[2] = true;
                     }
                 };
-                View page = SurfaceRenderer.render(activity, proposal, new View(activity), host, () -> {});
+                View page = SurfaceRenderer.render(activity, proposal, new View(activity), host,
+                        SurfaceRenderer.resolvePalette(activity, null, proposal), null, "atelier", () -> {});
                 showLayers(activity, layers);
                 Button navigate = findButton(page, activity.getString(R.string.ws_action_threads));
                 assertNotNull(navigate);

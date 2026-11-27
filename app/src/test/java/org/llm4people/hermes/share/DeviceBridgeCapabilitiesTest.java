@@ -10,6 +10,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -77,15 +79,47 @@ public final class DeviceBridgeCapabilitiesTest {
         assertTrue(noApps.contains("media_control"));
         assertTrue(noApps.contains("calendar_read"));
         // Full opt-in + OS permissions + non-empty allowlist advertises all 4 ambient capabilities.
-        List<String> ready = DeviceBridgeFlow.executableCapabilities(true, true, true, allOn, true, true, true);
+        PresencePolicy defaults = PresencePolicy.defaults();
+        List<String> deepDefaults = DeviceBridgeFlow.deepExecutableCapabilities(defaults);
+        List<String> ready = DeviceBridgeFlow.executableCapabilities(
+                true, true, true, allOn, true, true, true, defaults);
         assertTrue(ready.contains("notifications_digest"));
         assertTrue(ready.contains("notification_reply"));
         assertTrue(ready.contains("media_control"));
         assertTrue(ready.contains("calendar_read"));
         for (String cap : ready) {
-            assertTrue("Ambient capability must stay in Fork PR #18 allowlist: " + cap,
-                    FORK_PR18_ALLOWLIST.contains(cap));
+            assertTrue("Ambient capability must stay in Fork PR #18 or deep allowlist: " + cap,
+                    FORK_PR18_ALLOWLIST.contains(cap) || deepDefaults.contains(cap));
         }
+    }
+
+    @Test
+    public void promptUserFailsClosedBeforeInteractiveExecutorWhenActivityIsUnavailable() {
+        DeviceBridgeFlow flow = new DeviceBridgeFlow();
+        DeviceBridgeFlow.BridgeRequest request = new DeviceBridgeFlow.BridgeRequest(
+                "req_unavailable_activity", "share_sheet", "Partager", null,
+                System.currentTimeMillis() / 1000L + 300L);
+        AtomicInteger interactiveCalls = new AtomicInteger();
+        AtomicReference<DeviceBridgeFlow.Status> decision = new AtomicReference<>();
+        DeviceBridgeFlow.InteractiveExecutor spy = new DeviceBridgeFlow.InteractiveExecutor() {
+            @Override
+            public boolean handleReviewed(android.app.Activity activity, DeviceBridgeFlow.BridgeRequest req,
+                                          DeviceBridgeFlow.Callback callback,
+                                          java.util.function.Consumer<android.app.AlertDialog> trackDialog) {
+                interactiveCalls.incrementAndGet();
+                return true;
+            }
+
+            @Override
+            public void execute(DeviceBridgeFlow.BridgeRequest req, DeviceBridgeFlow.Callback callback) {
+                interactiveCalls.incrementAndGet();
+            }
+        };
+
+        flow.promptUser(null, null, null, request, spy, (status, data) -> decision.set(status));
+
+        assertEquals("Unavailable activity must fail closed before InteractiveExecutor", 0, interactiveCalls.get());
+        assertEquals(DeviceBridgeFlow.Status.UNAVAILABLE, decision.get());
     }
 
     @Test

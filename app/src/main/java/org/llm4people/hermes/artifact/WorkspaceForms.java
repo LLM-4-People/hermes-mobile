@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Context;
 import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.StateListDrawable;
 import android.text.InputFilter;
 import android.text.InputType;
 import android.view.View;
@@ -107,8 +108,14 @@ final class WorkspaceForms {
         group.addView(prepare, place);
     }
 
-    static EditText editor(Context c, boolean multiline, int limit) {
-        return editor(c, multiline, limit, null);
+    static int editorUnfocusedStrokeColor(ThemePalette colors) {
+        if (ThemePalette.contrastRatio(colors.line, colors.surface) >= 3.0) return colors.line;
+        if (ThemePalette.contrastRatio(colors.muted, colors.surface) >= 3.0) return colors.muted;
+        return colors.ink;
+    }
+
+    static int editorFocusedStrokeColor(ThemePalette colors) {
+        return ThemePalette.contrastRatio(colors.accent, colors.surface) >= 3.0 ? colors.accent : colors.ink;
     }
 
     static EditText editor(Context c, boolean multiline, int limit, ThemePalette colors) {
@@ -119,11 +126,21 @@ final class WorkspaceForms {
         text.setInputType(kind);
         text.setMinHeight(Ui.dp(c,48));
         if (colors != null) {
-            GradientDrawable bg = new GradientDrawable();
-            bg.setCornerRadius(Ui.dp(c, Ui.BUTTON_CORNER_DP));
-            bg.setColor(colors.surface);
-            bg.setStroke(Math.max(1, Ui.dp(c, 1)), colors.line);
-            text.setBackground(bg);
+            float radius = Ui.dp(c, Ui.BUTTON_CORNER_DP);
+            GradientDrawable focused = new GradientDrawable();
+            focused.setCornerRadius(radius);
+            focused.setColor(colors.surface);
+            focused.setStroke(Math.max(2, Ui.dp(c, 2)), editorFocusedStrokeColor(colors));
+
+            GradientDrawable normal = new GradientDrawable();
+            normal.setCornerRadius(radius);
+            normal.setColor(colors.surface);
+            normal.setStroke(Math.max(1, Ui.dp(c, 1)), editorUnfocusedStrokeColor(colors));
+
+            StateListDrawable states = new StateListDrawable();
+            states.addState(new int[]{android.R.attr.state_focused}, focused);
+            states.addState(new int[0], normal);
+            text.setBackground(states);
             text.setTextColor(colors.ink);
             text.setHintTextColor(colors.muted);
         } else {
@@ -141,7 +158,7 @@ final class WorkspaceForms {
     static void reviewDraft(Activity a, ArtifactDesk.Host host, String draft) {
         LinearLayout wrap = Ui.column(a);
         Ui.pad(wrap, 20, 6);
-        EditText edit = editor(a, true, 12000);
+        EditText edit = editor(a, true, 12000, null);
         edit.setHint(R.string.ws_form_enter_message);
         edit.setText(draft);
         edit.setSelection(edit.length());

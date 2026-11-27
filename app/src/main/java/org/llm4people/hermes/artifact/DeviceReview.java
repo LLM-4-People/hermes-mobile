@@ -45,6 +45,11 @@ public final class DeviceReview {
         Runnable fireCancelled = () -> { if (settled.compareAndSet(false, true) && onCancelled != null) onCancelled.run(); };
         Runnable fireUnavailable = () -> { if (settled.compareAndSet(false, true) && onUnavailable != null) onUnavailable.run(); };
 
+        if (activity == null || activity.isFinishing() || activity.isDestroyed()) {
+            Diagnostics.debug("device_action", "activity_unavailable");
+            fireUnavailable.run();
+            return;
+        }
         BooleanSupplier origin = host.deviceActionOrigin();
         BooleanSupplier current = () -> source != null && source.isAttachedToWindow() && source.isShown() && origin.getAsBoolean();
         if (!current.getAsBoolean()) {
@@ -97,9 +102,12 @@ public final class DeviceReview {
                         fireUnavailable.run();
                     }
                 });
-        DeskDialogs.open(activity, host, review, source, current, () -> {
+        AlertDialog shown = DeskDialogs.open(activity, host, review, source, current, () -> {
             if (!handlingPositive.get()) fireUnavailable.run();
         });
+        if (shown == null) {
+            fireUnavailable.run();
+        }
     }
 
     private static boolean copySensitive(Activity activity, String text) {
