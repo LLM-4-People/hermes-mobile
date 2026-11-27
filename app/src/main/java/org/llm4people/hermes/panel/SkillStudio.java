@@ -343,7 +343,10 @@ final class SkillStudio {
                 .setMessage(summary)
                 .setNegativeButton(R.string.panel_back, null);
         if (stageDraft != null && activeThread.getAsBoolean()) {
+            boolean[] handled = {false};
             builder.setPositiveButton(R.string.brain_skills_use_in_thread, (d, w) -> {
+                if (handled[0]) return;
+                handled[0] = true;
                 panel.close();
                 stageDraft.accept(SkillStudioModel.draftPromptForSkill(panel.activity, skill.name));
             });

@@ -213,7 +213,10 @@ final class WorkspaceFilesPanel {
                             : file.path();
                     AlertDialog.Builder reader = CodeReader.dialog(panel.activity, title, file.language(), file.content());
                     if (stageDraft != null && activeThread.getAsBoolean()) {
+                        boolean[] handled = {false};
                         reader.setPositiveButton(R.string.brain_files_discuss, (d, w) -> {
+                            if (handled[0]) return;
+                            handled[0] = true;
                             panel.close();
                             stageDraft.accept(panel.t(R.string.brain_files_discuss_prompt, file.path()));
                         });
@@ -384,7 +387,10 @@ final class WorkspaceFilesPanel {
                     String patch = diff.diffText().isEmpty() ? panel.t(R.string.brain_files_no_changes) : diff.diffText();
                     AlertDialog.Builder reader = CodeReader.dialog(panel.activity, safePath, "diff", patch);
                     if (stageDraft != null && activeThread.getAsBoolean()) {
+                        boolean[] handled = {false};
                         reader.setPositiveButton(R.string.brain_files_discuss, (d, w) -> {
+                            if (handled[0]) return;
+                            handled[0] = true;
                             panel.close();
                             stageDraft.accept(panel.t(R.string.brain_files_discuss_prompt, safePath));
                         });

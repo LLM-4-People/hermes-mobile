@@ -410,11 +410,18 @@ final class ThreadRun {
     }
 
     private void offerDismiss(RunAction owner) {
+        boolean[] handled = {false};
         ui.show(new AlertDialog.Builder(page.activity)
                 .setTitle(R.string.thread_close_tracking_title)
                 .setMessage(R.string.thread_close_tracking_body)
-                .setNegativeButton(R.string.thread_continue_tracking, (d, w) -> { if (owner.current()) uncertain(); })
+                .setNegativeButton(R.string.thread_continue_tracking, (d, w) -> {
+                    if (handled[0]) return;
+                    handled[0] = true;
+                    if (owner.current()) uncertain();
+                })
                 .setPositiveButton(R.string.thread_close_tracking_confirm, (d, w) -> {
+                    if (handled[0]) return;
+                    handled[0] = true;
                     if (!owner.current()) return;
                     canStop = false;
                     if (finishTracking()) return;
@@ -645,10 +652,19 @@ final class ThreadRun {
         });
         ui.notice(page.activity.getString(R.string.thread_unknown_result),
                 page.activity.getString(R.string.thread_resume_tracking), resume);
+        boolean[] handled = {false};
         ui.show(new AlertDialog.Builder(page.activity).setTitle(R.string.thread_tracking_interrupted_title)
                 .setMessage(R.string.thread_tracking_interrupted_body)
-                .setNegativeButton(R.string.thread_close_tracking_ellipsis, (d,w) -> { if (owner.current()) offerDismiss(owner); })
-                .setPositiveButton(R.string.thread_resume_action, (d,w) -> resume.run()));
+                .setNegativeButton(R.string.thread_close_tracking_ellipsis, (d, w) -> {
+                    if (handled[0]) return;
+                    handled[0] = true;
+                    if (owner.current()) offerDismiss(owner);
+                })
+                .setPositiveButton(R.string.thread_resume_action, (d, w) -> {
+                    if (handled[0]) return;
+                    handled[0] = true;
+                    resume.run();
+                }));
     }
 
     private void completed(JSONObject status, long firstText, long elapsed) {

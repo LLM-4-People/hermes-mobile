@@ -365,7 +365,7 @@ public final class AppearanceSettingsPanel {
         if (!eval.validSyntax()) {
             hexContrastPill.setVisibility(View.GONE);
             if (showInvalidSyntax || trimmed.length() >= 7) {
-                showHexError(R.string.appearance_hex_invalid, showInvalidSyntax);
+                showHexError(eval.errorRes(), showInvalidSyntax);
             } else {
                 hexErrorText.setVisibility(View.GONE);
             }
@@ -384,7 +384,7 @@ public final class AppearanceSettingsPanel {
             hexContrastPill.setText(activity.getString(R.string.appearance_contrast_fail, ratio));
             hexContrastPill.setTextColor(activity.getColor(R.color.danger));
             hexContrastPill.setBackground(Ui.shape(activity, 999, R.color.danger_surface, 0, 0));
-            showHexError(R.string.appearance_hex_low_contrast, showInvalidSyntax);
+            showHexError(eval.errorRes(), showInvalidSyntax);
             hexApplyBtn.setEnabled(false);
         }
     }

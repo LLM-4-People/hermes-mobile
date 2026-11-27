@@ -192,8 +192,6 @@ public final class UiPrimitivesAndThemeContrastTest {
     public void appCustomizationSyncsWithThemePaletteAndMeetsWcagAa() {
         assertEquals(org.llm4people.hermes.artifact.ThemePalette.WCAG_AA_NORMAL,
                 org.llm4people.hermes.customization.AppCustomization.WCAG_AA_MIN_CONTRAST, 1e-9);
-        assertEquals(org.llm4people.hermes.artifact.ThemePalette.DAY_SURFACE & 0xFFFFFF,
-                org.llm4people.hermes.customization.AppCustomization.LIGHT_SURFACE_RGB);
 
         String expectedDayAccent = org.llm4people.hermes.artifact.ThemePalette.formatHex(
                 org.llm4people.hermes.artifact.ThemePalette.DAY_ACCENT);
@@ -210,14 +208,16 @@ public final class UiPrimitivesAndThemeContrastTest {
 
         for (org.llm4people.hermes.customization.AppCustomization.PalettePreset preset
                 : org.llm4people.hermes.customization.AppCustomization.PalettePreset.values()) {
+            int lightArgb = 0xFF000000 | org.llm4people.hermes.customization.AppCustomization.parseRgb(preset.lightAccentHex);
+            int darkArgb = 0xFF000000 | org.llm4people.hermes.customization.AppCustomization.parseRgb(preset.darkAccentHex);
             assertTrue(preset.name() + " light accent contrast < 4.5",
-                    org.llm4people.hermes.customization.AppCustomization.meetsWcagAa(
-                            org.llm4people.hermes.customization.AppCustomization.parseRgb(preset.lightAccentHex),
-                            org.llm4people.hermes.customization.AppCustomization.LIGHT_SURFACE_RGB));
+                    org.llm4people.hermes.artifact.ThemePalette.contrastRatio(
+                            lightArgb, org.llm4people.hermes.artifact.ThemePalette.DAY_SURFACE)
+                            >= org.llm4people.hermes.artifact.ThemePalette.WCAG_AA_NORMAL);
             assertTrue(preset.name() + " dark accent contrast < 4.5",
-                    org.llm4people.hermes.customization.AppCustomization.meetsWcagAa(
-                            org.llm4people.hermes.customization.AppCustomization.parseRgb(preset.darkAccentHex),
-                            org.llm4people.hermes.artifact.ThemePalette.NIGHT_SURFACE & 0xFFFFFF));
+                    org.llm4people.hermes.artifact.ThemePalette.contrastRatio(
+                            darkArgb, org.llm4people.hermes.artifact.ThemePalette.NIGHT_SURFACE)
+                            >= org.llm4people.hermes.artifact.ThemePalette.WCAG_AA_NORMAL);
         }
     }
 

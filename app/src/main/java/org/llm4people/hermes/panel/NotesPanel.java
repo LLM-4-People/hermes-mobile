@@ -362,13 +362,20 @@ final class NotesPanel {
     }
 
     private void openReader(NotesModel.Note note) {
+        boolean[] handled = {false};
         AlertDialog.Builder reader = org.llm4people.hermes.artifact.CodeReader.dialog(
                 panel.activity, note.displayTitle(panel.activity), "markdown", note.body());
         if (note.canEdit()) {
-            reader.setNeutralButton(R.string.panel_edit, (d, w) -> openEditor(note));
+            reader.setNeutralButton(R.string.panel_edit, (d, w) -> {
+                if (handled[0]) return;
+                handled[0] = true;
+                openEditor(note);
+            });
         }
         if (stageDraft != null && activeThread.getAsBoolean()) {
             reader.setPositiveButton(R.string.brain_skills_use_in_thread, (d, w) -> {
+                if (handled[0]) return;
+                handled[0] = true;
                 panel.close();
                 stageDraft.accept(NotesModel.draftPromptForNote(panel.activity, note));
             });

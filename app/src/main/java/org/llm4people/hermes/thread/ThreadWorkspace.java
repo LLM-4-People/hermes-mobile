@@ -944,10 +944,13 @@ public final class ThreadWorkspace implements AutoCloseable {
     }
 
     private void recover(ThreadIdentity identity, String label) {
+        boolean[] handled = {false};
         screen.show(new AlertDialog.Builder(activity).setTitle(R.string.thread_recover_title)
                 .setMessage(R.string.thread_recover_body)
                 .setNegativeButton(R.string.ws_cancel, null)
                 .setPositiveButton(R.string.thread_clear_local_data, (dialog, which) -> {
+                    if (handled[0] || closed) return;
+                    handled[0] = true;
                     try {
                         java.util.Map<String, String> records = new java.util.HashMap<>();
                         records.put("thread:" + identity.root, null);
