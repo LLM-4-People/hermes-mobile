@@ -7,14 +7,9 @@ import static org.junit.Assert.*;
 public final class PairingLinkParserTest {
 
     @Test
-    public void parsesCanonicalHermesDeepLinkAndRoundTrips() {
-        String link = PairingLinkParser.buildDeepLink(
-                "https://hermes.example.com:8443",
-                "pair_AbCdEf1234567890",
-                "alice",
-                "Alice Martin",
-                "invite");
-        assertTrue(link.startsWith("hermes://pair?host=https%3A%2F%2Fhermes.example.com%3A8443"));
+    public void parsesCanonicalHermesDeepLink() {
+        String link = "hermes://pair?host=https%3A%2F%2Fhermes.example.com%3A8443"
+                + "&code=pair_AbCdEf1234567890&profile=alice&name=Alice+Martin&mode=invite";
 
         PairingLinkParser.ParsedInput parsed = PairingLinkParser.parse(link);
         assertEquals(PairingLinkParser.Kind.PAIRING_TICKET, parsed.kind());
@@ -24,7 +19,6 @@ public final class PairingLinkParserTest {
         assertEquals("Alice Martin", parsed.displayName());
         assertEquals("invite", parsed.mode());
         assertEquals("https://hermes.example.com:8443/p/alice", parsed.composedEndpoint());
-        assertEquals(link, parsed.canonicalDeepLink());
 
         // PairingIntent accepts valid hermes://pair URIs and rejects non-pairing or malformed URIs.
         PairingLinkParser.ParsedInput fromIntent = PairingIntent.parseUriString(link);

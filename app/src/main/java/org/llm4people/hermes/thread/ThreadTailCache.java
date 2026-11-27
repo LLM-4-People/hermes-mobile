@@ -3,14 +3,10 @@ package org.llm4people.hermes.thread;
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.profile.Account;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -136,15 +132,7 @@ public final class ThreadTailCache {
         if (sessionId == null || sessionId.trim().isEmpty()) {
             throw new IllegalArgumentException("sessionId required");
         }
-        try {
-            byte[] hash = MessageDigest.getInstance("SHA-256")
-                    .digest(sessionId.trim().getBytes(StandardCharsets.UTF_8));
-            StringBuilder hex = new StringBuilder(32);
-            for (int i = 0; i < 16; i++) hex.append(String.format(Locale.ROOT, "%02x", hash[i]));
-            return VAULT_KEY_PREFIX + hex;
-        } catch (NoSuchAlgorithmException impossible) {
-            throw new IllegalStateException(impossible);
-        }
+        return VAULT_KEY_PREFIX + org.llm4people.hermes.Digests.sha256Hex(sessionId.trim()).substring(0, 32);
     }
 
     /**

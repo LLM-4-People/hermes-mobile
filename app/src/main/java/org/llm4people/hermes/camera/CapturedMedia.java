@@ -19,8 +19,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.Base64;
 import java.util.Locale;
 import java.util.Set;
@@ -244,16 +242,6 @@ public final class CapturedMedia {
     }
 
     public static String sha256Hex(byte[] bytes) {
-        try {
-            byte[] digest = MessageDigest.getInstance("SHA-256").digest(bytes);
-            StringBuilder hex = new StringBuilder(64);
-            for (byte b : digest) {
-                hex.append(Character.forDigit((b & 255) >>> 4, 16))
-                        .append(Character.forDigit(b & 15, 16));
-            }
-            return hex.toString();
-        } catch (NoSuchAlgorithmException impossible) {
-            throw new IllegalStateException(impossible);
-        }
+        return org.llm4people.hermes.Digests.sha256Hex(bytes);
     }
 }

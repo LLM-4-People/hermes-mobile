@@ -12,7 +12,6 @@ import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
@@ -43,7 +42,7 @@ public final class GithubReleaseClientTest {
     }
 
     private static String sha256(byte[] data) throws Exception {
-        return ApkUpdateInstaller.toHex(MessageDigest.getInstance("SHA-256").digest(data));
+        return org.llm4people.hermes.Digests.sha256Hex(data);
     }
 
     private static String validReleaseJson(String tag, String apkName, String apkUrl, long apkSize,

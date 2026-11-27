@@ -763,7 +763,7 @@ public final class AppearanceSettingsPanel {
         Ui.pad(chip, 14, 10);
         GradientDrawable bg = selected
                 ? Ui.shape(activity, Ui.BUTTON_CORNER_DP, R.color.accent, 0, 0)
-                : Ui.shape(activity, Ui.BUTTON_CORNER_DP, R.color.surface, R.color.line, 1);
+                : Ui.shape(activity, Ui.BUTTON_CORNER_DP, R.color.surface, R.color.line_strong, 1);
         chip.setBackground(Ui.roundedRipple(activity, Ui.BUTTON_CORNER_DP, bg));
         chip.setOnClickListener(v -> onClick.run());
         chip.setContentDescription(label);

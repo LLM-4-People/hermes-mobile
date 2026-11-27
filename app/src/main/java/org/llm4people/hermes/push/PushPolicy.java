@@ -8,9 +8,6 @@ import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.profile.PreferenceTransaction;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.LocalTime;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -196,17 +193,7 @@ public final class PushPolicy {
         if (profileId == null || profileId.trim().isEmpty()) {
             throw new IllegalArgumentException("Profile id required");
         }
-        try {
-            MessageDigest sha = MessageDigest.getInstance("SHA-256");
-            byte[] digest = sha.digest(("push-policy-v1\0" + profileId).getBytes(StandardCharsets.UTF_8));
-            StringBuilder hex = new StringBuilder(32);
-            for (int i = 0; i < 16; i++) {
-                hex.append(String.format(Locale.ROOT, "%02x", digest[i] & 0xFF));
-            }
-            return "p_" + hex;
-        } catch (NoSuchAlgorithmException impossible) {
-            throw new IllegalStateException("SHA-256 unavailable", impossible);
-        }
+        return "p_" + org.llm4people.hermes.Digests.sha256Hex("push-policy-v1\0" + profileId).substring(0, 32);
     }
 
     public static PushPolicy load(Context context, String profileId) {

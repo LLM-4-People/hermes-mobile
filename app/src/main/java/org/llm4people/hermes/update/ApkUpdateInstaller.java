@@ -21,7 +21,6 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.Locale;
@@ -296,7 +295,7 @@ public final class ApkUpdateInstaller {
                             "APK exceeds configured byte limit");
                 }
                 long totalExpected = resp.contentLength() > 0 ? resp.contentLength() : expectedSizeBytes;
-                MessageDigest digest = sha256Digest();
+                MessageDigest digest = org.llm4people.hermes.Digests.sha256();
                 byte[] buffer = new byte[BUFFER_BYTES];
                 long downloaded = 0L;
                 int lastPercent = -1;
@@ -328,7 +327,7 @@ public final class ApkUpdateInstaller {
                 if (downloaded <= 0) {
                     throw new IOException("Empty APK download");
                 }
-                return toHex(digest.digest());
+                return org.llm4people.hermes.Digests.toHex(digest.digest());
             }
         }
         throw new IOException("Too many redirects");
@@ -343,28 +342,9 @@ public final class ApkUpdateInstaller {
         Set<String> digests = new LinkedHashSet<>();
         for (Signature signature : signatures) {
             if (signature == null) continue;
-            digests.add(toHex(sha256Digest().digest(signature.toByteArray())));
+            digests.add(org.llm4people.hermes.Digests.sha256Hex(signature.toByteArray()));
         }
         return digests;
-    }
-
-    private static MessageDigest sha256Digest() {
-        try {
-            return MessageDigest.getInstance("SHA-256");
-        } catch (NoSuchAlgorithmException impossible) {
-            throw new IllegalStateException(impossible);
-        }
-    }
-
-    static String toHex(byte[] bytes) {
-        char[] hex = new char[bytes.length * 2];
-        final char[] alphabet = "0123456789abcdef".toCharArray();
-        for (int i = 0; i < bytes.length; i++) {
-            int v = bytes[i] & 0xFF;
-            hex[i * 2] = alphabet[v >>> 4];
-            hex[i * 2 + 1] = alphabet[v & 0x0F];
-        }
-        return new String(hex);
     }
 
     private static void deleteQuietly(File file) {

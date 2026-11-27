@@ -1,7 +1,6 @@
 package org.llm4people.hermes.panel;
 
 import android.app.AlertDialog;
-import android.content.res.ColorStateList;
 import android.graphics.Typeface;
 import android.text.Editable;
 import android.text.TextWatcher;
@@ -400,13 +399,6 @@ final class ProfileDefaultsPanel {
             return;
         }
         lastToolsetEmptyAnnouncement = null;
-        ColorStateList thumbTint = new ColorStateList(
-                new int[][]{new int[]{android.R.attr.state_checked}, new int[]{}},
-                new int[]{panel.activity.getColor(R.color.accent), panel.activity.getColor(R.color.muted)});
-        ColorStateList trackTint = new ColorStateList(
-                new int[][]{new int[]{android.R.attr.state_checked}, new int[]{}},
-                new int[]{panel.activity.getColor(R.color.accent_surface), panel.activity.getColor(R.color.line)});
-
         for (int i = 0; i < filtered.size(); i++) {
             String toolset = filtered.get(i);
             if (i > 0) {
@@ -420,8 +412,6 @@ final class ProfileDefaultsPanel {
             toggle.setMinimumHeight(Ui.dp(panel.activity, 48));
             toggle.setBackground(Ui.roundedRipple(panel.activity, 12, null));
             Ui.pad(toggle, 4, 10);
-            toggle.setThumbTintList(thumbTint);
-            toggle.setTrackTintList(trackTint);
             toggle.setChecked(model.isToolsetEnabled(toolset));
             toggle.setOnCheckedChangeListener((btn, checked) -> {
                 model.setToolsetEnabled(toolset, checked);

@@ -204,7 +204,7 @@ public final class Ui {
         states.addState(new int[]{-android.R.attr.state_enabled},
                 shape(context, BUTTON_CORNER_DP, R.color.disabled_surface, R.color.line, 1));
         states.addState(new int[]{},
-                shape(context, BUTTON_CORNER_DP, R.color.surface, R.color.line, 1));
+                shape(context, BUTTON_CORNER_DP, R.color.surface, R.color.line_strong, 1));
         button.setBackground(roundedRipple(context, BUTTON_CORNER_DP, states));
         pad(button, 16, 10);
         return button;
@@ -226,7 +226,7 @@ public final class Ui {
                 context,
                 BUTTON_CORNER_DP,
                 selected ? R.color.accent_surface : R.color.surface,
-                selected ? R.color.accent : R.color.line,
+                selected ? R.color.accent : R.color.line_strong,
                 selected ? 2 : 1)));
         button.setTextColor(context.getColor(selected ? R.color.accent : R.color.ink));
         button.setSelected(selected);

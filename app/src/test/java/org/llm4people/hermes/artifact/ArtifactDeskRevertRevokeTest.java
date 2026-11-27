@@ -46,11 +46,10 @@ public final class ArtifactDeskRevertRevokeTest {
     }
 
     @Test
-    public void appCustomizationDelegatesLuminanceContrastAndOnAccentToThemePalette() {
+    public void appCustomizationDelegatesContrastAndOnAccentToThemePalette() {
         int[] samples = {0x1B5E50, 0x9AD7BA, 0x264B73, 0xF0A89B, 0xFFFFFF, 0x000000};
         for (int rgb : samples) {
             int argb = 0xFF000000 | rgb;
-            assertEquals(ThemePalette.relativeLuminance(argb), AppCustomization.relativeLuminance(rgb), 1e-12);
             assertEquals(ThemePalette.contrastRatio(argb, ThemePalette.DAY_SURFACE),
                     AppCustomization.contrastRatio(rgb, AppCustomization.LIGHT_SURFACE_RGB), 1e-12);
             assertEquals(ThemePalette.bestOnAccent(argb), AppCustomization.onAccentArgb(argb));

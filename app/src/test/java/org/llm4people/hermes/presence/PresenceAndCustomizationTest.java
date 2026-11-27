@@ -416,7 +416,7 @@ public final class PresenceAndCustomizationTest {
 
         // WCAG 2.1 threshold (0.04045): 10/255 = 0.039215... uses linear branch c / 12.92.
         double expectedLinear10 = (10.0 / 255.0) / 12.92;
-        assertEquals(expectedLinear10, AppCustomization.relativeLuminance(0x0A0A0A), 1e-9);
+        assertEquals(expectedLinear10, ThemePalette.relativeLuminance(0xFF0A0A0A), 1e-9);
 
         // Preview card validates WCAG AA custom accent.
         Map<String, Object> badPreview = Map.of(
