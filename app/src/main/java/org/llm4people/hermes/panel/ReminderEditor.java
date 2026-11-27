@@ -212,8 +212,7 @@ final class ReminderEditor {
     }
 
     private void showError(int messageRes) {
-        error.setText(messageRes);
-        error.setVisibility(View.VISIBLE);
+        Ui.showInlineError(error, panel.t(messageRes));
     }
 
     private void clearError() {

@@ -502,8 +502,7 @@ public final class AdminConsoleSheet implements AutoCloseable {
                     ttlField.getText().toString(),
                     selfPairToggle.isChecked());
             if (validated == null) {
-                settingsError.setText(R.string.admin_settings_invalid_number);
-                settingsError.setVisibility(View.VISIBLE);
+                Ui.showInlineError(settingsError, activity.getString(R.string.admin_settings_invalid_number));
                 return;
             }
             settingsError.setText("");
@@ -805,9 +804,8 @@ public final class AdminConsoleSheet implements AutoCloseable {
             positive.setOnClickListener(v -> {
                 String typed = confirmInput.getText().toString();
                 if (!canConfirmDelete(profile.slug(), typed)) {
-                    inlineError.setText(activity.getString(
+                    Ui.showInlineError(inlineError, activity.getString(
                             R.string.admin_console_delete_slug_mismatch, profile.slug()));
-                    inlineError.setVisibility(View.VISIBLE);
                     confirmInput.requestFocus();
                     return;
                 }

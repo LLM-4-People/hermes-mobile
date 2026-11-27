@@ -439,8 +439,7 @@ final class NotesPanel {
                 validTitle = NotesModel.validateTitle(titleField.getText().toString());
                 validBody = NotesModel.validateBody(bodyField.getText().toString());
             } catch (LocalizedInputException invalid) {
-                errorView.setText(invalid.resolve(panel.activity));
-                errorView.setVisibility(View.VISIBLE);
+                Ui.showInlineError(errorView, invalid.resolve(panel.activity));
                 return;
             }
             errorView.setVisibility(View.GONE);
@@ -466,8 +465,7 @@ final class NotesPanel {
                         Diagnostics.warning("notes", "save_failed", error);
                         if (dialog.isShowing()) {
                             saveBtn.setEnabled(true);
-                            errorView.setText(panel.describeError(error));
-                            errorView.setVisibility(View.VISIBLE);
+                            Ui.showInlineError(errorView, panel.describeError(error));
                         }
                     })) {
                 saveBtn.setEnabled(true);

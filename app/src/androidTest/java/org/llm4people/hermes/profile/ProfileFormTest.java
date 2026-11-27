@@ -216,6 +216,27 @@ public final class ProfileFormTest extends InstrumentationTestCase {
                     assertEquals(afterError + 1, textChanges.get());
                     form.status("Prêt", false);
                     assertEquals("Unchanged non-error status must not re-fire", afterError + 1, textChanges.get());
+
+                    // R25.5.3: Ui.showInlineError sets POLITE live region, makes visible, and forces
+                    // clear+set text-change event when already visible with identical text.
+                    TextView inlineErr = Ui.text(activity, "", 13);
+                    inlineErr.setVisibility(View.GONE);
+                    AtomicInteger inlineChanges = new AtomicInteger();
+                    inlineErr.addTextChangedListener(new TextWatcher() {
+                        @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+                        @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
+                            inlineChanges.incrementAndGet();
+                        }
+                        @Override public void afterTextChanged(Editable s) {}
+                    });
+                    Ui.showInlineError(inlineErr, "Champ requis");
+                    assertEquals(View.VISIBLE, inlineErr.getVisibility());
+                    assertEquals(View.ACCESSIBILITY_LIVE_REGION_POLITE, inlineErr.getAccessibilityLiveRegion());
+                    assertEquals("Champ requis", inlineErr.getText().toString());
+                    int afterFirstInline = inlineChanges.get();
+                    Ui.showInlineError(inlineErr, "Champ requis");
+                    assertTrue("Repeated visible identical inline error must clear+set for TalkBack",
+                            inlineChanges.get() >= afterFirstInline + 2);
                 } catch (Exception err) {
                     throw new AssertionError(err);
                 }

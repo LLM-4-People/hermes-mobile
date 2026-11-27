@@ -354,8 +354,7 @@ public final class ThreadActions implements Closeable {
             String content = PanelData.text(row, "content");
             if (content.isEmpty()) content = PanelData.text(row, "text");
             if (content.isEmpty()) continue;
-            String turnSessionId = PanelData.text(row, "session_id");
-            turns.add(new ThreadActionModel.TurnChoice(id, speaker, content.replace('\n', ' '), turnSessionId));
+            turns.add(new ThreadActionModel.TurnChoice(id, speaker, content.replace('\n', ' ')));
         }
         return turns;
     }

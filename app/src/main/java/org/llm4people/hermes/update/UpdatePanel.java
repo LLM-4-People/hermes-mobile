@@ -146,7 +146,6 @@ public final class UpdatePanel {
         LinearLayout card = Ui.card(activity);
 
         statusPill = Ui.pill(activity, "", R.color.surface_container, R.color.muted);
-        statusPill.setEllipsize(TextUtils.TruncateAt.END);
         statusPill.setVisibility(View.GONE);
         LinearLayout.LayoutParams statusPillLp = new LinearLayout.LayoutParams(-2, -2);
         statusPillLp.bottomMargin = Ui.dp(activity, 8);

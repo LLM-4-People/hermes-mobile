@@ -79,6 +79,9 @@ public final class ConnectionDoctorPanelTest extends InstrumentationTestCase {
                 assertNotNull(cm);
                 ClipData clip = cm.getPrimaryClip();
                 assertNotNull("Expected clipboard text", clip);
+                assertNotNull("Clipboard clip must mark EXTRA_IS_SENSITIVE", clip.getDescription().getExtras());
+                assertTrue("Clipboard clip must mark EXTRA_IS_SENSITIVE=true",
+                        clip.getDescription().getExtras().getBoolean("android.content.extra.IS_SENSITIVE", false));
                 String copied = clip.getItemAt(0).coerceToText(activity).toString();
                 assertTrue(copied.contains("host=https://home.example.com:8443"));
                 assertTrue(copied.contains("count=51/51, companion_fork=true"));

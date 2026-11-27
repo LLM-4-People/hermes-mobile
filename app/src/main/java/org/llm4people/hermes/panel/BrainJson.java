@@ -99,7 +99,12 @@ final class BrainJson {
                 String text = PanelData.text(row, "text");
                 boolean pinned = row.optBoolean("pinned", row.optBoolean("pin", false));
                 if (!id.isEmpty() && !text.isEmpty()) {
-                    entries.add(new MemoryModel.Entry(id, text, pinned));
+                    try {
+                        String safeId = MemoryModel.validateEntryId(id);
+                        entries.add(new MemoryModel.Entry(safeId, text, pinned));
+                    } catch (IllegalArgumentException invalid) {
+                        Diagnostics.warning("memory", "entry_row_skipped");
+                    }
                 }
             }
         }
@@ -456,8 +461,15 @@ final class BrainJson {
             String target = PanelData.text(row, "target_profile");
             String perm = PanelData.text(row, "permission");
             String createdAt = optScalarString(row, "created_at");
-            list.add(new UniversalShareModel.ShareGrant(
-                    shareId, kind, resourceId, label, owner, target, perm, createdAt));
+            try {
+                String safeShareId = UniversalShareModel.validateShareId(shareId);
+                String safeKind = kind.isEmpty() ? "" : UniversalShareModel.validateKind(kind);
+                String safeResourceId = resourceId.isEmpty() ? "" : UniversalShareModel.validateResourceId(resourceId);
+                list.add(new UniversalShareModel.ShareGrant(
+                        safeShareId, safeKind, safeResourceId, label, owner, target, perm, createdAt));
+            } catch (IllegalArgumentException invalid) {
+                Diagnostics.warning("sharing", "share_row_skipped");
+            }
         }
         return Collections.unmodifiableList(list);
     }

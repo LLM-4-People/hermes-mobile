@@ -367,14 +367,7 @@ final class WorkspaceDialogs {
                 int errRes = lockModeValidationErrorRes(target, first.getText(), confirm.getText(), bioAvailable);
                 if (errRes != 0) {
                     note.setTextColor(activity.getColor(R.color.danger));
-                    if (note.getAccessibilityLiveRegion() != View.ACCESSIBILITY_LIVE_REGION_POLITE) {
-                        note.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
-                    }
-                    String errMsg = activity.getString(errRes);
-                    if (errMsg.contentEquals(note.getText())) {
-                        note.setText("");
-                    }
-                    note.setText(errMsg);
+                    Ui.showInlineError(note, activity.getString(errRes));
                     return;
                 }
                 char[] secret = null;

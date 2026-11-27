@@ -375,7 +375,7 @@ public final class AppearanceSettingsPanel {
         if (!eval.validSyntax()) {
             hexContrastPill.setVisibility(View.GONE);
             if (showInvalidSyntax || trimmed.length() >= 7) {
-                showHexError(R.string.appearance_hex_invalid);
+                showHexError(R.string.appearance_hex_invalid, showInvalidSyntax);
             } else {
                 hexErrorText.setVisibility(View.GONE);
             }
@@ -394,19 +394,16 @@ public final class AppearanceSettingsPanel {
             hexContrastPill.setText(activity.getString(R.string.appearance_contrast_fail, ratio));
             hexContrastPill.setTextColor(activity.getColor(R.color.danger));
             hexContrastPill.setBackground(Ui.shape(activity, 999, R.color.danger_surface, 0, 0));
-            showHexError(R.string.appearance_hex_low_contrast);
+            showHexError(R.string.appearance_hex_low_contrast, showInvalidSyntax);
             hexApplyBtn.setEnabled(false);
         }
     }
 
-    private void showHexError(int msgRes) {
+    private void showHexError(int msgRes, boolean forceReannounce) {
         String next = activity.getString(msgRes);
-        boolean wasVisible = hexErrorText.getVisibility() == View.VISIBLE;
-        if (!wasVisible) {
-            hexErrorText.setVisibility(View.VISIBLE);
-        }
-        if (!wasVisible || !next.contentEquals(hexErrorText.getText())) {
-            hexErrorText.setText(next);
+        if (forceReannounce || hexErrorText.getVisibility() != View.VISIBLE
+                || !next.contentEquals(hexErrorText.getText())) {
+            Ui.showInlineError(hexErrorText, next);
         }
     }
 
@@ -431,11 +428,11 @@ public final class AppearanceSettingsPanel {
         card.addView(hint);
 
         LinearLayout row = Ui.row(activity);
-        textSizeMinusBtn = Ui.outlinedButton(activity, "−", v -> {
-            float next = AppearanceSettingsModel.stepFontScale(store.current().fontScaleDelta, -1);
-            applyCustomization(store.current().withFontScaleDelta(next));
-        });
-        textSizeMinusBtn.setContentDescription(activity.getString(R.string.appearance_text_decrease));
+        textSizeMinusBtn = textSizeStepButton(
+                R.drawable.ic_text_size_minus, R.string.appearance_text_decrease, v -> {
+                    float next = AppearanceSettingsModel.stepFontScale(store.current().fontScaleDelta, -1);
+                    applyCustomization(store.current().withFontScaleDelta(next));
+                });
         row.addView(textSizeMinusBtn);
 
         textSizeValuePill = Ui.pill(activity,
@@ -447,14 +444,35 @@ public final class AppearanceSettingsPanel {
         pillLp.setMarginEnd(Ui.dp(activity, 12));
         row.addView(textSizeValuePill, pillLp);
 
-        textSizePlusBtn = Ui.outlinedButton(activity, "+", v -> {
-            float next = AppearanceSettingsModel.stepFontScale(store.current().fontScaleDelta, 1);
-            applyCustomization(store.current().withFontScaleDelta(next));
-        });
-        textSizePlusBtn.setContentDescription(activity.getString(R.string.appearance_text_increase));
+        textSizePlusBtn = textSizeStepButton(
+                R.drawable.ic_text_size_plus, R.string.appearance_text_increase, v -> {
+                    float next = AppearanceSettingsModel.stepFontScale(store.current().fontScaleDelta, 1);
+                    applyCustomization(store.current().withFontScaleDelta(next));
+                });
         row.addView(textSizePlusBtn);
 
         card.addView(row);
+    }
+
+    private Button textSizeStepButton(int iconRes, int contentDescRes, View.OnClickListener action) {
+        Button btn = Ui.outlinedButton(activity, "", action);
+        int minTouch = Ui.dp(activity, 48);
+        int iconSize = Ui.dp(activity, 20);
+        int padH = Ui.dp(activity, 14);
+        btn.setMinWidth(minTouch);
+        btn.setMinimumWidth(minTouch);
+        btn.setMinHeight(minTouch);
+        btn.setMinimumHeight(minTouch);
+        btn.setPaddingRelative(padH, 0, padH, 0);
+        android.graphics.drawable.Drawable icon = activity.getDrawable(iconRes);
+        if (icon != null) {
+            icon = icon.mutate();
+            icon.setTintList(Ui.enabledDisabledInk(activity, R.color.accent));
+            icon.setBounds(0, 0, iconSize, iconSize);
+            btn.setCompoundDrawablesRelative(icon, null, null, null);
+        }
+        btn.setContentDescription(activity.getString(contentDescRes));
+        return btn;
     }
 
     private void renderTextSizeSection() {

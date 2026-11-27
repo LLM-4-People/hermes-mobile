@@ -91,8 +91,7 @@ final class WorkspaceForms {
                 error.setVisibility(View.GONE);
                 reviewDraft(activity, host, draft);
             } catch (DraftForm.MissingAnswer e) {
-                error.setText(c.getString(R.string.workspace_missing_field, e.field.label));
-                error.setVisibility(View.VISIBLE);
+                Ui.showInlineError(error, c.getString(R.string.workspace_missing_field, e.field.label));
                 controls.get(e.field.id).requestFocus();
             }
         });

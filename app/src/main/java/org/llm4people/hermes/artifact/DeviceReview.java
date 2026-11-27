@@ -3,20 +3,17 @@ package org.llm4people.hermes.artifact;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.ActivityNotFoundException;
-import android.content.ClipData;
-import android.content.ClipboardManager;
 import android.content.ComponentName;
-import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.os.Build;
-import android.os.PersistableBundle;
 import android.view.View;
 import android.widget.Toast;
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.R;
+import org.llm4people.hermes.Ui;
 import org.llm4people.hermes.places.NearbyResult;
 
 import java.util.ArrayList;
@@ -106,17 +103,11 @@ public final class DeviceReview {
     }
 
     private static boolean copySensitive(Activity activity, String text) {
-        ClipboardManager clipboard = (ClipboardManager) activity.getSystemService(Context.CLIPBOARD_SERVICE);
-        if (clipboard == null) {
-            Diagnostics.warning("device_action", "clipboard_unavailable");
-            return false;
-        }
-        ClipData clip = ClipData.newPlainText(activity.getString(R.string.app_name), text);
-        PersistableBundle extras = new PersistableBundle();
-        extras.putBoolean("android.content.extra.IS_SENSITIVE", true);
-        clip.getDescription().setExtras(extras);
         try {
-            clipboard.setPrimaryClip(clip);
+            if (!Ui.copySensitiveText(activity, activity.getString(R.string.app_name), text)) {
+                Diagnostics.warning("device_action", "clipboard_unavailable");
+                return false;
+            }
             if (Build.VERSION.SDK_INT < 33) {
                 Toast.makeText(activity, R.string.ws_dev_copied, Toast.LENGTH_SHORT).show();
             }

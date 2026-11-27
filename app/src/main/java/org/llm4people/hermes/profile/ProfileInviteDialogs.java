@@ -227,8 +227,7 @@ final class ProfileInviteDialogs {
                 String displayName = nameField.getText().toString().trim();
                 String slug = slugField.getText().toString().trim().toLowerCase(Locale.ROOT);
                 if (!ProfileHubSheet.isValidNewSlug(slug)) {
-                    inlineError.setText(R.string.profile_hub_invite_invalid_slug);
-                    inlineError.setVisibility(View.VISIBLE);
+                    Ui.showInlineError(inlineError, activity.getString(R.string.profile_hub_invite_invalid_slug));
                     slugField.requestFocus();
                     return;
                 }

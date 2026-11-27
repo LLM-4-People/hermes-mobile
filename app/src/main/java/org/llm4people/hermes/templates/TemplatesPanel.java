@@ -253,18 +253,14 @@ public final class TemplatesPanel {
                     dialog.dismiss();
                     refreshCustomSection();
                 } catch (WorkflowTemplate.SecretRejectedException secret) {
-                    errorView.setText(R.string.templates_error_secret);
-                    errorView.setVisibility(View.VISIBLE);
+                    Ui.showInlineError(errorView, activity.getString(R.string.templates_error_secret));
                 } catch (TemplateStore.LimitExceededException limit) {
-                    errorView.setText(R.string.templates_error_limit);
-                    errorView.setVisibility(View.VISIBLE);
+                    Ui.showInlineError(errorView, activity.getString(R.string.templates_error_limit));
                 } catch (IOException invalid) {
-                    errorView.setText(R.string.templates_error_invalid);
-                    errorView.setVisibility(View.VISIBLE);
+                    Ui.showInlineError(errorView, activity.getString(R.string.templates_error_invalid));
                 } catch (RuntimeException storageFailed) {
                     Diagnostics.warning("templates", "save_failed");
-                    errorView.setText(R.string.templates_error_storage);
-                    errorView.setVisibility(View.VISIBLE);
+                    Ui.showInlineError(errorView, activity.getString(R.string.templates_error_storage));
                 }
             });
         }

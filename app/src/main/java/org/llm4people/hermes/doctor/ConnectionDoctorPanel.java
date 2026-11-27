@@ -1,8 +1,6 @@
 package org.llm4people.hermes.doctor;
 
 import android.app.Activity;
-import android.content.ClipData;
-import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.res.ColorStateList;
 import android.graphics.Typeface;
@@ -382,15 +380,12 @@ public final class ConnectionDoctorPanel {
 
     private void copySafeReport() {
         if (closed || latestReport == null) return;
-        ClipboardManager clipboard = activity.getSystemService(ClipboardManager.class);
-        if (clipboard == null) {
-            showFeedback(activity.getString(R.string.doctor_report_copy_failed), true);
-            return;
-        }
         try {
             String safeText = latestReport.toSafeReportText();
-            clipboard.setPrimaryClip(ClipData.newPlainText(
-                    activity.getString(R.string.doctor_panel_title), safeText));
+            if (!Ui.copySensitiveText(activity, activity.getString(R.string.doctor_panel_title), safeText)) {
+                showFeedback(activity.getString(R.string.doctor_report_copy_failed), true);
+                return;
+            }
             Diagnostics.event("doctor", "safe_report_copied");
             showFeedback(activity.getString(R.string.doctor_report_copied), false);
         } catch (RuntimeException failed) {

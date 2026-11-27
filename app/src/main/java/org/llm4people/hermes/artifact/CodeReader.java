@@ -1,11 +1,8 @@
 package org.llm4people.hermes.artifact;
 
 import android.app.AlertDialog;
-import android.content.ClipData;
-import android.content.ClipboardManager;
 import android.content.Context;
 import android.graphics.Typeface;
-import android.os.PersistableBundle;
 import android.text.Editable;
 import android.text.InputType;
 import android.text.TextWatcher;
@@ -296,15 +293,11 @@ public final class CodeReader {
     }
 
     private static void copy(Context activity, String content, String title) {
-        ClipboardManager clipboard = (ClipboardManager) activity.getSystemService(Context.CLIPBOARD_SERVICE);
-        ClipData clip = ClipData.newPlainText(title, content);
-        PersistableBundle extras = new PersistableBundle();
-        extras.putBoolean("android.content.extra.IS_SENSITIVE", true);
-        clip.getDescription().setExtras(extras);
         try {
-            clipboard.setPrimaryClip(clip);
-            if (android.os.Build.VERSION.SDK_INT < 33)
+            if (Ui.copySensitiveText(activity, title, content)
+                    && android.os.Build.VERSION.SDK_INT < 33) {
                 Toast.makeText(activity, R.string.code_copied, Toast.LENGTH_SHORT).show();
+            }
         } catch (RuntimeException e) {
             Diagnostics.warning("artifact", "copy_failed");
             Toast.makeText(activity, R.string.code_copy_failed, Toast.LENGTH_LONG).show();

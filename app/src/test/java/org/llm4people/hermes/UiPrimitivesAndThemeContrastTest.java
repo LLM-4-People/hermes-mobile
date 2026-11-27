@@ -44,6 +44,12 @@ public final class UiPrimitivesAndThemeContrastTest {
             {"disabled_ink", "disabled_surface"},
     };
 
+    private static final String[][] NON_TEXT_CONTRAST_PAIRS = {
+            {"line_strong", "surface"},
+            {"line_strong", "paper"},
+            {"line_strong", "surface_container"},
+    };
+
     @Test
     public void lightAndDarkPalettesMeetWcagAaOnEverySemanticPair() throws Exception {
         Map<String, String> light = parseColors(resFile("values/colors.xml"));
@@ -53,8 +59,12 @@ public final class UiPrimitivesAndThemeContrastTest {
             if (token.startsWith("hermes_icon_")) continue;
             assertTrue("Missing night companion for color " + token, dark.containsKey(token));
         }
-        assertWcagPairs("light", light);
-        assertWcagPairs("dark", dark);
+        assertWcagPairs("light", light, CONTRAST_PAIRS, 4.5);
+        assertWcagPairs("dark", dark, CONTRAST_PAIRS, 4.5);
+        assertWcagPairs("light", light, NON_TEXT_CONTRAST_PAIRS, 3.0);
+        assertWcagPairs("dark", dark, NON_TEXT_CONTRAST_PAIRS, 3.0);
+        assertTrue("composer_capsule.xml unfocused border must use @color/line_strong",
+                readUtf8(resFile("drawable/composer_capsule.xml")).contains("@color/line_strong"));
 
         // ThemePalette constants must stay 100% synced with values{,-night}/colors.xml (SSoT).
         assertColorEquals("DAY_PAPER", light.get("paper"), org.llm4people.hermes.artifact.ThemePalette.DAY_PAPER);
@@ -222,15 +232,15 @@ public final class UiPrimitivesAndThemeContrastTest {
                 threadViews.contains("Ui.pill(context, context.getString(labelRes)"));
     }
 
-    private static void assertWcagPairs(String theme, Map<String, String> palette) {
-        for (String[] pair : CONTRAST_PAIRS) {
+    private static void assertWcagPairs(String theme, Map<String, String> palette, String[][] pairs, double minRatio) {
+        for (String[] pair : pairs) {
             String fgHex = palette.get(pair[0]);
             String bgHex = palette.get(pair[1]);
             assertTrue(theme + " missing " + pair[0], fgHex != null && fgHex.startsWith("#"));
             assertTrue(theme + " missing " + pair[1], bgHex != null && bgHex.startsWith("#"));
             double ratio = contrastRatio(parseRgb(fgHex), parseRgb(bgHex));
-            assertTrue(String.format("%s contrast %s (%s) on %s (%s) = %.2f < 4.50",
-                    theme, pair[0], fgHex, pair[1], bgHex, ratio), ratio >= 4.5);
+            assertTrue(String.format("%s contrast %s (%s) on %s (%s) = %.2f < %.2f",
+                    theme, pair[0], fgHex, pair[1], bgHex, ratio, minRatio), ratio >= minRatio);
         }
     }
 

@@ -266,8 +266,7 @@ final class MemoryPanel {
             try {
                 validated = MemoryModel.validateEntryText(input.getText().toString(), bucket.limit());
             } catch (LocalizedInputException invalid) {
-                errorView.setText(invalid.resolve(panel.activity));
-                errorView.setVisibility(View.VISIBLE);
+                Ui.showInlineError(errorView, invalid.resolve(panel.activity));
                 return;
             }
             boolean pinned = pinBox.isChecked();
@@ -339,7 +338,15 @@ final class MemoryPanel {
 
     private void commitAdd(String target, String text, boolean pinned, AlertDialog dialog,
                            Button saveBtn, TextView errorView, LinearLayout progressSlot) {
-        String safeTarget = MemoryModel.validateTarget(target);
+        String safeTarget;
+        try {
+            safeTarget = MemoryModel.validateTarget(target);
+        } catch (LocalizedInputException invalid) {
+            Diagnostics.warning("memory", "invalid_target");
+            saveBtn.setEnabled(true);
+            Ui.showInlineError(errorView, invalid.resolve(panel.activity));
+            return;
+        }
         JSONObject payload = PanelData.put(PanelData.put(new JSONObject(), "text", text), "pin", pinned);
         if (!panel.request(progressSlot, () -> BrainJson.parseMemorySnapshot(
                 panel.api.post("/api/memory/" + HermesApi.segment(safeTarget), payload)),
@@ -355,8 +362,17 @@ final class MemoryPanel {
 
     private void commitPatch(String target, String entryId, String text, boolean pinned, AlertDialog dialog,
                              Button confirmBtn, TextView errorView, LinearLayout progressSlot) {
-        String safeTarget = MemoryModel.validateTarget(target);
-        String safeId = MemoryModel.validateEntryId(entryId);
+        String safeTarget;
+        String safeId;
+        try {
+            safeTarget = MemoryModel.validateTarget(target);
+            safeId = MemoryModel.validateEntryId(entryId);
+        } catch (LocalizedInputException invalid) {
+            Diagnostics.warning("memory", "invalid_entry_id");
+            confirmBtn.setEnabled(true);
+            Ui.showInlineError(errorView, invalid.resolve(panel.activity));
+            return;
+        }
         JSONObject payload = PanelData.put(PanelData.put(new JSONObject(), "text", text), "pinned", pinned);
         if (!panel.request(progressSlot, () -> BrainJson.parseMemorySnapshot(
                 panel.api.patch("/api/memory/" + HermesApi.segment(safeTarget) + "/" + HermesApi.segment(safeId), payload)),
@@ -382,15 +398,22 @@ final class MemoryPanel {
         }
         if (dialog.isShowing()) {
             actionBtn.setEnabled(true);
-            errorView.setText(message);
-            errorView.setVisibility(View.VISIBLE);
+            Ui.showInlineError(errorView, message);
         }
     }
 
     private void togglePin(String target, MemoryModel.Entry entry, Button trigger) {
         if (trigger != null && !trigger.isEnabled()) return;
-        String safeTarget = MemoryModel.validateTarget(target);
-        String safeId = MemoryModel.validateEntryId(entry.id());
+        String safeTarget;
+        String safeId;
+        try {
+            safeTarget = MemoryModel.validateTarget(target);
+            safeId = MemoryModel.validateEntryId(entry.id());
+        } catch (LocalizedInputException invalid) {
+            Diagnostics.warning("memory", "invalid_entry_id");
+            BrainUi.liveNote(panel, body, invalid.resolve(panel.activity));
+            return;
+        }
         if (trigger != null) trigger.setEnabled(false);
         JSONObject payload = PanelData.put(new JSONObject(), "pinned", !entry.pinned());
         if (!panel.request(body, () -> BrainJson.parseMemorySnapshot(
@@ -418,8 +441,16 @@ final class MemoryPanel {
     }
 
     private void commitDelete(String target, MemoryModel.Entry entry) {
-        String safeTarget = MemoryModel.validateTarget(target);
-        String safeId = MemoryModel.validateEntryId(entry.id());
+        String safeTarget;
+        String safeId;
+        try {
+            safeTarget = MemoryModel.validateTarget(target);
+            safeId = MemoryModel.validateEntryId(entry.id());
+        } catch (LocalizedInputException invalid) {
+            Diagnostics.warning("memory", "invalid_entry_id");
+            BrainUi.liveNote(panel, body, invalid.resolve(panel.activity));
+            return;
+        }
         panel.request(body, () -> {
             JSONObject reply = panel.api.deleteJson(
                     "/api/memory/" + HermesApi.segment(safeTarget) + "/" + HermesApi.segment(safeId));

@@ -13,22 +13,13 @@ public final class ThreadActionModel {
 
     private static final Pattern NON_SLUG = Pattern.compile("[^a-z0-9]+");
 
-    public record TurnChoice(long messageId, String speakerLabel, String preview, String sessionId) {
+    public record TurnChoice(long messageId, String speakerLabel, String preview) {
         public TurnChoice {
             if (messageId <= 0) {
                 throw new LocalizedInputException("invalid_message_id", R.string.ws_fork_err_message_id);
             }
             speakerLabel = speakerLabel == null ? "" : speakerLabel.trim();
             preview = preview == null ? "" : preview.trim();
-            sessionId = sessionId == null ? "" : sessionId.trim();
-        }
-
-        public TurnChoice(long messageId, String speakerLabel, String preview) {
-            this(messageId, speakerLabel, preview, "");
-        }
-
-        public String targetSessionId(String fallbackSessionId) {
-            return !sessionId.isEmpty() ? sessionId : (fallbackSessionId == null ? "" : fallbackSessionId);
         }
 
         public String displayLabel() {
