@@ -1624,7 +1624,7 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
                         // R18.5.3: FirstRunWizard.showManualPasteDialog uses padded profile_input EditText.
                         Method showPaste = FirstRunWizard.class.getDeclaredMethod(
                                 "showManualPasteDialog",
-                                Activity.class, FirstRunWizard.Step1Targets.class, Consumer.class, TextView.class);
+                                Activity.class, FirstRunWizard.Step1Targets.class, Consumer.class);
                         showPaste.setAccessible(true);
                         FirstRunWizard.Step1Targets targets = new FirstRunWizard.Step1Targets() {
                             @Override public void fillFields(String n, String u, String s, String k, boolean f) {}
@@ -1635,7 +1635,7 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
                             @Override public void trackDialog(AlertDialog dialog) { pasteDialogRef.set(dialog); }
                             @Override public void onScanQrRequested() {}
                         };
-                        showPaste.invoke(null, activity, targets, (Consumer<Object>) p -> {}, Ui.text(activity, "", 14));
+                        showPaste.invoke(null, activity, targets, (Consumer<Object>) p -> {});
                         AlertDialog pasteDialog = pasteDialogRef.get();
                         assertNotNull("Expected manual paste AlertDialog", pasteDialog);
                         EditText pasteInput = findFirst(pasteDialog.getWindow().getDecorView(), EditText.class);
