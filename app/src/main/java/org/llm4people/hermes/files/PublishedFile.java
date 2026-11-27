@@ -7,7 +7,6 @@ import org.llm4people.hermes.camera.CapturedMedia;
 import org.llm4people.hermes.net.HermesApi;
 import java.io.IOException;
 import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 
 final class PublishedFile {
     final String name, mime, path, hash;
@@ -33,14 +32,10 @@ final class PublishedFile {
     boolean image() { return mime.equals("image/png") || mime.equals("image/jpeg") || mime.equals("image/webp"); }
 
     static MessageDigest digest() {
-        try { return MessageDigest.getInstance("SHA-256"); }
-        catch (NoSuchAlgorithmException e) { throw new IllegalStateException(e); }
+        return org.llm4people.hermes.Digests.sha256();
     }
 
     boolean matches(byte[] bytes) {
-        StringBuilder actual = new StringBuilder(64);
-        for (byte b : bytes) actual.append(Character.forDigit((b & 255) >>> 4, 16))
-                .append(Character.forDigit(b & 15, 16));
-        return hash.contentEquals(actual);
+        return hash.equals(org.llm4people.hermes.Digests.toHex(bytes));
     }
 }

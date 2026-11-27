@@ -79,17 +79,9 @@ public final class HermesWidgetStore {
     public static String profileScopedId(String baseId, String ownerProfileId) {
         if (!HermesWidgetSpec.validWidgetId(baseId)) throw new IllegalArgumentException("Invalid widget id");
         if (ownerProfileId == null || ownerProfileId.isEmpty()) return baseId;
-        try {
-            byte[] digest = java.security.MessageDigest.getInstance("SHA-256")
-                    .digest(ownerProfileId.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-            StringBuilder suffix = new StringBuilder(16);
-            for (int i = 0; i < 8; i++) suffix.append(String.format(java.util.Locale.ROOT, "%02x", digest[i]));
-            String scoped = baseId + "_" + suffix;
-            if (!HermesWidgetSpec.validWidgetId(scoped)) throw new IllegalArgumentException("Widget id too long");
-            return scoped;
-        } catch (java.security.NoSuchAlgorithmException unavailable) {
-            throw new IllegalStateException(unavailable);
-        }
+        String scoped = baseId + "_" + org.llm4people.hermes.Digests.sha256Hex(ownerProfileId).substring(0, 16);
+        if (!HermesWidgetSpec.validWidgetId(scoped)) throw new IllegalArgumentException("Widget id too long");
+        return scoped;
     }
 
     public synchronized String ownerForWidget(String widgetId) {

@@ -402,7 +402,7 @@ public final class InteractiveControlsBlock {
                     b.setTextColor(Ui.enabledDisabledInk(colors.onAccent, colors.muted));
                 } else {
                     enabledBg.setColor(colors.surface);
-                    enabledBg.setStroke(strokePx, colors.line);
+                    enabledBg.setStroke(strokePx, WorkspaceForms.editorUnfocusedStrokeColor(colors));
                     b.setTextColor(Ui.enabledDisabledInk(colors.ink, colors.muted));
                 }
                 GradientDrawable disabledBg = new GradientDrawable();

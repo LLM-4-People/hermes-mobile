@@ -300,11 +300,6 @@ public final class AppCustomization {
         return Integer.parseInt(hex.substring(1), 16) & 0xFFFFFF;
     }
 
-    /** WCAG 2.1 relative luminance for 24-bit sRGB color. */
-    public static double relativeLuminance(int rgb) {
-        return ThemePalette.relativeLuminance(0xFF000000 | (rgb & 0xFFFFFF));
-    }
-
     /** WCAG 2.1 contrast ratio in {@code [1.0, 21.0]}. */
     public static double contrastRatio(int rgb1, int rgb2) {
         return ThemePalette.contrastRatio(0xFF000000 | (rgb1 & 0xFFFFFF), 0xFF000000 | (rgb2 & 0xFFFFFF));

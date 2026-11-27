@@ -1,7 +1,6 @@
 package org.llm4people.hermes.onboarding;
 
 import org.llm4people.hermes.PlainTextSanitizer;
-import org.llm4people.hermes.net.HermesApi;
 import org.llm4people.hermes.profile.GatewayAddress;
 
 import java.net.URI;
@@ -57,45 +56,9 @@ public final class PairingLinkParser {
         public String composedEndpoint() {
             return profileSlug.isEmpty() ? serverUrl : GatewayAddress.normalize(serverUrl, profileSlug);
         }
-
-        /** Canonical {@code hermes://pair?...} deep link when {@link #kind} is {@link Kind#PAIRING_TICKET}. */
-        public String canonicalDeepLink() {
-            if (kind != Kind.PAIRING_TICKET || pairingCode.isEmpty()) return "";
-            return buildDeepLink(serverUrl, pairingCode, profileSlug, displayName, mode);
-        }
     }
 
     private PairingLinkParser() {}
-
-    /** Build a canonical {@code hermes://pair?host=...&code=...} deep link for sharing or QR rendering. */
-    public static String buildDeepLink(
-            String serverUrl,
-            String pairingCode,
-            String profileSlug,
-            String displayName,
-            String mode) {
-        String normalizedHost = GatewayAddress.normalize(serverUrl);
-        if (!isValidPairingCode(pairingCode)) {
-            throw new IllegalArgumentException("Invalid pairing code");
-        }
-        StringBuilder sb = new StringBuilder("hermes://pair?host=")
-                .append(HermesApi.queryValue(normalizedHost))
-                .append("&code=")
-                .append(HermesApi.queryValue(pairingCode.trim()));
-        String slug = GatewayAddress.normalizeProfileSlug(profileSlug);
-        if (!slug.isEmpty()) {
-            sb.append("&profile=").append(HermesApi.queryValue(slug));
-        }
-        String cleanName = sanitizeDisplayName(displayName);
-        if (!cleanName.isEmpty()) {
-            sb.append("&name=").append(HermesApi.queryValue(cleanName));
-        }
-        String cleanMode = normalizeMode(mode);
-        if (!cleanMode.isEmpty()) {
-            sb.append("&mode=").append(HermesApi.queryValue(cleanMode));
-        }
-        return sb.toString();
-    }
 
     /** Returns true when {@code code} matches the bounded high-entropy pairing ticket format. */
     public static boolean isValidPairingCode(String code) {
