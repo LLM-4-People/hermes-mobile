@@ -114,6 +114,7 @@ public final class ConnectionDoctorPanel {
         summaryCard.addView(summaryCounts);
 
         progressBar = new ProgressBar(activity, null, android.R.attr.progressBarStyleHorizontal);
+        Ui.styleHorizontalProgressBar(activity, progressBar);
         progressBar.setIndeterminate(true);
         LinearLayout.LayoutParams progressLp = new LinearLayout.LayoutParams(-1, -2);
         progressLp.topMargin = Ui.dp(activity, 10);

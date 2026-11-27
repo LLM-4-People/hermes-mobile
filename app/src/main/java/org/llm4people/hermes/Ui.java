@@ -8,8 +8,10 @@ import android.content.Context;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
 import android.graphics.Typeface;
+import android.graphics.drawable.ClipDrawable;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.LayerDrawable;
 import android.graphics.drawable.RippleDrawable;
 import android.graphics.drawable.StateListDrawable;
 import android.os.Build;
@@ -24,6 +26,7 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.ProgressBar;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
@@ -481,5 +484,29 @@ public final class Ui {
         return new ColorStateList(
                 new int[][]{new int[]{-android.R.attr.state_enabled}, new int[]{}},
                 new int[]{disabledColor, enabledColor});
+    }
+
+    /** Styles a horizontal {@link ProgressBar} with a >= 3:1 opaque {@code line_strong} track and {@code accent} fill. */
+    public static void styleHorizontalProgressBar(Context context, ProgressBar bar) {
+        if (context == null || bar == null) return;
+        bar.setProgressDrawable(horizontalTrackDrawable(
+                context, context.getColor(R.color.line_strong), context.getColor(R.color.accent)));
+        bar.setIndeterminateTintList(ColorStateList.valueOf(context.getColor(R.color.accent)));
+    }
+
+    /** Builds a rounded horizontal track {@link LayerDrawable} for {@link ProgressBar} or {@link android.widget.SeekBar}. */
+    public static LayerDrawable horizontalTrackDrawable(Context context, int trackColor, int progressColor) {
+        float radius = dp(context, 4);
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(trackColor);
+        bg.setCornerRadius(radius);
+        GradientDrawable fill = new GradientDrawable();
+        fill.setColor(progressColor);
+        fill.setCornerRadius(radius);
+        ClipDrawable clip = new ClipDrawable(fill, Gravity.START, ClipDrawable.HORIZONTAL);
+        LayerDrawable layers = new LayerDrawable(new Drawable[]{bg, clip});
+        layers.setId(0, android.R.id.background);
+        layers.setId(1, android.R.id.progress);
+        return layers;
     }
 }

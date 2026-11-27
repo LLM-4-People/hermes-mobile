@@ -488,15 +488,15 @@ public final class QrScannerActivity extends Activity {
         if (resultDelivered.get()) return;
         startCameraThread();
         if (checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
-            hideFallback();
-            maybeStartCamera();
+            if (!(imageDecodePending && fallbackScroll != null && fallbackScroll.getVisibility() == View.VISIBLE)) {
+                hideFallback();
+                maybeStartCamera();
+            }
         } else if (!permissionRequested) {
             permissionRequested = true;
             requestPermissions(new String[]{Manifest.permission.CAMERA}, REQ_CAMERA_PERMISSION);
         } else {
-            showFallback(R.string.qr_scanner_permission_title,
-                    imageDecodePending ? R.string.qr_scanner_reading_image : R.string.qr_scanner_permission_detail,
-                    true);
+            showFallback(R.string.qr_scanner_permission_title, R.string.qr_scanner_permission_detail, true);
         }
     }
 
@@ -547,6 +547,7 @@ public final class QrScannerActivity extends Activity {
     }
 
     private boolean imageDecodePending;
+    private int imageDecodeGeneration;
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
@@ -555,9 +556,10 @@ public final class QrScannerActivity extends Activity {
         if (resultCode != RESULT_OK || data == null || data.getData() == null) return;
         if (resultDelivered.get() || isFinishing() || isDestroyed() || imageIo.isShutdown()) return;
         Uri uri = data.getData();
+        int gen = ++imageDecodeGeneration;
         imageDecodePending = true;
         announceImageStatus(getString(R.string.qr_scanner_reading_image));
-        imageIo.execute(() -> decodePickedImage(uri));
+        imageIo.execute(() -> decodePickedImage(uri, gen));
     }
 
     private void openImagePicker() {
@@ -572,7 +574,7 @@ public final class QrScannerActivity extends Activity {
         }
     }
 
-    private void decodePickedImage(Uri uri) {
+    private void decodePickedImage(Uri uri, int gen) {
         String decoded = null;
         Bitmap bitmap = null;
         try {
@@ -582,7 +584,7 @@ public final class QrScannerActivity extends Activity {
                 if (in != null) BitmapFactory.decodeStream(in, null, bounds);
             }
             if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
-                postImageResult(ScanVerdict.NO_QR, "");
+                postImageResult(gen, ScanVerdict.NO_QR, "");
                 return;
             }
             int sample = 1;
@@ -611,7 +613,7 @@ public final class QrScannerActivity extends Activity {
             if (bitmap != null && !bitmap.isRecycled()) bitmap.recycle();
         }
         ScanEvaluation eval = evaluateDecodedText(decoded);
-        postImageResult(eval.verdict(), eval.rawText());
+        postImageResult(gen, eval.verdict(), eval.rawText());
     }
 
     static int imageFailureMessageRes(ScanVerdict verdict) {
@@ -635,8 +637,9 @@ public final class QrScannerActivity extends Activity {
         announceImageStatus(statusText, fallbackDetail, fallbackScroll, message);
     }
 
-    private void postImageResult(ScanVerdict verdict, String rawText) {
+    private void postImageResult(int gen, ScanVerdict verdict, String rawText) {
         mainHandler.post(() -> {
+            if (gen != imageDecodeGeneration) return;
             imageDecodePending = false;
             if (isFinishing() || isDestroyed()) return;
             if (verdict == ScanVerdict.VALID_HERMES) {
@@ -1239,11 +1242,11 @@ public final class QrScannerActivity extends Activity {
         overlayView.setVisibility(View.GONE);
         bottomBar.setVisibility(View.GONE);
         torchButton.setVisibility(View.GONE);
-        setFallbackDetail(detailRes);
+        int effectiveDetailRes = imageDecodePending ? R.string.qr_scanner_reading_image : detailRes;
+        setFallbackDetail(effectiveDetailRes);
     }
 
     private void hideFallback() {
-        imageDecodePending = false;
         fallbackScroll.setVisibility(View.GONE);
         Ui.clearLiveStatus(fallbackDetail);
         overlayView.setVisibility(View.VISIBLE);

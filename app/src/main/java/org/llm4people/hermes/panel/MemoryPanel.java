@@ -433,11 +433,16 @@ final class MemoryPanel {
     }
 
     private void confirmDelete(String target, MemoryModel.Entry entry) {
+        boolean[] handled = {false};
         panel.present(new AlertDialog.Builder(panel.activity)
                 .setTitle(R.string.brain_memory_delete_title)
                 .setMessage(entry.text())
                 .setNegativeButton(R.string.panel_cancel, null)
-                .setPositiveButton(R.string.panel_delete, (d, w) -> commitDelete(target, entry))
+                .setPositiveButton(R.string.panel_delete, (d, w) -> {
+                    if (handled[0]) return;
+                    handled[0] = true;
+                    commitDelete(target, entry);
+                })
                 .create());
     }
 

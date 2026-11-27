@@ -2,6 +2,7 @@ package org.llm4people.hermes.artifact;
 
 import android.app.Activity;
 import android.content.Context;
+import android.content.res.ColorStateList;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.StateListDrawable;
@@ -331,6 +332,9 @@ public final class InteractiveControlsBlock {
         group.addView(header);
 
         SeekBar seek = new SeekBar(c);
+        seek.setProgressDrawable(Ui.horizontalTrackDrawable(
+                c, WorkspaceForms.editorUnfocusedStrokeColor(colors), colors.accent));
+        seek.setThumbTintList(ColorStateList.valueOf(colors.accent));
         int touchMin = Ui.dp(c, 48);
         seek.setMinimumHeight(touchMin);
         seek.setPaddingRelative(seek.getPaddingStart(), Ui.dp(c, 12), seek.getPaddingEnd(), Ui.dp(c, 12));

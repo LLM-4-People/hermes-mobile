@@ -460,7 +460,7 @@ public final class FirstRunWizard {
 
         Button pasteBtn = Ui.outlinedButton(activity, activity.getString(R.string.onboarding_paste_action), v ->
                 handlePasteTap(isCurrent, clipboardReader, handleParsed,
-                        () -> showManualPasteDialog(activity, targets, handleParsed, statusNote)));
+                        () -> showManualPasteDialog(activity, targets, handleParsed)));
         card.addView(pasteBtn, topMargin(activity, 8));
         card.addView(statusNote, topMargin(activity, 8));
 
@@ -486,8 +486,7 @@ public final class FirstRunWizard {
     private static void showManualPasteDialog(
             Activity activity,
             Step1Targets targets,
-            Consumer<PairingLinkParser.ParsedInput> onParsed,
-            TextView statusNote) {
+            Consumer<PairingLinkParser.ParsedInput> onParsed) {
         LinearLayout box = Ui.column(activity);
         Ui.pad(box, 20, 8);
         EditText input = new EditText(activity);
@@ -794,6 +793,7 @@ public final class FirstRunWizard {
                             TextView ready = Ui.text(activity,
                                     activity.getString(R.string.onboarding_starters_empty), 13);
                             ready.setTextColor(activity.getColor(R.color.muted));
+                            ready.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
                             startersSlot.addView(ready);
                             return;
                         }

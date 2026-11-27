@@ -152,6 +152,7 @@ public final class DeliveryRouter {
         if (statusNote != null && !statusNote.isEmpty()) {
             TextView note = Ui.text(activity, statusNote, 14);
             note.setTextColor(activity.getColor(R.color.muted));
+            note.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
             Ui.pad(note, 0, 6);
             box.addView(note);
         }
@@ -381,11 +382,14 @@ public final class DeliveryRouter {
                     .setNegativeButton(R.string.push_inbox_close, null));
             return;
         }
+        boolean[] handled = {false};
         present(new AlertDialog.Builder(activity)
                 .setTitle(parsed.titleFr)
                 .setMessage(parsed.previewFr)
                 .setNegativeButton(R.string.push_inbox_action_cancel, null)
                 .setPositiveButton(parsed.openLabelFr, (d, w) -> {
+                    if (handled[0]) return;
+                    handled[0] = true;
                     try {
                         activity.startActivity(parsed.intent);
                     } catch (ActivityNotFoundException | SecurityException unavailable) {

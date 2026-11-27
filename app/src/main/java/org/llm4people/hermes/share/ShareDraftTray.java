@@ -2,6 +2,7 @@ package org.llm4people.hermes.share;
 
 import android.content.Context;
 import android.graphics.Bitmap;
+import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
 import android.text.TextUtils;
 import android.text.format.Formatter;
@@ -55,9 +56,10 @@ public final class ShareDraftTray {
         root.addView(scroller, new LinearLayout.LayoutParams(-1, -2));
 
         liveStatus = new TextView(context);
+        liveStatus.setTextColor(Color.TRANSPARENT);
         liveStatus.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
         liveStatus.setFocusable(false);
-        root.addView(liveStatus, new LinearLayout.LayoutParams(0, 0));
+        root.addView(liveStatus, new LinearLayout.LayoutParams(1, 1));
     }
 
     public View view() { return root; }

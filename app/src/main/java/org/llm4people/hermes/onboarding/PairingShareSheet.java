@@ -201,6 +201,7 @@ public final class PairingShareSheet implements AutoCloseable {
                             close();
                         } else {
                             revokeBtn.setEnabled(true);
+                            Toast.makeText(activity, R.string.admin_settings_revoke_failed, Toast.LENGTH_LONG).show();
                         }
                     });
                 })) {
