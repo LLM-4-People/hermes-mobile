@@ -12,7 +12,7 @@ Every release passes the complete release gate before publishing:
 3. **Production signing & attestation:** Signs `hermes-mobile-v0.2.1.apk` inside the protected `android-release` environment, verifies alignment (`zipalign -c -P 16 4`) and signer certificate SHA-256, generates `SHA256SUMS` and `release.json`, and creates GitHub build provenance attestations (`actions/attest`).
 4. **Atomic publication (`ci/publish_release.py`):** Verifies `main` HEAD alignment, strictly increasing `versionCode`, and exact SHA-256 digests for all three release assets (`hermes-mobile-v0.2.1.apk`, `SHA256SUMS`, `release.json`) before promoting the draft release to published.
 
-Every pull request and `main` build in **Workspace checks** (`.github/workflows/checks.yml`) also uploads an installable **android-debug** artifact containing `app-debug.apk` and its matching `SHA256SUMS` file.
+Pull requests that trigger `run_android` (Android, CI/verification, `run-full-ci`, or `workflow_dispatch`) as well as `main` and release runs in **Workspace checks** (`.github/workflows/checks.yml`) also upload an installable **android-debug** artifact containing `app-debug.apk` and its matching `SHA256SUMS` file.
 
 ## Built-in in-app update detection and verified install
 

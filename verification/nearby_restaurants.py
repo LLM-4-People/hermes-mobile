@@ -102,11 +102,14 @@ def verified_turn(gateway, provider, question, previous, *, location):
 
 
 def enter_discussion(ui):
+    from verification.unifiedpush import ui as _ui
     s = ui.strings
     send_btn = s["thread_send"]
     new_thread_btn = s["thread_new_conversation"]
+    last_tap = None
 
     def opened():
+        nonlocal last_tap
         tree = ui.hierarchy()
         if (ui.node(send_btn, tree) is not None
                 and any(node.get("package") == APP and node.get("class") == "android.widget.EditText"
@@ -114,7 +117,10 @@ def enter_discussion(ui):
             return True
         create = ui.node(new_thread_btn, tree)
         if create is not None and create.get("class") == "android.widget.Button":
-            ui.tap_node(create)
+            now = _ui.monotonic()
+            if last_tap is None or now - last_tap >= _ui.TAP_RETRY_COOLDOWN_SECONDS:
+                ui.tap_node(create)
+                last_tap = now
         return False
     eventually("the unlocked profile's editable conversation", opened)
 

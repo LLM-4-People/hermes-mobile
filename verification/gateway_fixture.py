@@ -14,6 +14,15 @@ from urllib.request import ProxyHandler, Request, build_opener
 
 PINNED_REVISION = "eb99545ce240708c3b5d729a80d6bb03aac6d5bb"
 LOOPBACK = "127.0.0.1"
+PORT_RANGE_START = 20000
+PORT_RANGE_SPAN = 12000
+PORT_PROBE_ATTEMPTS = 32
+GATEWAY_START_ATTEMPTS = 3
+GATEWAY_START_TIMEOUT_SECONDS = 90
+
+
+class _PortInUseError(RuntimeError):
+    """Internal signal that the selected loopback port was claimed before gateway bound it."""
 
 
 def check_source(source, revision):
@@ -28,6 +37,14 @@ def check_source(source, revision):
 
 
 def unused_loopback_port():
+    for _ in range(PORT_PROBE_ATTEMPTS):
+        candidate = PORT_RANGE_START + secrets.randbelow(PORT_RANGE_SPAN)
+        try:
+            with socket.socket() as reservation:
+                reservation.bind((LOOPBACK, candidate))
+                return reservation.getsockname()[1]
+        except OSError:
+            continue
     with socket.socket() as reservation:
         reservation.bind((LOOPBACK, 0))
         return reservation.getsockname()[1]
@@ -181,12 +198,38 @@ class Gateway:
                 raise
             value.add_note(f"Gateway cleanup also failed: {failure}")
 
-    def start(self):
+    def _log_mentions_port_in_use(self, log_path, offset):
+        if not log_path.exists():
+            return False
+        with log_path.open("rb") as stream:
+            stream.seek(offset)
+            chunk = stream.read().decode("utf-8", errors="replace")
+        return "already in use" in chunk.casefold()
+
+    def _rebind_port(self, new_port):
+        self.port = new_port
+        self.endpoint = f"http://{LOOPBACK}:{new_port}"
+        hermes_home = self.env.get("HERMES_HOME")
+        if not hermes_home:
+            return
+        env_file = Path(hermes_home) / ".env"
+        if not env_file.is_file():
+            return
+        lines = env_file.read_text(encoding="utf-8").splitlines()
+        updated = [
+            f"API_SERVER_PORT={new_port}" if line.startswith("API_SERVER_PORT=") else line
+            for line in lines
+        ]
+        if not any(line.startswith("API_SERVER_PORT=") for line in updated):
+            updated.append(f"API_SERVER_PORT={new_port}")
+        env_file.write_text("\n".join(updated) + "\n", encoding="utf-8")
+        env_file.chmod(0o600)
+
+    def _start_once(self, log_path):
         import psutil
 
-        if self.process is not None:
-            raise RuntimeError("Fixture gateway already started")
-        with (self.root / "gateway.log").open("ab") as log:
+        offset = log_path.stat().st_size if log_path.exists() else 0
+        with log_path.open("ab") as log:
             self.process = subprocess.Popen(
                 [self.python, "-m", "gateway.run"],
                 env=self.env,
@@ -196,11 +239,19 @@ class Gateway:
                 stderr=subprocess.STDOUT,
             )
         owner = psutil.Process(self.process.pid)
-        deadline = time.monotonic() + 90
+        deadline = time.monotonic() + GATEWAY_START_TIMEOUT_SECONDS
         while time.monotonic() < deadline:
             if (status := self.process.poll()) is not None:
                 self.process = None
+                if self._log_mentions_port_in_use(log_path, offset):
+                    raise _PortInUseError(f"Gateway port {self.port} already in use")
                 raise RuntimeError(f"Gateway exited with status {status}")
+            if self._log_mentions_port_in_use(log_path, offset):
+                try:
+                    self.stop()
+                except Exception:
+                    self.process = None
+                raise _PortInUseError(f"Gateway port {self.port} already in use")
             # An unrelated test may claim the ephemeral port while this gateway boots.
             # Send the disposable account token only after our process owns its listener.
             if not any(c.status == psutil.CONN_LISTEN and c.laddr == (LOOPBACK, self.port)
@@ -213,27 +264,59 @@ class Gateway:
             except URLError:
                 pass
             time.sleep(0.05)
-        raise TimeoutError("Gateway did not accept requests within 90 seconds")
+        if self._log_mentions_port_in_use(log_path, offset):
+            try:
+                self.stop()
+            except Exception:
+                self.process = None
+            raise _PortInUseError(f"Gateway port {self.port} already in use")
+        raise TimeoutError(f"Gateway did not accept requests within {GATEWAY_START_TIMEOUT_SECONDS} seconds")
+
+    def start(self):
+        if self.process is not None:
+            raise RuntimeError("Fixture gateway already started")
+        log_path = self.root / "gateway.log"
+        for attempt in range(GATEWAY_START_ATTEMPTS):
+            try:
+                self._start_once(log_path)
+                return
+            except _PortInUseError:
+                if attempt + 1 >= GATEWAY_START_ATTEMPTS:
+                    raise RuntimeError(
+                        f"Gateway port {self.port} already in use after {GATEWAY_START_ATTEMPTS} attempts"
+                    ) from None
+                self._rebind_port(unused_loopback_port())
 
     def stop(self):
         if self.process is None:
             return
-        if self.process.poll() is None:
-            subprocess.run(
-                [
-                    self.python,
-                    "-c",
-                    "import sys; from gateway.status import write_planned_stop_marker;"
-                    "sys.exit(0 if write_planned_stop_marker(int(sys.argv[1])) else 1)",
-                    str(self.process.pid),
-                ],
-                cwd=self.root,
-                env=self.env,
-                check=True,
-                timeout=20,
-            )
-            self.process.wait(timeout=60)
-        code = self.process.returncode
-        self.process = None
+        try:
+            from verification.unifiedpush.processes import close_child
+        except ImportError:
+            from unifiedpush.processes import close_child
+
+        process = self.process
+        code = None
+        try:
+            def planned_stop():
+                subprocess.run(
+                    [
+                        self.python,
+                        "-c",
+                        "import sys; from gateway.status import write_planned_stop_marker;"
+                        "sys.exit(0 if write_planned_stop_marker(int(sys.argv[1])) else 1)",
+                        str(process.pid),
+                    ],
+                    cwd=self.root,
+                    env=self.env,
+                    check=True,
+                    timeout=20,
+                )
+                process.wait(timeout=60)
+
+            close_child(process, planned_stop)
+            code = process.returncode
+        finally:
+            self.process = None
         if code != 0:
             raise RuntimeError(f"Gateway exited with status {code}")

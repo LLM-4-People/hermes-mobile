@@ -214,7 +214,11 @@ class NearbyLocationTest(unittest.TestCase):
             def tap_node(self, node):
                 actions.append(("tap", node.get("resource-id")))
 
-        controller = answer_android_location(StubScreen(), allow=False)
+        clock = (10.0 + 3.0 * index for index in range(10))
+        with patch("verification.unifiedpush.stack.time.sleep"), patch(
+            "verification.unifiedpush.ui.monotonic", side_effect=clock
+        ):
+            controller = answer_android_location(StubScreen(), allow=False)
         self.assertEqual(controller, "com.google.android.permissioncontroller")
         self.assertEqual(actions, ["scroll", ("tap", "com.android.permissioncontroller:id/permission_deny_button")])
 
@@ -264,7 +268,11 @@ class NearbyLocationTest(unittest.TestCase):
             def tap_node(self, node):
                 actions.append(("tap", node.get("resource-id")))
 
-        controller = answer_android_location(StubScreen(), allow=False)
+        clock = (10.0 + 3.0 * index for index in range(10))
+        with patch("verification.unifiedpush.stack.time.sleep"), patch(
+            "verification.unifiedpush.ui.monotonic", side_effect=clock
+        ):
+            controller = answer_android_location(StubScreen(), allow=False)
         self.assertEqual(controller, "com.google.android.permissioncontroller")
         self.assertEqual(actions, [
             "scroll",
@@ -312,6 +320,46 @@ class NearbyLocationTest(unittest.TestCase):
                     choose_consent(StubScreen(), use_location)
                 self.assertEqual(taps, [use_location, use_location])
 
+    def test_answer_android_location_debounces_rapid_permission_polls(self):
+        perm = ET.fromstring(
+            '<node text="" content-desc="" resource-id="" class="android.widget.FrameLayout" '
+            'package="com.android.permissioncontroller" window-id="2" scrollable="false" bounds="[0,0][320,640]">'
+            '<node text="Allow Hermes Mobile to access this device location?" content-desc="" resource-id="" '
+            'class="android.widget.TextView" package="com.android.permissioncontroller" bounds="[16,100][304,180]"/>'
+            '<node text="While using the app" content-desc="" '
+            'resource-id="com.android.permissioncontroller:id/permission_allow_foreground_only_button" '
+            'class="android.widget.Button" package="com.android.permissioncontroller" bounds="[16,400][304,460]"/>'
+            '</node>'
+        )
+        app_tree = ET.fromstring(
+            '<node text="" content-desc="" resource-id="" class="android.widget.FrameLayout" '
+            'package="org.llm4people.hermes" window-id="1" scrollable="false" bounds="[0,0][320,640]"/>'
+        )
+        trees = iter([perm, perm, perm, app_tree])
+        taps = []
+
+        class FakePermDevice:
+            def shell(self, *args):
+                return f"{COARSE}: granted=true"
+
+        class StubPermScreen(Screen):
+            def __init__(self):
+                self.device = FakePermDevice()
+                self._strings = AppStrings.for_lang("en")
+
+            def hierarchy(self):
+                return next(trees)
+
+            def tap_node(self, node):
+                taps.append(node.get("resource-id"))
+
+        with patch("verification.unifiedpush.stack.time.sleep"), patch(
+            "verification.unifiedpush.ui.monotonic", side_effect=[10.0, 10.1, 10.2]
+        ):
+            controller = answer_android_location(StubPermScreen(), allow=True)
+        self.assertEqual(controller, "com.android.permissioncontroller")
+        self.assertEqual(len(taps), 1)
+
     def test_open_consent_dismisses_ime_and_retries_send_tap_until_disclosure_dialog_appears(self):
         for lang in ("en", "fr"):
             with self.subTest(lang=lang):
@@ -357,7 +405,11 @@ class NearbyLocationTest(unittest.TestCase):
                     def tap_node(self, node):
                         actions.append(("tap", node.get("text")))
 
-                open_consent(StubScreen())
+                clock = (10.0 + 3.0 * index for index in range(10))
+                with patch("verification.unifiedpush.stack.time.sleep"), patch(
+                    "verification.unifiedpush.ui.monotonic", side_effect=clock
+                ):
+                    open_consent(StubScreen())
                 self.assertEqual(actions, [
                     ("shell", ("input", "keyevent", "BACK")),
                     ("tap", send),

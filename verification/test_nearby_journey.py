@@ -50,7 +50,12 @@ class NearbyJourneyConsentTest(unittest.TestCase):
                 hierarchies = iter([gms_warning, gms_with_systemui, thread, consent])
                 ui.hierarchy = Mock(side_effect=lambda: next(hierarchies))
 
-                with patch("verification.unifiedpush.stack.time.sleep"), redirect_stderr(io.StringIO()):
+                clock = (10.0 + 3.0 * index for index in range(10))
+                with (
+                    patch("verification.unifiedpush.stack.time.sleep"),
+                    patch("verification.unifiedpush.ui.monotonic", side_effect=clock),
+                    redirect_stderr(io.StringIO()),
+                ):
                     result = nearby_journey.open_consent(ui)
 
                 self.assertIs(result, consent)
@@ -170,6 +175,31 @@ class NearbyJourneyConsentTest(unittest.TestCase):
 
                 fix.publish.assert_called_once()
                 self.assertEqual(tapped, [remember_label, remember_label, use_approx])
+
+    def test_enter_message_retries_transient_text_entry_and_open_consent_debounces_back(self):
+        device = Mock()
+        device.ime_shown.return_value = False
+        controls = Mock()
+        controls.send.side_effect = [b"retry", b"applied"]
+        ui = Screen(device, controls, lang="en")
+        s = ui.strings
+        composer = Element("hierarchy")
+        SubElement(composer, "node", {"package": APP, "text": s["thread_send"], "bounds": "[200,500][300,550]"})
+        SubElement(composer, "node", {"package": APP, "class": "android.widget.EditText", "text": "", "bounds": "[20,500][190,550]"})
+        ui.hierarchy = Mock(return_value=composer)
+        with patch("verification.unifiedpush.stack.time.sleep"):
+            nearby_journey.enter_message(ui, "Quels cafés près de moi ?")
+        self.assertEqual(controls.send.call_count, 2)
+
+        gms_tree = node_tree((nearby_journey.GMS_PACKAGE, "Improve location accuracy"))
+        consent_tree = node_tree((APP, s["nearby_add_area_title"]), (APP, "Hermes and OpenStreetMap"))
+        ui.hierarchy = Mock(side_effect=[gms_tree, gms_tree, gms_tree, consent_tree])
+        device.shell.reset_mock()
+        with patch("verification.unifiedpush.stack.time.sleep"), patch(
+            "verification.unifiedpush.ui.monotonic", side_effect=[10.0, 10.1, 10.2]
+        ), redirect_stderr(io.StringIO()):
+            nearby_journey.open_consent(ui)
+        self.assertEqual(device.shell.call_count, 1)
 
 
 if __name__ == "__main__":

@@ -131,3 +131,154 @@ class OwnedChildTest(unittest.TestCase):
         self.assertIs(raised.exception, problem)
         self.assertIn("observer input closed", str(raised.exception.__notes__))
         self.assertIsNotNone(child.returncode)
+
+    def test_partial_stdout_line_does_not_bypass_answer_timeout(self):
+        script = (
+            "import sys, time\n"
+            "print('HM_UI cmVhZHk=', flush=True)\n"
+            "sys.stdout.write('.')\n"
+            "sys.stdout.flush()\n"
+            "time.sleep(60)\n"
+        )
+        controls = AndroidControls([sys.executable, "-u", "-c", script])
+        with patch("verification.unifiedpush.editor.ANSWER_TIMEOUT_SECONDS", 0.2), patch(
+            "verification.unifiedpush.editor.OBSERVER_GRACE_SECONDS", 0.05
+        ):
+            controls.connect()
+            child = controls.process
+            self.addCleanup(release_test_child, child)
+            try:
+                started = time.monotonic()
+                with self.assertRaises(TimeoutError):
+                    controls.answer()
+                self.assertLess(time.monotonic() - started, 3.0)
+            finally:
+                controls.close()
+        self.assertIsNotNone(child.returncode)
+
+    def test_gateway_stop_terminates_stalled_process_and_clears_handle_even_if_marker_fails(self):
+        from verification.gateway_fixture import Gateway
+
+        gateway = object.__new__(Gateway)
+        gateway.python = sys.executable
+        gateway.root = Path(tempfile.gettempdir())
+        gateway.env = dict(os.environ)
+        child = subprocess.Popen(
+            [sys.executable, "-c", "import time; time.sleep(60)"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+        )
+        self.addCleanup(release_test_child, child)
+        gateway.process = child
+        with patch("verification.gateway_fixture.subprocess.run", side_effect=subprocess.TimeoutExpired("cmd", 20)):
+            with self.assertRaises(RuntimeError):
+                gateway.stop()
+        self.assertIsNone(gateway.process)
+        self.assertIsNotNone(child.poll())
+        self.assertTrue(child.stdout.closed)
+
+    def test_script_mode_imports_and_gateway_stop_work_without_repo_root_on_sys_path(self):
+        verification_dir = str(Path(__file__).resolve().parents[1])
+        probe = (
+            "import os, subprocess, sys, tempfile\n"
+            "from pathlib import Path\n"
+            "from unittest.mock import patch\n"
+            "import device.app_strings as app_strings\n"
+            "import device.run as device_run\n"
+            "import gateway_fixture\n"
+            "import unifiedpush.processes as processes\n"
+            "assert app_strings.APP == device_run.APP == 'org.llm4people.hermes'\n"
+            "gw = object.__new__(gateway_fixture.Gateway)\n"
+            "gw.python = sys.executable\n"
+            "gw.root = Path(tempfile.gettempdir())\n"
+            "gw.env = dict(os.environ)\n"
+            "child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'], "
+            "stdout=subprocess.PIPE, stderr=subprocess.STDOUT)\n"
+            "gw.process = child\n"
+            "with patch('gateway_fixture.subprocess.run', side_effect=subprocess.TimeoutExpired('cmd', 1)):\n"
+            "    try:\n"
+            "        gw.stop()\n"
+            "    except RuntimeError:\n"
+            "        pass\n"
+            "assert gw.process is None and child.poll() is not None and child.stdout.closed\n"
+        )
+        env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
+        env["PYTHONPATH"] = verification_dir
+        result = subprocess.run(
+            [sys.executable, "-B", "-c", probe],
+            cwd=tempfile.gettempdir(),
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=20,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_unused_loopback_port_stays_outside_linux_ephemeral_range_and_gateway_retries_port_collision(self):
+        from types import SimpleNamespace
+        from verification import gateway_fixture
+
+        for _ in range(10):
+            port = gateway_fixture.unused_loopback_port()
+            self.assertGreaterEqual(port, gateway_fixture.PORT_RANGE_START)
+            self.assertLess(port, gateway_fixture.PORT_RANGE_START + gateway_fixture.PORT_RANGE_SPAN)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            hermes_home = root / "home" / ".hermes"
+            hermes_home.mkdir(parents=True)
+            env_file = hermes_home / ".env"
+            env_file.write_text("API_SERVER_ENABLED=true\nAPI_SERVER_PORT=21000\n", encoding="utf-8")
+
+            gw = object.__new__(gateway_fixture.Gateway)
+            gw.python = sys.executable
+            gw.root = root
+            gw.port = 21000
+            gw.endpoint = "http://127.0.0.1:21000"
+            gw.env = {"HERMES_HOME": str(hermes_home)}
+            gw.process = None
+
+            first_proc = subprocess.Popen(
+                [sys.executable, "-c", "import sys; print('api_server: Port 21000 already in use'); sys.exit(1)"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+            )
+            second_proc = subprocess.Popen(
+                [sys.executable, "-c", "import time; time.sleep(60)"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+            )
+            self.addCleanup(release_test_child, first_proc)
+            self.addCleanup(release_test_child, second_proc)
+
+            spawned = []
+
+            def fake_popen(cmd, **kwargs):
+                log = kwargs["stdout"]
+                if not spawned:
+                    log.write(b"api_server: Port 21000 already in use\n")
+                    log.flush()
+                    spawned.append(first_proc)
+                    return first_proc
+                spawned.append(second_proc)
+                return second_proc
+
+            fake_psutil = SimpleNamespace(
+                CONN_LISTEN="LISTEN",
+                Process=lambda pid: SimpleNamespace(
+                    net_connections=lambda kind="tcp": [
+                        SimpleNamespace(status="LISTEN", laddr=(gateway_fixture.LOOPBACK, gw.port))
+                    ]
+                ),
+            )
+            with (
+                patch.dict(sys.modules, {"psutil": fake_psutil}),
+                patch("verification.gateway_fixture.subprocess.Popen", side_effect=fake_popen),
+                patch("verification.gateway_fixture.unused_loopback_port", return_value=22000),
+                patch.object(gw, "_capabilities_ready", return_value=True),
+            ):
+                gw.start()
+            self.assertEqual(gw.port, 22000)
+            self.assertEqual(gw.endpoint, "http://127.0.0.1:22000")
+            self.assertIn("API_SERVER_PORT=22000", env_file.read_text(encoding="utf-8"))
+            self.assertIs(gw.process, second_proc)

@@ -82,9 +82,11 @@ def answer_android_location(ui, *, allow):
     last_controller_ids = []
     taps = 0
     scrolls = 0
+    last_tap = None
 
     def decide():
-        nonlocal acted_controller, last_clipped, last_controller_ids, taps, scrolls
+        nonlocal acted_controller, last_clipped, last_controller_ids, taps, scrolls, last_tap
+        from verification.unifiedpush import ui as _ui
         root = ui.hierarchy()
         controller = None
         controller_nodes = []
@@ -114,9 +116,12 @@ def answer_android_location(ui, *, allow):
                 ui.scroll(root)
                 scrolls += 1
                 return None
-            ui.tap_node(target)
-            acted_controller = controller
-            taps += 1
+            now = _ui.monotonic()
+            if last_tap is None or now - last_tap >= _ui.TAP_RETRY_COOLDOWN_SECONDS:
+                ui.tap_node(target)
+                acted_controller = controller
+                taps += 1
+                last_tap = now
             return None
         ui.scroll(root)
         scrolls += 1

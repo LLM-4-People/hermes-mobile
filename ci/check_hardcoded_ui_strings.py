@@ -122,7 +122,7 @@ CONTROL_FLOW_KEYWORDS = {"else", "return", "yield", "do", "case", "throw", "new"
 # Printf / Android format specifiers stripped before checking if a UI literal has human letters.
 FORMAT_TOKEN_RE = re.compile(r"%(?:\d+\$)?[-+# 0,(]*\d*(?:\.\d+)?[a-zA-Z%]")
 ESCAPED_PERCENT_RE = re.compile(r"%%")
-PLACEHOLDER_SPEC_RE = re.compile(r"%(?:\d+\$)?[-+# 0,(]*\d*(?:\.\d+)?[a-zA-Z]")
+PLACEHOLDER_SPEC_RE = re.compile(r"%(?:(\d+)\$)?([-+# 0,(]*\d*(?:\.\d+)?[a-zA-Z])")
 WORD_RE = re.compile(r"[A-Za-zÀ-ÿ]{2,}")
 
 # Neutral technical / brand-only literals allowed even inside UI sinks (exact match after strip).
@@ -199,6 +199,11 @@ def tokenize_java(source: str) -> list[Token]:
             buf: list[str] = []
             while i < n:
                 if source[i] == "\\" and i + 1 < n:
+                    decoded = _decode_unicode_escape(source, i)
+                    if decoded is not None:
+                        ch_dec, i = decoded
+                        buf.append(ch_dec)
+                        continue
                     nxt = source[i + 1]
                     if nxt == "\n":
                         line += 1
@@ -223,15 +228,12 @@ def tokenize_java(source: str) -> list[Token]:
             buf = []
             while i < n and source[i] != '"':
                 if source[i] == "\\" and i + 1 < n:
+                    decoded = _decode_unicode_escape(source, i)
+                    if decoded is not None:
+                        ch_dec, i = decoded
+                        buf.append(ch_dec)
+                        continue
                     nxt = source[i + 1]
-                    if nxt == "u" and i + 5 < n:
-                        hex_digits = source[i + 2:i + 6]
-                        try:
-                            buf.append(chr(int(hex_digits, 16)))
-                            i += 6
-                            continue
-                        except ValueError:
-                            pass
                     if nxt == "\n":
                         line += 1
                     buf.append(_decode_escape(nxt))
@@ -282,6 +284,21 @@ def tokenize_java(source: str) -> list[Token]:
         i += 1
 
     return tokens
+
+
+def _decode_unicode_escape(source: str, backslash_idx: int) -> tuple[str, int] | None:
+    """Decode Java \\u+XXXX unicode escape starting at backslash_idx (JLS §3.3)."""
+    n = len(source)
+    j = backslash_idx + 1
+    while j < n and source[j] == "u":
+        j += 1
+    if j == backslash_idx + 1 or j + 4 > n:
+        return None
+    hex_digits = source[j:j + 4]
+    try:
+        return chr(int(hex_digits, 16)), j + 4
+    except ValueError:
+        return None
 
 
 def _decode_escape(ch: str) -> str:
@@ -519,9 +536,24 @@ def _preview(text: str, limit: int = 60) -> str:
     return single if len(single) <= limit else single[:limit - 1] + "…"
 
 
-def _extract_placeholders(text: str) -> list[str]:
-    """Return sorted Android/printf format specifiers in text, ignoring escaped ``%%``."""
-    return sorted(PLACEHOLDER_SPEC_RE.findall(ESCAPED_PERCENT_RE.sub("", text)))
+def _extract_placeholders(text: str) -> list[tuple[int, str]]:
+    """Return sorted (slot_index, specifier) pairs in text, ignoring escaped ``%%``.
+
+    Positional placeholders (%N$...) bind to explicit slot N so FR/EN reorderings match;
+    non-positional placeholders bind sequentially (1, 2, ...) so swapped order fails closed.
+    """
+    cleaned = ESCAPED_PERCENT_RE.sub("", text)
+    slots: list[tuple[int, str]] = []
+    implicit_slot = 0
+    for match in PLACEHOLDER_SPEC_RE.finditer(cleaned):
+        pos, spec = match.group(1), match.group(2)
+        if pos is not None:
+            slot = int(pos)
+        else:
+            implicit_slot += 1
+            slot = implicit_slot
+        slots.append((slot, spec))
+    return sorted(slots)
 
 
 @dataclass
@@ -593,6 +625,9 @@ def _collect_xml_resources(res_dir: Path, root: Path, *, expected_locale: str | 
                             qty = item.attrib.get("quantity", "").strip()
                             if not qty:
                                 issues.append(f"{rel}: <plurals name={name!r}> has <item> missing quantity attribute")
+                                continue
+                            if qty in qty_map:
+                                issues.append(f"{rel}: <plurals name={name!r}> has duplicate <item quantity={qty!r}>")
                                 continue
                             raw_item = "".join(item.itertext())
                             qty_map[qty] = raw_item
@@ -672,10 +707,45 @@ def check_xml_parity(root: Path) -> list[str]:
     return issues
 
 
+ANDROID_NS = "{http://schemas.android.com/apk/res/android}"
+XML_UI_ATTRS = ("text", "hint", "contentDescription", "title", "label", "description")
+
+
+def check_layout_and_manifest_xml(root: Path) -> list[str]:
+    """Scan AndroidManifest.xml and res/layout/*.xml for hardcoded human-readable UI attributes."""
+    issues: list[str] = []
+    candidates: list[Path] = []
+    manifest = root / "app/src/main/AndroidManifest.xml"
+    if manifest.is_file():
+        candidates.append(manifest)
+    layout_dir = root / "app/src/main/res/layout"
+    if layout_dir.is_dir():
+        candidates.extend(sorted(layout_dir.glob("*.xml")))
+
+    for xml_path in candidates:
+        rel = xml_path.relative_to(root).as_posix()
+        try:
+            tree = ET.parse(xml_path)
+        except ET.ParseError as err:
+            issues.append(f"{rel}: invalid XML ({err})")
+            continue
+        for el in tree.getroot().iter():
+            for attr_name in XML_UI_ATTRS:
+                val = el.attrib.get(ANDROID_NS + attr_name)
+                if val is None or val.startswith("@string/") or val.startswith("?"):
+                    continue
+                if _is_human_ui_text(val):
+                    issues.append(
+                        f"{rel}: hardcoded android:{attr_name}={_preview(val)!r} on <{el.tag}> (use @string/*)"
+                    )
+    return issues
+
+
 def check_repo(repo_root: Path = ROOT) -> list[str]:
-    """Run XML parity + Java hardcoded UI string checks across the repository (zero allowlists)."""
+    """Run XML parity, layout/manifest XML, and Java hardcoded UI string checks (zero allowlists)."""
     root = Path(repo_root).resolve()
     problems = check_xml_parity(root)
+    problems.extend(check_layout_and_manifest_xml(root))
 
     java_root = root / "app/src/main/java"
     if not java_root.is_dir():

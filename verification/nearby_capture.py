@@ -7,7 +7,8 @@ import secrets
 import subprocess
 from pathlib import Path
 
-from verification.device.run import APP, DEVICE_DIR, DRIVER, android_png_size
+from verification.device.run import APP, DEVICE_DIR, DRIVER, android_png_size, cleanup_all
+from verification.unifiedpush.processes import close_child
 from verification.unifiedpush.stack import eventually
 
 
@@ -52,13 +53,17 @@ def captures(device, output):
         if proc.returncode or "journey=nearby-capture passed" not in report:
             raise AssertionError("Native guide capture did not finish: " + report[-1800:])
     finally:
-        try:
-            if proc is not None and proc.poll() is None:
+        def stop_runner():
+            if proc is None:
+                return
+
+            def finish_runner():
                 device.shell("run-as", APP, "touch", folder + "/finish")
-                try:
-                    proc.communicate(timeout=5)
-                except subprocess.TimeoutExpired:
-                    proc.kill()
-                    proc.communicate()
-        finally:
-            device.shell("run-as", APP, "rm", "-rf", folder, fixture)
+                proc.communicate(timeout=5)
+
+            close_child(proc, finish_runner)
+
+        cleanup_all(
+            stop_runner,
+            lambda: device.shell("run-as", APP, "rm", "-rf", folder, fixture),
+        )

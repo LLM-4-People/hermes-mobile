@@ -326,6 +326,84 @@ class HardcodedUiStringsGuardTest(unittest.TestCase):
             self.assertTrue(any("wrong_fr.xml" in i and "tools:locale='fr'" in i and "found 'en'" in i for i in issues), issues)
             self.assertTrue(any("wrong_en.xml" in i and "tools:locale='en'" in i and "found 'fr'" in i for i in issues), issues)
 
+    def test_unicode_escapes_in_text_blocks_and_multi_u_strings_are_decoded(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write(root, "app/src/main/res/values/strings.xml", f"{FR_RES}<string name='ok'>OK</string></resources>")
+            _write(root, "app/src/main/res/values-en/strings.xml", f"{EN_RES}<string name='ok'>OK</string></resources>")
+            _write(
+                root,
+                "app/src/main/java/org/example/UnicodeBypass.java",
+                'class UnicodeBypass {\n'
+                '    String a = "\\uu00c9tat";\n'
+                '    String b = """\n'
+                '        \\u00c9tat bloc\n'
+                '        """;\n'
+                '}\n',
+            )
+            issues = guard.check_repo(root)
+            self.assertEqual(len(issues), 2, issues)
+            self.assertTrue(any("État" in i for i in issues), issues)
+            self.assertTrue(any("État bloc" in i for i in issues), issues)
+
+    def test_non_positional_placeholder_swap_and_duplicate_plural_quantity_fail(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write(
+                root,
+                "app/src/main/res/values/a.xml",
+                f"""{FR_RES}
+                    <string name="pos_ok">%1$s (%2$d)</string>
+                    <string name="seq_swap">%s %d</string>
+                    <plurals name="dup_qty">
+                        <item quantity="one">%1$d jour</item>
+                        <item quantity="one">%1$d autre</item>
+                    </plurals>
+                </resources>""",
+            )
+            _write(
+                root,
+                "app/src/main/res/values-en/a.xml",
+                f"""{EN_RES}
+                    <string name="pos_ok">(%2$d) %1$s</string>
+                    <string name="seq_swap">%d %s</string>
+                    <plurals name="dup_qty">
+                        <item quantity="one">%1$d day</item>
+                    </plurals>
+                </resources>""",
+            )
+            issues = guard.check_xml_parity(root)
+            self.assertFalse(any("pos_ok" in i for i in issues), issues)
+            self.assertTrue(any("seq_swap" in i and "placeholder mismatch" in i for i in issues), issues)
+            self.assertTrue(any("dup_qty" in i and "duplicate <item quantity='one'>" in i for i in issues), issues)
+
+    def test_layout_and_manifest_xml_rejects_hardcoded_ui_attributes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write(root, "app/src/main/res/values/strings.xml", f"{FR_RES}<string name='ok'>OK</string></resources>")
+            _write(root, "app/src/main/res/values-en/strings.xml", f"{EN_RES}<string name='ok'>OK</string></resources>")
+            _write(
+                root,
+                "app/src/main/AndroidManifest.xml",
+                '<manifest xmlns:android="http://schemas.android.com/apk/res/android">'
+                '<application android:label="@string/ok">'
+                '<activity android:name=".Demo" android:label="Hardcoded Activity"/>'
+                '</application></manifest>',
+            )
+            _write(
+                root,
+                "app/src/main/res/layout/demo.xml",
+                '<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android">'
+                '<TextView android:text="@string/ok" android:hint="Type search query"/>'
+                '<Button android:contentDescription="Close panel"/>'
+                '</LinearLayout>',
+            )
+            issues = guard.check_repo(root)
+            self.assertTrue(any("Hardcoded Activity" in i for i in issues), issues)
+            self.assertTrue(any("Type search query" in i for i in issues), issues)
+            self.assertTrue(any("Close panel" in i for i in issues), issues)
+            self.assertFalse(any("@string/ok" in i for i in issues), issues)
+
 
 if __name__ == "__main__":
     unittest.main()
