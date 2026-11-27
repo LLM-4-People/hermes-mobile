@@ -471,8 +471,8 @@ public final class QrScannerActivity extends Activity {
         GradientDrawable bg = new GradientDrawable();
         float radiusPx = Ui.dp(this, 24);
         bg.setCornerRadius(radiusPx);
-        bg.setColor(0x88182022);
-        bg.setStroke(Math.max(1, Ui.dp(this, 1)), 0x55FFFFFF);
+        bg.setColor(0xCC182022);
+        bg.setStroke(Math.max(1, Ui.dp(this, 1)), 0xB3FFFFFF);
         GradientDrawable mask = new GradientDrawable();
         mask.setCornerRadius(radiusPx);
         mask.setColor(0xFFFFFFFF);
@@ -494,7 +494,9 @@ public final class QrScannerActivity extends Activity {
             permissionRequested = true;
             requestPermissions(new String[]{Manifest.permission.CAMERA}, REQ_CAMERA_PERMISSION);
         } else {
-            showFallback(R.string.qr_scanner_permission_title, R.string.qr_scanner_permission_detail, true);
+            showFallback(R.string.qr_scanner_permission_title,
+                    imageDecodePending ? R.string.qr_scanner_reading_image : R.string.qr_scanner_permission_detail,
+                    true);
         }
     }
 
@@ -544,12 +546,16 @@ public final class QrScannerActivity extends Activity {
         }
     }
 
+    private boolean imageDecodePending;
+
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode != REQ_PICK_IMAGE) return;
         if (resultCode != RESULT_OK || data == null || data.getData() == null) return;
+        if (resultDelivered.get() || isFinishing() || isDestroyed() || imageIo.isShutdown()) return;
         Uri uri = data.getData();
+        imageDecodePending = true;
         announceImageStatus(getString(R.string.qr_scanner_reading_image));
         imageIo.execute(() -> decodePickedImage(uri));
     }
@@ -631,6 +637,7 @@ public final class QrScannerActivity extends Activity {
 
     private void postImageResult(ScanVerdict verdict, String rawText) {
         mainHandler.post(() -> {
+            imageDecodePending = false;
             if (isFinishing() || isDestroyed()) return;
             if (verdict == ScanVerdict.VALID_HERMES) {
                 deliverSuccess(rawText, "scanned_image");
@@ -1236,6 +1243,7 @@ public final class QrScannerActivity extends Activity {
     }
 
     private void hideFallback() {
+        imageDecodePending = false;
         fallbackScroll.setVisibility(View.GONE);
         Ui.clearLiveStatus(fallbackDetail);
         overlayView.setVisibility(View.VISIBLE);

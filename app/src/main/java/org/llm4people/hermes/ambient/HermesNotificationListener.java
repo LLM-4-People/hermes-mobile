@@ -32,6 +32,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 /**
@@ -250,16 +251,20 @@ public final class HermesNotificationListener extends NotificationListenerServic
         android.widget.ScrollView scroll = new android.widget.ScrollView(activity);
         scroll.addView(content, new android.widget.ScrollView.LayoutParams(-1, -2));
 
+        AtomicBoolean settled = new AtomicBoolean(false);
         AlertDialog.Builder builder = new AlertDialog.Builder(activity)
                 .setTitle(R.string.ambient_reply_title)
                 .setView(scroll)
                 .setNegativeButton(R.string.ambient_reply_cancel, (d, w) -> {
+                    if (!settled.compareAndSet(false, true)) return;
                     if (onResult != null) onResult.accept(ReplyOutcome.CANCELLED);
                 })
                 .setOnCancelListener(d -> {
+                    if (!settled.compareAndSet(false, true)) return;
                     if (onResult != null) onResult.accept(ReplyOutcome.CANCELLED);
                 })
                 .setPositiveButton(R.string.ambient_reply_send, (d, w) -> {
+                    if (!settled.compareAndSet(false, true)) return;
                     if (stillAllowed != null && !stillAllowed.getAsBoolean()) {
                         Diagnostics.warning("ambient", "quick_reply_revoked");
                         if (onResult != null) onResult.accept(ReplyOutcome.FAILED);

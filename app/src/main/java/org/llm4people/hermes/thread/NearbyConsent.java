@@ -206,6 +206,7 @@ final class NearbyConsent {
         cancel();
         refresh();
         long ticket = generation;
+        boolean[] handled = {false};
         boolean editable = page.journal.pending() == null && !page.admitting();
         LinearLayout items = Ui.column(page.activity);
         Ui.pad(items, 20, 6);
@@ -220,23 +221,23 @@ final class NearbyConsent {
         remember.setChecked(remembered);
         if (editable) {
             items.addView(remember);
-            option(items, page.activity.getString(R.string.nearby_use_approx), ticket,
+            option(items, page.activity.getString(R.string.nearby_use_approx), ticket, handled,
                     () -> locateTurn(true, remember.isChecked(), null));
             if (!granted() && PermissionCenter.state(page.activity, PermissionCenter.Key.LOCATION)
                     == PermissionCenter.State.PERMANENTLY_DENIED) {
-                option(items, page.activity.getString(R.string.perm_action_open_settings), ticket,
+                option(items, page.activity.getString(R.string.perm_action_open_settings), ticket, handled,
                         () -> PermissionCenter.openAppSettings(page.activity));
             }
-            option(items, page.activity.getString(R.string.nearby_enter_neighborhood), ticket, () -> {
+            option(items, page.activity.getString(R.string.nearby_enter_neighborhood), ticket, handled, () -> {
                 if (!remembered || remember.isChecked() || preference(false)) manual();
             });
             option(items, page.activity.getString(sendWithout == null
-                    ? R.string.nearby_none_for_message : R.string.nearby_send_without), ticket, () -> {
+                    ? R.string.nearby_none_for_message : R.string.nearby_send_without), ticket, handled, () -> {
                 if (remembered && !remember.isChecked() && !preference(false)) return;
                 omit(sendWithout);
             });
         }
-        if (remembered) option(items, page.activity.getString(R.string.nearby_disable_profile), ticket, () -> {
+        if (remembered) option(items, page.activity.getString(R.string.nearby_disable_profile), ticket, handled, () -> {
             if (preference(false) && (!editable || saveChoice("omit", null))) { clearTurn(); skip = editable; refresh(); }
         });
         if (!editable) items.addView(Ui.text(page.activity, page.activity.getString(R.string.nearby_locked_in_flight), 15));
@@ -269,9 +270,11 @@ final class NearbyConsent {
         }
     }
 
-    private void option(LinearLayout items, String label, long ticket, Runnable action) {
+    private void option(LinearLayout items, String label, long ticket, boolean[] handled, Runnable action) {
         Button button = Ui.button(page.activity, label, v -> {
-            if (ticket != generation) return;
+            if (handled[0] || ticket != generation) return;
+            handled[0] = true;
+            v.setEnabled(false);
             page.screen.dismiss();
             action.run();
         });
