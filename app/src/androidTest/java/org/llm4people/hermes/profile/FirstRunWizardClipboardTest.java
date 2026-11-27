@@ -43,6 +43,7 @@ public final class FirstRunWizardClipboardTest extends InstrumentationTestCase {
         MainActivity activity = launchActivity(context.getPackageName(), MainActivity.class, null);
         ExecutorService io = Executors.newSingleThreadExecutor();
         AtomicReference<AlertDialog> dialogRef = new AtomicReference<>();
+        AtomicReference<android.widget.EditText> manualInputRef = new AtomicReference<>();
         try {
             runTestOnUiThread(() -> {
                 ProfileScreen screen = new ProfileScreen(
@@ -114,6 +115,7 @@ public final class FirstRunWizardClipboardTest extends InstrumentationTestCase {
                 View dialogRoot = manualDialog.getWindow().getDecorView();
                 android.widget.EditText manualInput = findFirstEditText(dialogRoot);
                 assertNotNull("Expected EditText inside manual paste dialog", manualInput);
+                manualInputRef.set(manualInput);
                 manualInput.setText("not-a-valid-link");
                 Button confirmBtn = manualDialog.getButton(AlertDialog.BUTTON_POSITIVE);
                 assertNotNull(confirmBtn);
@@ -124,10 +126,10 @@ public final class FirstRunWizardClipboardTest extends InstrumentationTestCase {
                 assertTrue("Invalid paste must show inline error",
                         hasVisibleText(dialogRoot, activity.getString(R.string.onboarding_paste_invalid)));
                 manualDialog.dismiss();
-                manualInput.post(() -> assertEquals("Dismissing manual dialog must clear sensitive input",
-                        0, manualInput.getText().length()));
             });
             getInstrumentation().waitForIdleSync();
+            runTestOnUiThread(() -> assertEquals("Dismissing manual dialog must clear sensitive input",
+                    0, manualInputRef.get().getText().length()));
         } finally {
             try {
                 runTestOnUiThread(() -> {
