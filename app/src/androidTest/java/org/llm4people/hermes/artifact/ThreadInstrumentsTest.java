@@ -13,6 +13,7 @@ import java.lang.reflect.Proxy;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.FutureTask;
+import java.util.concurrent.TimeUnit;
 
 @SuppressWarnings("deprecation")
 public class ThreadInstrumentsTest extends InstrumentationTestCase {
@@ -268,13 +269,25 @@ public class ThreadInstrumentsTest extends InstrumentationTestCase {
             CountDownLatch ready = new CountDownLatch(2), start = new CountDownLatch(1);
             FutureTask<Boolean> a = race(first, messages, 0, ready, start);
             FutureTask<Boolean> b = race(second, messages, 1, ready, start);
-            new Thread(a).start();
-            new Thread(b).start();
-            ready.await();
-            start.countDown();
-            assertTrue(a.get() ^ b.get());
-            assertEquals(first.state().current.pageJson, second.state().current.pageJson);
-            assertNull(first.state().previous);
+            Thread ta = new Thread(a, "instrument-race-a");
+            Thread tb = new Thread(b, "instrument-race-b");
+            ta.setDaemon(true);
+            tb.setDaemon(true);
+            try {
+                ta.start();
+                tb.start();
+                assertTrue("Race workers timed out waiting to start", ready.await(5, TimeUnit.SECONDS));
+                start.countDown();
+                assertTrue(a.get(10, TimeUnit.SECONDS) ^ b.get(10, TimeUnit.SECONDS));
+                assertEquals(first.state().current.pageJson, second.state().current.pageJson);
+                assertNull(first.state().previous);
+            } finally {
+                start.countDown();
+                a.cancel(true);
+                b.cancel(true);
+                ta.join(1000);
+                tb.join(1000);
+            }
         }
     }
 
@@ -284,7 +297,9 @@ public class ThreadInstrumentsTest extends InstrumentationTestCase {
         ThreadInstruments.Pin proposal = owner.proposals(messages).get(i);
         return new FutureTask<>(() -> {
             ready.countDown();
-            start.await();
+            if (!start.await(5, TimeUnit.SECONDS)) {
+                throw new IllegalStateException("Start latch timed out");
+            }
             try { owner.pin(before, proposal, messages); return true; }
             catch (ThreadInstruments.Conflict expected) { return false; }
         });
