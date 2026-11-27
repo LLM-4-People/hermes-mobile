@@ -108,6 +108,7 @@ final class WorkspaceShell {
         contentPane.addView(header);
         contentPane.addView(Ui.divider(activity));
         pending = Ui.tonalButton(activity, "", null);
+        pending.setTag("ws-pending-response");
         pending.setBackground(Ui.roundedRipple(activity, 0,
                 Ui.shape(activity, 0, R.color.accent_surface, 0, 0)));
         pending.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);

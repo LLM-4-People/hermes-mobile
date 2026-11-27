@@ -187,8 +187,10 @@ public class HiddenPromptTest extends InstrumentationTestCase {
             activity.onLayoutChanged();
             assertFalse(page.screen.list.isShown());
             assertFalse(reveal.isShown());
+            assertEquals("", reveal.getText().toString());
             actions.present(Collections.singletonList(prompt));
             assertTrue(reveal.isShown());
+            assertEquals(activity.getString(R.string.ws_reply_hermes), reveal.getText().toString());
             activity.onAction("workspace");
             assertFalse(reveal.isShown());
             assertFalse(reveal.performClick());
@@ -219,7 +221,10 @@ public class HiddenPromptTest extends InstrumentationTestCase {
 
     private static Button button(Context context, View view) {
         String label = context.getString(R.string.ws_reply_hermes);
-        if (view instanceof Button item && label.contentEquals(item.getText())) return item;
+        if (view instanceof Button item
+                && ("ws-pending-response".equals(item.getTag()) || label.contentEquals(item.getText()))) {
+            return item;
+        }
         if (view instanceof ViewGroup children) {
             for (int i = 0; i < children.getChildCount(); ++i) {
                 Button found = button(context, children.getChildAt(i));
