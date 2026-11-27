@@ -297,9 +297,8 @@ public final class PermissionsPanel {
 
     private void showFeedback(String message, boolean error) {
         if (feedback == null) return;
-        feedback.setText(message);
         feedback.setTextColor(activity.getColor(error ? R.color.danger : R.color.accent));
-        feedback.setVisibility(View.VISIBLE);
+        Ui.announceLiveStatus(feedback, message);
     }
 
     private void clearFeedback() {

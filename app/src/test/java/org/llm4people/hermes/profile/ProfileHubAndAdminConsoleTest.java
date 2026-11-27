@@ -31,6 +31,20 @@ public final class ProfileHubAndAdminConsoleTest {
         Diagnostics.clear();
         Diagnostics.setSink(null);
     }
+    @Test public void settingsFormFailsClosedWhenServerSettingsHaveNotLoaded() {
+        assertFalse("Settings form must not render fabricated defaults when settings == null",
+                AdminConsoleSheet.canRenderSettingsForm(null));
+        assertEquals(AdminConsoleSheet.UsersLoadState.ERROR,
+                AdminConsoleSheet.resolveUsersLoadState(false, false));
+        assertEquals(AdminConsoleSheet.UsersLoadState.LOADED,
+                AdminConsoleSheet.resolveUsersLoadState(true, false));
+        assertEquals(AdminConsoleSheet.UsersLoadState.LOADED,
+                AdminConsoleSheet.resolveUsersLoadState(false, true));
+        OnboardingModels.AdminSettings loaded = new OnboardingModels.AdminSettings(
+                "fr", "model-a", 16, 4, 300, true, 1, 1, 0, 0, 0);
+        assertTrue(AdminConsoleSheet.canRenderSettingsForm(loaded));
+    }
+
     @Test public void avatarInitialsSlugSuggestionAndValidationHandleAccentsAndHostileInput() {
         assertEquals("JD", Ui.initials("Jean Dupont"));
         assertEquals("A", Ui.initials("alex"));

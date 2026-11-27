@@ -43,6 +43,7 @@ public final class FirstRunWizardClipboardTest extends InstrumentationTestCase {
         MainActivity activity = launchActivity(context.getPackageName(), MainActivity.class, null);
         ExecutorService io = Executors.newSingleThreadExecutor();
         AtomicReference<AlertDialog> dialogRef = new AtomicReference<>();
+        AtomicReference<android.widget.EditText> manualInputRef = new AtomicReference<>();
         try {
             runTestOnUiThread(() -> {
                 ProfileScreen screen = new ProfileScreen(
@@ -104,13 +105,31 @@ public final class FirstRunWizardClipboardTest extends InstrumentationTestCase {
                 assertEquals("sk-secret-token-123456", filledKey.get());
 
                 // 4. Explicit tap with empty clipboard opens manual fallback dialog without crashing.
+                // R26.6.1: Invalid paste keeps dialog & input open with inline error; dismiss clears input.
                 nextClip.set(null);
                 pasteBtn.performClick();
                 assertEquals(2, clipboardReads.get());
                 AlertDialog manualDialog = dialogRef.getAndSet(null);
                 assertNotNull("Empty clipboard tap must open manual paste dialog", manualDialog);
-                if (manualDialog.isShowing()) manualDialog.dismiss();
+                assertTrue(manualDialog.isShowing());
+                View dialogRoot = manualDialog.getWindow().getDecorView();
+                android.widget.EditText manualInput = findFirstEditText(dialogRoot);
+                assertNotNull("Expected EditText inside manual paste dialog", manualInput);
+                manualInputRef.set(manualInput);
+                manualInput.setText("not-a-valid-link");
+                Button confirmBtn = manualDialog.getButton(AlertDialog.BUTTON_POSITIVE);
+                assertNotNull(confirmBtn);
+                confirmBtn.performClick();
+                assertTrue("Invalid paste must keep manual dialog open", manualDialog.isShowing());
+                assertEquals("Invalid paste must preserve user input",
+                        "not-a-valid-link", manualInput.getText().toString());
+                assertTrue("Invalid paste must show inline error",
+                        hasVisibleText(dialogRoot, activity.getString(R.string.onboarding_paste_invalid)));
+                manualDialog.dismiss();
             });
+            getInstrumentation().waitForIdleSync();
+            runTestOnUiThread(() -> assertEquals("Dismissing manual dialog must clear sensitive input",
+                    0, manualInputRef.get().getText().length()));
         } finally {
             try {
                 runTestOnUiThread(() -> {
@@ -143,5 +162,27 @@ public final class FirstRunWizardClipboardTest extends InstrumentationTestCase {
                 collectButtons(group.getChildAt(i), out);
             }
         }
+    }
+
+    private static android.widget.EditText findFirstEditText(View node) {
+        if (node instanceof android.widget.EditText et) return et;
+        if (node instanceof ViewGroup group) {
+            for (int i = 0; i < group.getChildCount(); i++) {
+                android.widget.EditText found = findFirstEditText(group.getChildAt(i));
+                if (found != null) return found;
+            }
+        }
+        return null;
+    }
+
+    private static boolean hasVisibleText(View node, String expected) {
+        if (node == null || node.getVisibility() != View.VISIBLE) return false;
+        if (node instanceof android.widget.TextView tv && expected.contentEquals(tv.getText())) return true;
+        if (node instanceof ViewGroup group) {
+            for (int i = 0; i < group.getChildCount(); i++) {
+                if (hasVisibleText(group.getChildAt(i), expected)) return true;
+            }
+        }
+        return false;
     }
 }

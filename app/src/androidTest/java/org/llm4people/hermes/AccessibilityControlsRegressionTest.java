@@ -2014,17 +2014,22 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
                                 updateFeedback.getAccessibilityLiveRegion());
                         assertEquals(1, feedbackMutations.get());
 
-                        // Intermediate percentage ticks drop live region to NONE.
+                        // Intermediate percentage ticks drop live region to NONE and deduplicate identical ticks.
                         showFeedback3.invoke(updatePanel, activity.getString(R.string.update_downloading, 25),
                                 false, false);
                         assertEquals(View.ACCESSIBILITY_LIVE_REGION_NONE,
                                 updateFeedback.getAccessibilityLiveRegion());
-                        showFeedback3.invoke(updatePanel, activity.getString(R.string.update_downloading_indeterminate),
-                                false, false);
+                        feedbackMutations.set(0);
+                        String indet = activity.getString(R.string.update_downloading_indeterminate);
+                        showFeedback3.invoke(updatePanel, indet, false, false);
                         assertEquals(View.ACCESSIBILITY_LIVE_REGION_NONE,
                                 updateFeedback.getAccessibilityLiveRegion());
+                        assertEquals(1, feedbackMutations.get());
+                        showFeedback3.invoke(updatePanel, indet, false, false);
+                        assertEquals("Identical announce=false progress tick must deduplicate",
+                                1, feedbackMutations.get());
 
-                        // Verifying milestone restores POLITE and suppresses duplicate identical calls.
+                        // R26.5.3: Verifying milestone restores POLITE and re-announces repeated discrete triggers.
                         feedbackMutations.set(0);
                         String verifying = activity.getString(R.string.update_verifying);
                         showFeedback3.invoke(updatePanel, verifying, false, true);
@@ -2032,9 +2037,10 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
                                 updateFeedback.getAccessibilityLiveRegion());
                         assertEquals(1, feedbackMutations.get());
                         showFeedback3.invoke(updatePanel, verifying, false, true);
-                        assertEquals(1, feedbackMutations.get());
+                        assertEquals("Repeated announce=true milestone must clear+set for TalkBack",
+                                3, feedbackMutations.get());
 
-                        // Error milestone announces via POLITE with danger tint and suppresses duplicates.
+                        // R26.5.3: Error milestone announces via POLITE with danger tint and re-announces on retry.
                         feedbackMutations.set(0);
                         String netErr = activity.getString(R.string.update_error_network);
                         showFeedback2.invoke(updatePanel, netErr, true);
@@ -2043,7 +2049,8 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
                         assertEquals(activity.getColor(R.color.danger), updateFeedback.getCurrentTextColor());
                         assertEquals(1, feedbackMutations.get());
                         showFeedback2.invoke(updatePanel, netErr, true);
-                        assertEquals(1, feedbackMutations.get());
+                        assertEquals("Repeated announce=true error must clear+set for TalkBack",
+                                3, feedbackMutations.get());
 
                         // R20.5.4: ProfileDefaultsPanel removes POLITE from SOUL.md counterPill and guards
                         // toolsetCountPill & statusPill against unchanged text.

@@ -205,8 +205,13 @@ public final class UniversalSearchSheet implements AutoCloseable {
 
         LinearLayout fieldShell = Ui.row(localized);
         fieldShell.setGravity(Gravity.CENTER_VERTICAL);
-        fieldShell.setBackground(Ui.shape(localized, Ui.BUTTON_CORNER_DP,
-                R.color.surface_container, R.color.line, 1));
+        fieldShell.setAddStatesFromChildren(true);
+        android.graphics.drawable.StateListDrawable fieldBg = new android.graphics.drawable.StateListDrawable();
+        fieldBg.addState(new int[]{android.R.attr.state_focused},
+                Ui.shape(localized, Ui.BUTTON_CORNER_DP, R.color.surface_container, R.color.accent, 2));
+        fieldBg.addState(new int[]{},
+                Ui.shape(localized, Ui.BUTTON_CORNER_DP, R.color.surface_container, R.color.line_strong, 1));
+        fieldShell.setBackground(fieldBg);
         fieldShell.setPaddingRelative(Ui.dp(localized, 12), 0, Ui.dp(localized, 4), 0);
 
         ImageView searchIcon = new ImageView(localized);

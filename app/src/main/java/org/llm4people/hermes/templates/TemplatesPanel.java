@@ -338,9 +338,8 @@ public final class TemplatesPanel {
 
     private void showStatus(String msg, boolean danger) {
         if (customStatus == null) return;
-        customStatus.setText(msg);
         customStatus.setTextColor(activity.getColor(danger ? R.color.danger : R.color.muted));
-        customStatus.setVisibility(View.VISIBLE);
+        Ui.announceLiveStatus(customStatus, msg);
     }
 
     private void hideStatus() {

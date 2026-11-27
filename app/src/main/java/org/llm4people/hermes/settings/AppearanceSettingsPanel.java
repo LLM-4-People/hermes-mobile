@@ -546,8 +546,7 @@ public final class AppearanceSettingsPanel {
                 applyCustomization(next);
                 Toast.makeText(activity, R.string.appearance_greeting_saved, Toast.LENGTH_SHORT).show();
             } catch (IllegalArgumentException rejected) {
-                greetingError.setText(R.string.appearance_secret_rejected);
-                greetingError.setVisibility(View.VISIBLE);
+                Ui.showInlineError(greetingError, activity.getString(R.string.appearance_secret_rejected));
             }
         });
         LinearLayout.LayoutParams btnLp = new LinearLayout.LayoutParams(-2, -2);
@@ -706,8 +705,7 @@ public final class AppearanceSettingsPanel {
                     applyCustomization(store.current().withComposerShortcuts(updated));
                     dialog.dismiss();
                 } catch (IllegalArgumentException | IllegalStateException invalid) {
-                    errorView.setText(R.string.appearance_shortcut_invalid);
-                    errorView.setVisibility(View.VISIBLE);
+                    Ui.showInlineError(errorView, activity.getString(R.string.appearance_shortcut_invalid));
                 }
             });
         }

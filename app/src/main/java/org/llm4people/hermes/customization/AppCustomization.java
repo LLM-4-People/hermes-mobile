@@ -24,9 +24,6 @@ import java.util.regex.Pattern;
 public final class AppCustomization {
     public static final double WCAG_AA_MIN_CONTRAST = ThemePalette.WCAG_AA_NORMAL;
     public static final int LIGHT_SURFACE_RGB = ThemePalette.DAY_SURFACE & 0xFFFFFF;
-    public static final int DARK_SURFACE_RGB = ThemePalette.NIGHT_SURFACE & 0xFFFFFF;
-    public static final int LIGHT_INK_RGB = ThemePalette.DAY_INK & 0xFFFFFF;
-    public static final int WHITE_RGB = ThemePalette.DAY_ON_ACCENT & 0xFFFFFF;
 
     public static final float MIN_FONT_SCALE_DELTA = -0.15f;
     public static final float MAX_FONT_SCALE_DELTA = 0.30f;
@@ -208,7 +205,7 @@ public final class AppCustomization {
         return 0xFF000000 | parseRgb(hex);
     }
 
-    /** Effective dark-mode ARGB accent color guaranteed WCAG AA (&gt;= 4.5:1) against {@link #DARK_SURFACE_RGB}. */
+    /** Effective dark-mode ARGB accent color guaranteed WCAG AA (&gt;= 4.5:1) against {@link ThemePalette#NIGHT_SURFACE}. */
     public int darkAccentArgb() {
         if (palette != PalettePreset.CUSTOM) {
             return 0xFF000000 | parseRgb(palette.darkAccentHex);
@@ -294,15 +291,6 @@ public final class AppCustomization {
             throw new IllegalArgumentException("Accent color fails WCAG AA 4.5:1 contrast");
         }
         return normalized;
-    }
-
-    public static boolean isAccessibleAccentHex(String rawHex) {
-        try {
-            validateCustomAccentHex(rawHex);
-            return true;
-        } catch (IllegalArgumentException invalid) {
-            return false;
-        }
     }
 
     public static int parseRgb(String hex) {

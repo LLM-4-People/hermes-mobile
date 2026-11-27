@@ -608,20 +608,28 @@ public final class QrScannerActivity extends Activity {
         postImageResult(eval.verdict(), eval.rawText());
     }
 
+    static int imageFailureMessageRes(ScanVerdict verdict) {
+        return verdict == ScanVerdict.NOT_HERMES
+                ? R.string.qr_scanner_not_hermes
+                : R.string.qr_scanner_image_no_qr;
+    }
+
+    static boolean routesImageFailureToFallback(boolean fallbackVisible) {
+        return fallbackVisible;
+    }
+
     private void postImageResult(ScanVerdict verdict, String rawText) {
         mainHandler.post(() -> {
             if (isFinishing() || isDestroyed()) return;
             if (verdict == ScanVerdict.VALID_HERMES) {
                 deliverSuccess(rawText, "scanned_image");
-            } else if (verdict == ScanVerdict.NOT_HERMES) {
-                setStatus(getString(R.string.qr_scanner_not_hermes));
-                if (fallbackCard.getVisibility() == View.VISIBLE) {
-                    setFallbackDetail(R.string.qr_scanner_not_hermes);
-                }
             } else {
-                setStatus(getString(R.string.qr_scanner_image_no_qr));
-                if (fallbackCard.getVisibility() == View.VISIBLE) {
-                    setFallbackDetail(R.string.qr_scanner_image_no_qr);
+                String errMsg = getString(imageFailureMessageRes(verdict));
+                boolean fallbackVisible = fallbackScroll != null && fallbackScroll.getVisibility() == View.VISIBLE;
+                if (routesImageFailureToFallback(fallbackVisible)) {
+                    Ui.announceLiveStatus(fallbackDetail, errMsg);
+                } else {
+                    Ui.announceLiveStatus(statusText, errMsg);
                 }
             }
         });

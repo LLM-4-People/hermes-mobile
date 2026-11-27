@@ -437,10 +437,10 @@ public final class Ui {
     }
 
     /**
-     * Show an inline validation/status error with POLITE live region, forcing a fresh text-change
-     * announcement when the error view is already visible with identical text.
+     * Announce a discrete live status message with POLITE live region, forcing a fresh text-change
+     * announcement when the target view is already visible with identical text.
      */
-    public static void showInlineError(TextView view, CharSequence message) {
+    public static void announceLiveStatus(TextView view, CharSequence message) {
         if (view == null) return;
         CharSequence next = message == null ? "" : message;
         if (view.getAccessibilityLiveRegion() != View.ACCESSIBILITY_LIVE_REGION_POLITE) {
@@ -451,6 +451,14 @@ public final class Ui {
         }
         view.setText(next);
         view.setVisibility(View.VISIBLE);
+    }
+
+    /**
+     * Show an inline validation/status error with POLITE live region, forcing a fresh text-change
+     * announcement when the error view is already visible with identical text.
+     */
+    public static void showInlineError(TextView view, CharSequence message) {
+        announceLiveStatus(view, message);
     }
 
     /** Enabled/disabled ColorStateList pairing raw {@code enabledColor} and {@code disabledColor} ARGB values. */
