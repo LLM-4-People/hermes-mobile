@@ -215,8 +215,7 @@ public final class PresenceSettingsPanel {
     }
 
     private boolean notificationsReady() {
-        return PermissionCenter.state(context, PermissionCenter.Key.NOTIFICATIONS) == PermissionCenter.State.GRANTED
-                && DeepAndroidActions.isNudgeChannelEnabled(context);
+        return DeepAndroidActions.areNudgesReady(context);
     }
 
     public void refresh() {
@@ -626,7 +625,7 @@ public final class PresenceSettingsPanel {
 
     private void clearFeedback() {
         pendingDenialKey = null;
-        if (feedback != null) feedback.setVisibility(View.GONE);
+        Ui.clearLiveStatus(feedback);
         if (feedbackAction != null) {
             feedbackAction.setVisibility(View.GONE);
             feedbackAction.setOnClickListener(null);

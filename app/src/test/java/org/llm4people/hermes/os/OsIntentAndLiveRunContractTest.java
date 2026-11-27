@@ -23,14 +23,45 @@ public final class OsIntentAndLiveRunContractTest {
     }
 
     @Test
-    public void nudgeChannelEnabledFailsClosedOnNullAndLocationUnavailableMapsFailClosed() {
+    public void nudgeChannelEnabledFailsClosedOnNullAndLocationUnavailableMapsFailClosed() throws Exception {
         assertFalse(DeepAndroidActions.isNudgeChannelEnabled(null));
+        assertFalse(DeepAndroidActions.areNudgesReady(null));
         assertEquals(
                 PresenceSettingsPanel.ToggleDecision.UNAVAILABLE,
                 PresenceSettingsPanel.decidePermissionToggle(true, PermissionCenter.State.UNAVAILABLE));
         assertEquals(
                 PresenceSettingsPanel.ToggleDecision.OPEN_SETTINGS,
                 PresenceSettingsPanel.decidePermissionToggle(true, PermissionCenter.State.PERMANENTLY_DENIED));
+
+        // R37.3.3: reconcilePermissions strips revoked nudges and location before capability advertisement.
+        org.llm4people.hermes.presence.PresencePolicy allOn = org.llm4people.hermes.presence.PresencePolicy.defaults()
+                .withAppPresence(true)
+                .withContinuousLocation(true)
+                .withPreciseLocation(true)
+                .withProactiveNudges(true);
+        org.llm4people.hermes.presence.PresencePolicy reconciled = PresenceSettingsPanel.reconcilePermissions(
+                allOn, false, false, false);
+        assertFalse(reconciled.continuousLocationEnabled);
+        assertFalse(reconciled.preciseLocation);
+        assertFalse(reconciled.proactiveNudgesEnabled);
+
+        // R37.3.4: PermissionCenter.areNotificationsEnabled fails closed on null Context / RuntimeException.
+        Method areNotificationsEnabled = PermissionCenter.class.getDeclaredMethod(
+                "areNotificationsEnabled", android.content.Context.class);
+        areNotificationsEnabled.setAccessible(true);
+        assertFalse((Boolean) areNotificationsEnabled.invoke(null, new Object[]{null}));
+
+        // R37.3.1: HermesWidgetProvider.refresh(context) preserves runActive instead of resetting it to false.
+        java.lang.reflect.Field runActiveField = HermesWidgetProvider.class.getDeclaredField("runActive");
+        runActiveField.setAccessible(true);
+        boolean previous = runActiveField.getBoolean(null);
+        try {
+            runActiveField.setBoolean(null, true);
+            HermesWidgetProvider.refresh(null);
+            org.junit.Assert.assertTrue("refresh(context) must preserve runActive", runActiveField.getBoolean(null));
+        } finally {
+            runActiveField.setBoolean(null, previous);
+        }
     }
 
     @Test

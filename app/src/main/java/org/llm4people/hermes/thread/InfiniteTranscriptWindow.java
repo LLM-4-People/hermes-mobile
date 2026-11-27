@@ -93,7 +93,7 @@ public final class InfiniteTranscriptWindow<T> {
 
     /** Replaces the window with the latest tail page (initial open or snap-to-latest). */
     public synchronized PageResult replaceLatest(List<T> latestChronological, boolean hasOlder,
-                                                 Long cursorOldestId, Long cursorNewestId, int totalCount) {
+                                                 Long cursorOldestId, Long cursorNewestId) {
         rows.clear();
         keys.clear();
         int added = 0;
@@ -120,7 +120,7 @@ public final class InfiniteTranscriptWindow<T> {
      * Automatically trims excess rows from the bottom ({@code hasNewer = true}) so memory stays O(1).
      */
     public synchronized PageResult prependOlder(List<T> olderChronological, boolean hasMoreOlder,
-                                                Long pageOldestId, int totalCount) {
+                                                Long pageOldestId) {
         List<T> unique = new ArrayList<>();
         if (olderChronological != null) {
             for (T row : olderChronological) {
@@ -148,7 +148,7 @@ public final class InfiniteTranscriptWindow<T> {
      * Automatically trims excess rows from the top ({@code hasOlder = true}) and returns negative {@code anchorDelta}.
      */
     public synchronized PageResult appendNewer(List<T> newerChronological, boolean hasMoreNewer,
-                                               Long pageNewestId, int totalCount) {
+                                               Long pageNewestId) {
         int appended = 0;
         if (newerChronological != null) {
             for (T row : newerChronological) {

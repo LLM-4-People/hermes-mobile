@@ -186,28 +186,40 @@ public final class Android16OsIntegrationTest extends InstrumentationTestCase {
 
     public void testMalformedExportedIntentsAndNullNudgeChannelFailClosed() {
         Context context = getInstrumentation().getTargetContext();
-        // R36.3.1: Poisoned Intent throwing RuntimeException on extra reads must return null / no-op cleanly.
-        android.content.Intent poisonedEntry = new android.content.Intent(OsEntryIntent.ACTION_ENTRY) {
-            @Override public String getStringExtra(String name) {
-                throw new android.os.BadParcelableException("poisoned parcel");
-            }
-        };
-        assertNull(OsEntryIntent.parseRequest(poisonedEntry));
+        org.llm4people.hermes.Diagnostics.clear();
+        try {
+            // R36.3.1: Poisoned Intent throwing RuntimeException on extra reads must return null / no-op cleanly.
+            android.content.Intent poisonedEntry = new android.content.Intent(OsEntryIntent.ACTION_ENTRY) {
+                @Override public String getStringExtra(String name) {
+                    throw new android.os.BadParcelableException("poisoned parcel");
+                }
+            };
+            assertNull(OsEntryIntent.parseRequest(poisonedEntry));
 
-        HermesWidgetProvider provider = new HermesWidgetProvider();
-        provider.onReceive(null, null);
-        android.content.Intent poisonedWidget = new android.content.Intent(HermesWidgetProvider.ACTION_REFRESH_WIDGETS) {
-            @Override public String getStringExtra(String name) {
-                throw new android.os.BadParcelableException("poisoned widget parcel");
-            }
-        };
-        provider.onReceive(context, poisonedWidget);
+            HermesWidgetProvider provider = new HermesWidgetProvider();
+            provider.onReceive(null, null);
+            android.content.Intent poisonedWidget = new android.content.Intent(HermesWidgetProvider.ACTION_REFRESH_WIDGETS) {
+                @Override public String getStringExtra(String name) {
+                    throw new android.os.BadParcelableException("poisoned widget parcel");
+                }
+            };
+            provider.onReceive(context, poisonedWidget);
 
-        org.llm4people.hermes.push.DistributorReceiver receiver = new org.llm4people.hermes.push.DistributorReceiver();
-        receiver.onReceive(null, null);
+            org.llm4people.hermes.push.DistributorReceiver receiver = new org.llm4people.hermes.push.DistributorReceiver();
+            receiver.onReceive(null, null);
 
-        // R36.3.2: DeepAndroidActions.isNudgeChannelEnabled fail-closed on null context.
-        assertFalse(org.llm4people.hermes.presence.DeepAndroidActions.isNudgeChannelEnabled(null));
-        assertTrue(org.llm4people.hermes.presence.DeepAndroidActions.isNudgeChannelEnabled(context));
+            String exported = org.llm4people.hermes.Diagnostics.exportRedacted();
+            assertTrue("Expected os.entry_intent_rejected diagnostic, got: " + exported,
+                    exported.contains("os.entry_intent_rejected"));
+            assertTrue("Expected os.widget_broadcast_rejected diagnostic, got: " + exported,
+                    exported.contains("os.widget_broadcast_rejected"));
+
+            // R36.3.2 & R37.3.3: DeepAndroidActions.isNudgeChannelEnabled / areNudgesReady fail-closed on null context.
+            assertFalse(org.llm4people.hermes.presence.DeepAndroidActions.isNudgeChannelEnabled(null));
+            assertFalse(org.llm4people.hermes.presence.DeepAndroidActions.areNudgesReady(null));
+            assertTrue(org.llm4people.hermes.presence.DeepAndroidActions.isNudgeChannelEnabled(context));
+        } finally {
+            org.llm4people.hermes.Diagnostics.clear();
+        }
     }
 }

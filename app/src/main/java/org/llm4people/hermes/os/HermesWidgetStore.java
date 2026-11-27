@@ -115,7 +115,7 @@ public final class HermesWidgetStore {
         try {
             Context app = context.getApplicationContext();
             int removed = new HermesWidgetStore(app).purgeProfile(profileId);
-            if (removed > 0) HermesWidgetProvider.refresh(app, false);
+            if (removed > 0) HermesWidgetProvider.refresh(app);
         } catch (RuntimeException failed) {
             Diagnostics.warning("widget", "profile_forget_failed", failed);
         }

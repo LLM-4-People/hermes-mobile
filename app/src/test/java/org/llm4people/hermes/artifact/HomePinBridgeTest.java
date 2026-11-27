@@ -143,4 +143,30 @@ public final class HomePinBridgeTest {
         assertEquals(1, deliveriesOpened.get());
         assertEquals(1, policyOpened.get());
     }
+
+    @Test public void widgetIdsUpTo64CharsAndDigitLeadingAreValidAndDeadBroadcastRemoved() throws Exception {
+        // R37.3.2 / R37.4.1: 64-char and digit-leading widget IDs stay valid without a "widget-" prefix.
+        String id64 = "a".repeat(64);
+        String digitLeading = "123_daily_status";
+        for (String wid : new String[]{id64, digitLeading}) {
+            assertTrue("Expected validWidgetId for " + wid,
+                    org.llm4people.hermes.os.HermesWidgetSpec.validWidgetId(wid));
+            LiveUiPatch.WidgetSpec spec = new LiveUiPatch.WidgetSpec(
+                    wid, "Status", "Ready", "status", java.util.List.of(), null, null, true);
+            org.llm4people.hermes.os.HermesWidgetSpec osSpec = HomePinBridge.toOsWidgetSpec(spec, "profile-a");
+            assertNotNull("Expected toOsWidgetSpec to succeed for " + wid, osSpec);
+            assertEquals(wid, osSpec.widgetId);
+            assertTrue(osSpec.widgetId.length() <= 64);
+        }
+
+        // R37.4.2: dead ACTION_WIDGET_UPDATED and broadcastWidgetUpdated must be absent.
+        for (java.lang.reflect.Field f : HomePinBridge.class.getDeclaredFields()) {
+            assertFalse("Dead ACTION_WIDGET_UPDATED must be removed",
+                    "ACTION_WIDGET_UPDATED".equals(f.getName()));
+        }
+        for (java.lang.reflect.Method m : HomePinBridge.class.getDeclaredMethods()) {
+            assertFalse("Dead broadcastWidgetUpdated must be removed",
+                    "broadcastWidgetUpdated".equals(m.getName()));
+        }
+    }
 }

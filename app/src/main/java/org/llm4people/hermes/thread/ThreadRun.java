@@ -19,7 +19,10 @@ import org.llm4people.hermes.net.HermesApi;
 import org.llm4people.hermes.os.LiveRunNotification;
 import org.llm4people.hermes.panel.BrainCapabilities;
 import org.llm4people.hermes.perf.StreamCoalescer;
+import org.llm4people.hermes.presence.ContinuousLocationTracker;
+import org.llm4people.hermes.presence.DeepAndroidActions;
 import org.llm4people.hermes.presence.PresencePolicy;
+import org.llm4people.hermes.presence.PresenceSettingsPanel;
 import org.llm4people.hermes.share.AttachmentUploader;
 import org.llm4people.hermes.share.DeviceBridgeFlow;
 
@@ -318,7 +321,11 @@ final class ThreadRun {
                 boolean calendarGranted = CalendarContextReader.hasPermission(page.activity);
                 List<String> caps = DeviceBridgeFlow.executableCapabilities(
                         true, true, true, ambient, listenerOn, calendarGranted, hasApps,
-                        PresencePolicy.load(page.account()));
+                        PresenceSettingsPanel.reconcilePermissions(
+                                PresencePolicy.load(page.account()),
+                                ContinuousLocationTracker.hasCoarsePermission(page.activity),
+                                ContinuousLocationTracker.hasFinePermission(page.activity),
+                                DeepAndroidActions.areNudgesReady(page.activity)));
                 body.put("device_capabilities", DeviceBridgeFlow.capabilitiesJson(caps));
             }
             journal.stage(body, SystemClock.elapsedRealtime(), bootCount(), idem.optLong("retention_seconds"),

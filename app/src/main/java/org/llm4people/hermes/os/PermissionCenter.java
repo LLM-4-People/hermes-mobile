@@ -386,10 +386,10 @@ public final class PermissionCenter {
     private static boolean areNotificationsEnabled(Context context) {
         try {
             NotificationManager nm = context.getSystemService(NotificationManager.class);
-            return nm == null || nm.areNotificationsEnabled();
+            return nm != null && nm.areNotificationsEnabled();
         } catch (RuntimeException unavailable) {
             Diagnostics.warning("permissions", "notifications_enabled_check_failed", unavailable);
-            return true;
+            return false;
         }
     }
 

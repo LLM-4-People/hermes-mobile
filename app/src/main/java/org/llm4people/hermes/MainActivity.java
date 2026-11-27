@@ -2209,8 +2209,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             if (account != null) {
                 if (activePresencePanel != null) {
                     activePresencePanel.onNotificationPermissionResult(granted);
-                } else if (PermissionCenter.state(this, PermissionCenter.Key.NOTIFICATIONS) == PermissionCenter.State.GRANTED
-                        && DeepAndroidActions.isNudgeChannelEnabled(this)) {
+                } else if (DeepAndroidActions.areNudgesReady(this)) {
                     PresencePolicy current = PresencePolicy.load(account);
                     PresencePolicy updated = current.withProactiveNudges(true);
                     if (!updated.equals(current)) PresencePolicy.save(account, updated);
