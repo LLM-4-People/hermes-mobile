@@ -37,17 +37,21 @@ public final class ClipboardPastePillTest {
         payload[0] = "Nouveau texte";
         assertTrue("Newer clip timestamp should re-offer pill", pill.shouldOffer());
         assertEquals(1, readCalls.get());
-
-        pill.dismissCurrent();
+        assertEquals("Nouveau texte", pill.consumeOnUserTap());
         assertFalse(pill.shouldOffer());
-        assertEquals(1, readCalls.get());
+        assertEquals(2, readCalls.get());
     }
 
     @Test
     public void sanitizesControlCharsBlankTextAndOversizedClips() {
         assertNull(ClipboardPastePill.sanitizeClipboardText(null));
         assertNull(ClipboardPastePill.sanitizeClipboardText("   \t\n  "));
+        assertNull("NBSP-only clipboard must be rejected", ClipboardPastePill.sanitizeClipboardText("\u00A0\u2003\u202F"));
+        assertNull("Hangul filler-only clipboard must be rejected", ClipboardPastePill.sanitizeClipboardText("\u3164\u115F"));
+        assertNull("BiDi + CGJ-only clipboard must be rejected", ClipboardPastePill.sanitizeClipboardText("\u202E\u2066\u034F"));
         assertEquals("ab\nc", ClipboardPastePill.sanitizeClipboardText("a\u0000b\nc"));
+        assertEquals("hello world", ClipboardPastePill.sanitizeClipboardText("hel\u202Elo \u2066wor\u3164ld\u034F"));
+        assertEquals("👨‍👩‍👧‍👦 ok", ClipboardPastePill.sanitizeClipboardText("👨‍👩‍👧‍👦 ok"));
         String huge = "x".repeat(IncomingShare.MAX_TEXT + 500);
         assertEquals(IncomingShare.MAX_TEXT, ClipboardPastePill.sanitizeClipboardText(huge).length());
     }

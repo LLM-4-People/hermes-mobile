@@ -109,10 +109,10 @@ public class DeviceActionContractTest extends InstrumentationTestCase {
         Context context = getInstrumentation().getTargetContext();
         WorkspaceLayout a = WorkspaceLayout.parse(page(EVENT));
         WorkspaceLayout b = WorkspaceLayout.parse(page(EVENT.replace("Bureau Érable", "Salle B")));
-        InstrumentChanges.Change delta = InstrumentChanges.between(context, a, b).get(0);
+        InstrumentChanges.Change delta = InstrumentChanges.details(context, a, b).get(0).change();
         assertTrue(delta.before().contains("Bureau Érable"));
         assertTrue(delta.after().contains("Salle B"));
-        assertTrue(InstrumentChanges.between(context, a, a).isEmpty());
+        assertTrue(InstrumentChanges.details(context, a, a).isEmpty());
     }
 
     private static String repeat(int count) { return new String(new char[count]).replace('\0', 'a'); }

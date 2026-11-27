@@ -135,11 +135,9 @@ public final class PushPolicy {
     }
 
     public static String formatMinute(Context context, int minuteOfDay) {
-        if (minuteOfDay < 0 || minuteOfDay >= 1440) {
-            throw new IllegalArgumentException("Minute out of range");
-        }
-        return AppLanguage.wrapContext(context).getString(
-                R.string.push_quiet_time_format, minuteOfDay / 60, minuteOfDay % 60);
+        Context localized = AppLanguage.wrapContext(context);
+        return formatMinute(minuteOfDay, localized.getString(R.string.push_quiet_time_format),
+                AppLanguage.resolvedLocale(localized));
     }
 
     public static String formatMinute(int minuteOfDay, String formatPattern, Locale locale) {

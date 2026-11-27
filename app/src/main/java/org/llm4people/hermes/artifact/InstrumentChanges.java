@@ -34,12 +34,6 @@ final class InstrumentChanges {
         }
     }
 
-    static List<Change> between(Context context, WorkspaceLayout old, WorkspaceLayout next) {
-        List<Change> changes = new ArrayList<>();
-        for (Detail detail : details(context, old, next)) changes.add(detail.change());
-        return changes;
-    }
-
     static List<Detail> details(Context c, WorkspaceLayout old, WorkspaceLayout next) {
         Report changes = new Report(c);
         changed(changes, "", c.getString(R.string.ws_diff_screen), old.surface, next.surface);

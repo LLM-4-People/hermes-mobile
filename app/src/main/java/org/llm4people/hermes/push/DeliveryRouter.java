@@ -6,8 +6,6 @@ import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.Typeface;
-import android.net.Uri;
-import android.provider.CalendarContract;
 import android.text.format.Formatter;
 import android.view.View;
 import android.widget.Button;
@@ -20,16 +18,15 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.Diagnostics;
-import org.llm4people.hermes.PlainTextSanitizer;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.RouteRegistry;
 import org.llm4people.hermes.Ui;
 import org.llm4people.hermes.artifact.CodeReader;
+import org.llm4people.hermes.artifact.DeviceAction;
 import org.llm4people.hermes.net.HermesApi;
 import org.llm4people.hermes.profile.Account;
 
 import java.text.DateFormat;
-import java.time.DateTimeException;
 import java.time.OffsetDateTime;
 import java.util.Date;
 import java.util.List;
@@ -437,41 +434,21 @@ public final class DeliveryRouter {
         }
     }
 
-    static final int MAX_CALENDAR_TITLE_CHARS = 120;
-    static final int MAX_CALENDAR_LOCATION_CHARS = 200;
-    static final int MAX_MAP_QUERY_CHARS = 200;
-    static final int MAX_SHARE_TEXT_CHARS = 2000;
+    static final int MAX_CALENDAR_TITLE_CHARS = DeviceAction.MAX_CALENDAR_TITLE_CHARS;
+    static final int MAX_CALENDAR_LOCATION_CHARS = DeviceAction.MAX_CALENDAR_LOCATION_CHARS;
+    static final int MAX_MAP_QUERY_CHARS = DeviceAction.MAX_MAP_QUERY_CHARS;
+    static final int MAX_SHARE_TEXT_CHARS = DeviceAction.MAX_SHARE_TEXT_CHARS;
 
     static boolean isValidSingleLineField(String value, int maxChars) {
-        return value != null
-                && !value.isEmpty()
-                && value.length() <= maxChars
-                && !PlainTextSanitizer.hasUnsafeSingleLineCodePoint(value)
-                && PlainTextSanitizer.hasVisibleText(value);
+        return DeviceAction.isValidSingleLineField(value, maxChars);
     }
 
     static boolean isValidShareText(String value) {
-        if (value == null || value.isEmpty() || value.length() > MAX_SHARE_TEXT_CHARS
-                || !PlainTextSanitizer.hasVisibleText(value)) {
-            return false;
-        }
-        for (int i = 0; i < value.length(); ) {
-            int cp = value.codePointAt(i);
-            i += Character.charCount(cp);
-            if (Character.isISOControl(cp) && cp != '\n' && cp != '\t') return false;
-            if (cp >= Character.MIN_SURROGATE && cp <= Character.MAX_SURROGATE) return false;
-            int type = Character.getType(cp);
-            if (type == Character.LINE_SEPARATOR || type == Character.PARAGRAPH_SEPARATOR) return false;
-            if (PlainTextSanitizer.isStrippableInvisible(cp)) return false;
-            if (type == Character.FORMAT && cp != 0x200C && cp != 0x200D) return false;
-        }
-        return true;
+        return DeviceAction.isValidShareText(value);
     }
 
     static boolean isValidCalendarYear(OffsetDateTime dt) {
-        if (dt == null) return false;
-        int year = dt.getYear();
-        return year >= 1 && year <= 9999;
+        return DeviceAction.isValidCalendarYear(dt);
     }
 
     static ReviewedAction parseSafeDeviceAction(Context context, JSONObject payload) {
@@ -482,62 +459,42 @@ public final class DeliveryRouter {
         String kind = action.optString("kind", action.optString("action_type", "")).trim();
         return switch (kind) {
             case "calendar_event" -> {
-                String title = action.optString("title", "").trim();
                 String startRaw = action.optString("start", "").trim();
                 String endRaw = action.optString("end", "").trim();
-                String location = action.optString("location", "").trim();
-                if (!isValidSingleLineField(title, MAX_CALENDAR_TITLE_CHARS)
-                        || startRaw.isEmpty()
-                        || endRaw.isEmpty()
-                        || (!location.isEmpty() && !isValidSingleLineField(location, MAX_CALENDAR_LOCATION_CHARS))) {
-                    yield null;
-                }
-                try {
-                    OffsetDateTime start = OffsetDateTime.parse(startRaw);
-                    OffsetDateTime end = OffsetDateTime.parse(endRaw);
-                    if (!isValidCalendarYear(start) || !isValidCalendarYear(end) || !end.isAfter(start)) yield null;
-                    Intent intent = new Intent(Intent.ACTION_INSERT, CalendarContract.Events.CONTENT_URI)
-                            .putExtra(CalendarContract.Events.TITLE, title)
-                            .putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, start.toInstant().toEpochMilli())
-                            .putExtra(CalendarContract.EXTRA_EVENT_END_TIME, end.toInstant().toEpochMilli());
-                    if (!location.isEmpty()) intent.putExtra(CalendarContract.Events.EVENT_LOCATION, location);
-                    String startLine = localized == null ? startRaw
-                            : localized.getString(R.string.push_action_calendar_start, startRaw);
-                    String endLine = localized == null ? endRaw
-                            : localized.getString(R.string.push_action_calendar_end, endRaw);
-                    String locLine = location.isEmpty() ? ""
-                            : "\n" + (localized == null ? location
-                            : localized.getString(R.string.push_action_calendar_location, location));
-                    String preview = title + "\n\n" + startLine + "\n" + endLine + locLine;
-                    yield new ReviewedAction(
-                            localized == null ? "" : localized.getString(R.string.push_action_calendar_title),
-                            preview,
-                            localized == null ? "" : localized.getString(R.string.push_action_calendar_open),
-                            intent);
-                } catch (DateTimeException invalid) {
-                    yield null;
-                }
+                DeviceAction.CalendarEvent cal = DeviceAction.parseCalendarEvent(
+                        action.optString("title", ""), startRaw, endRaw, action.optString("location", ""));
+                if (cal == null) yield null;
+                String startLine = localized == null ? startRaw
+                        : localized.getString(R.string.push_action_calendar_start, startRaw);
+                String endLine = localized == null ? endRaw
+                        : localized.getString(R.string.push_action_calendar_end, endRaw);
+                String locLine = cal.location() == null ? ""
+                        : "\n" + (localized == null ? cal.location()
+                        : localized.getString(R.string.push_action_calendar_location, cal.location()));
+                String preview = cal.title() + "\n\n" + startLine + "\n" + endLine + locLine;
+                yield new ReviewedAction(
+                        localized == null ? "" : localized.getString(R.string.push_action_calendar_title),
+                        preview,
+                        localized == null ? "" : localized.getString(R.string.push_action_calendar_open),
+                        cal.target());
             }
             case "share_text" -> {
-                String text = action.optString("text", "").trim();
-                if (!isValidShareText(text)) yield null;
-                Intent send = new Intent(Intent.ACTION_SEND).setType("text/plain")
-                        .putExtra(Intent.EXTRA_TEXT, text);
+                DeviceAction.ShareText share = DeviceAction.parseShareText(action.optString("text", ""));
+                if (share == null) yield null;
                 yield new ReviewedAction(
                         localized == null ? "" : localized.getString(R.string.push_action_share_title),
-                        text,
+                        share.text(),
                         localized == null ? "" : localized.getString(R.string.push_action_share_open),
-                        Intent.createChooser(send, null));
+                        Intent.createChooser(share.target(), null));
             }
             case "map_search" -> {
-                String query = action.optString("query", "").trim();
-                if (!isValidSingleLineField(query, MAX_MAP_QUERY_CHARS)) yield null;
-                Intent map = new Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=" + Uri.encode(query)));
+                DeviceAction.MapSearch map = DeviceAction.parseMapSearch(action.optString("query", ""));
+                if (map == null) yield null;
                 yield new ReviewedAction(
                         localized == null ? "" : localized.getString(R.string.push_action_map_title),
-                        query,
+                        map.query(),
                         localized == null ? "" : localized.getString(R.string.push_action_map_open),
-                        map);
+                        map.target());
             }
             default -> null;
         };

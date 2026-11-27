@@ -12,6 +12,7 @@ import android.widget.Button;
 import android.widget.EditText;
 
 import org.llm4people.hermes.Diagnostics;
+import org.llm4people.hermes.PlainTextSanitizer;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
 import org.llm4people.hermes.profile.IncomingShare;
@@ -66,15 +67,6 @@ public final class ClipboardPastePill {
         }
     }
 
-    public void dismissCurrent() {
-        try {
-            long ts = source.clipTimestamp();
-            if (ts > 0) dismissedTimestamp = ts;
-        } catch (RuntimeException unavailable) {
-            Diagnostics.debug("share", "clipboard_dismiss_failed", unavailable);
-        }
-    }
-
     public static String sanitizeClipboardText(CharSequence raw) {
         if (raw == null || raw.length() == 0) return null;
         int limit = Math.min(raw.length(), IncomingShare.MAX_TEXT);
@@ -86,23 +78,12 @@ public final class ClipboardPastePill {
         for (int i = 0; i < text.length();) {
             int cp = text.codePointAt(i);
             boolean allowed = cp == '\n' || cp == '\r' || cp == '\t'
-                    || (!Character.isISOControl(cp) && Character.getType(cp) != Character.SURROGATE);
+                    || PlainTextSanitizer.isSafeDisplayCodePoint(cp);
             if (allowed) clean.appendCodePoint(cp);
             i += Character.charCount(cp);
         }
         String result = clean.toString();
-        return isBlankText(result) ? null : result;
-    }
-
-    private static boolean isBlankText(String value) {
-        for (int i = 0; i < value.length();) {
-            int cp = value.codePointAt(i);
-            if (!Character.isWhitespace(cp) && cp != 0x200B && cp != 0x200C && cp != 0x200D && cp != 0xFEFF) {
-                return false;
-            }
-            i += Character.charCount(cp);
-        }
-        return true;
+        return PlainTextSanitizer.hasVisibleText(result) ? result : null;
     }
 
     /** Create a calm tonal pill that pastes into the target editor at cursor selection (never auto-sends). */

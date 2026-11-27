@@ -65,13 +65,8 @@ public final class DeliveryInbox {
     }
 
     public List<DeliveryItem> sync(Account account, HermesApi api) throws IOException {
-        return sync(account, api, DELIVERIES_PATH);
-    }
-
-    public List<DeliveryItem> sync(Account account, HermesApi api, String basePath) throws IOException {
         Objects.requireNonNull(account, "account");
         Objects.requireNonNull(api, "api");
-        String prefix = normalizePath(basePath);
         Snapshot state = readSnapshot(account);
         long sinceCursor = state.cursor;
         LinkedHashMap<String, DeliveryItem> merged = new LinkedHashMap<>(state.items);
@@ -79,7 +74,7 @@ public final class DeliveryInbox {
         long afterSeq = 0L;
 
         for (int page = 0; page < MAX_SYNC_PAGES; page++) {
-            JSONObject response = api.get(buildSyncQuery(prefix, sinceCursor, afterSeq));
+            JSONObject response = api.get(buildSyncQuery(DELIVERIES_PATH, sinceCursor, afterSeq));
             JSONArray array = response.optJSONArray("deliveries");
             if (array == null) array = response.optJSONArray("data");
             if (array != null) {
@@ -115,15 +110,10 @@ public final class DeliveryInbox {
     }
 
     public DeliveryItem fetchOne(Account account, HermesApi api, String deliveryId) throws IOException {
-        return fetchOne(account, api, deliveryId, DELIVERIES_PATH);
-    }
-
-    public DeliveryItem fetchOne(Account account, HermesApi api, String deliveryId, String basePath) throws IOException {
         Objects.requireNonNull(account, "account");
         Objects.requireNonNull(api, "api");
         if (!DeliveryItem.isValidId(deliveryId)) throw new IllegalArgumentException("Invalid delivery id");
-        String prefix = normalizePath(basePath);
-        JSONObject response = api.get(prefix + "/" + HermesApi.segment(deliveryId));
+        JSONObject response = api.get(DELIVERIES_PATH + "/" + HermesApi.segment(deliveryId));
         JSONObject body = unwrapDelivery(response);
         DeliveryItem item = DeliveryItem.fromJson(body);
         if (!deliveryId.equals(item.id)) throw new IOException("Delivery identifier mismatch");
@@ -132,15 +122,10 @@ public final class DeliveryInbox {
     }
 
     public DeliveryItem acknowledge(Account account, HermesApi api, String deliveryId) throws IOException {
-        return acknowledge(account, api, deliveryId, DELIVERIES_PATH);
-    }
-
-    public DeliveryItem acknowledge(Account account, HermesApi api, String deliveryId, String basePath) throws IOException {
         Objects.requireNonNull(account, "account");
         Objects.requireNonNull(api, "api");
         if (!DeliveryItem.isValidId(deliveryId)) throw new IllegalArgumentException("Invalid delivery id");
-        String prefix = normalizePath(basePath);
-        JSONObject response = api.post(prefix + "/" + HermesApi.segment(deliveryId) + "/ack", new JSONObject());
+        JSONObject response = api.post(DELIVERIES_PATH + "/" + HermesApi.segment(deliveryId) + "/ack", new JSONObject());
         JSONObject body = unwrapDelivery(response);
         Snapshot state = readSnapshot(account);
         DeliveryItem updated;
@@ -240,12 +225,5 @@ public final class DeliveryInbox {
         list.sort(Comparator.comparingLong((DeliveryItem d) -> d.createdAtEpochSec).reversed()
                 .thenComparing(d -> d.id));
         return Collections.unmodifiableList(list);
-    }
-
-    private static String normalizePath(String basePath) {
-        if (basePath == null || basePath.trim().isEmpty() || !basePath.startsWith("/")) {
-            throw new IllegalArgumentException("Invalid deliveries base path");
-        }
-        return basePath.endsWith("/") ? basePath.substring(0, basePath.length() - 1) : basePath;
     }
 }

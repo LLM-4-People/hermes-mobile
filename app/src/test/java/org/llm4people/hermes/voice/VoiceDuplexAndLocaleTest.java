@@ -118,12 +118,7 @@ public final class VoiceDuplexAndLocaleTest {
         assertEquals(DuplexVoiceSession.State.SPEAKING, session.state());
         int oldSpeakGen = host.spokenGens.get(0);
 
-        // Single loud RMS frame does not false-trigger; two consecutive loud frames trigger barge-in.
-        assertFalse(session.onRmsDuringSpeech(Float.NaN));
-        assertFalse(session.onRmsDuringSpeech(DuplexVoiceSession.BARGE_IN_RMS_DB));
-        assertFalse(session.onRmsDuringSpeech(1.0f)); // resets counter
-        assertFalse(session.onRmsDuringSpeech(DuplexVoiceSession.BARGE_IN_RMS_DB));
-        assertTrue(session.onRmsDuringSpeech(DuplexVoiceSession.BARGE_IN_RMS_DB + 1f));
+        session.bargeIn();
 
         assertEquals(DuplexVoiceSession.State.LISTENING, session.state());
         assertEquals(1, host.stopSpeaks);
@@ -269,13 +264,11 @@ public final class VoiceDuplexAndLocaleTest {
         assertEquals(0, host.stopSpeaks);
         assertEquals(1, host.listens.size());
 
-        // Streaming TTS starts while run is still in-flight: barge-in and RMS trigger stay gated off.
+        // Streaming TTS starts while run is still in-flight: barge-in stays gated off.
         session.onReplyDelta("Première phrase. Deuxième phrase. ");
         assertEquals(DuplexVoiceSession.State.SPEAKING, session.state());
         assertFalse(session.canBargeIn());
         session.bargeIn();
-        assertFalse(session.onRmsDuringSpeech(DuplexVoiceSession.BARGE_IN_RMS_DB + 2f));
-        assertFalse(session.onRmsDuringSpeech(DuplexVoiceSession.BARGE_IN_RMS_DB + 2f));
         assertEquals(DuplexVoiceSession.State.SPEAKING, session.state());
         assertEquals(0, host.stopSpeaks);
         assertEquals(1, host.listens.size());

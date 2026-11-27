@@ -88,18 +88,8 @@ public final class WorkflowTemplate {
         if (!PlainTextSanitizer.hasVisibleText(normalized)) throw new IOException("Template draft blank");
         if (normalized.length() > MAX_DRAFT_CHARS) throw new IOException("Template draft exceeds limit");
         if (SecretPatterns.containsCredential(normalized)) throw new SecretRejectedException();
-        for (int i = 0; i < normalized.length(); ) {
-            int cp = normalized.codePointAt(i);
-            int type = Character.getType(cp);
-            if ((Character.isISOControl(cp) && cp != '\n' && cp != '\t')
-                    || type == Character.SURROGATE
-                    || type == Character.LINE_SEPARATOR
-                    || type == Character.PARAGRAPH_SEPARATOR
-                    || PlainTextSanitizer.isStrippableInvisible(cp)
-                    || (type == Character.FORMAT && cp != 0x200C && cp != 0x200D)) {
-                throw new IOException("Invalid control character in template draft");
-            }
-            i += Character.charCount(cp);
+        if (PlainTextSanitizer.hasUnsafeMultilineCodePoint(normalized, true)) {
+            throw new IOException("Invalid control character in template draft");
         }
         return normalized;
     }

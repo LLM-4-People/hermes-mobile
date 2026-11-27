@@ -183,11 +183,8 @@ public final class NearbyResult {
         if (!(value instanceof String text) || text.codePointCount(0, text.length()) > maxCodePoints
                 || !PlainTextSanitizer.hasVisibleText(text)) return "";
         for (int i = 0; i < text.length();) {
-            int cp = text.codePointAt(i), type = Character.getType(cp);
-            if (Character.isISOControl(cp) || type == Character.SURROGATE || type == Character.LINE_SEPARATOR
-                    || type == Character.PARAGRAPH_SEPARATOR || PlainTextSanitizer.isStrippableInvisible(cp)
-                    || (type == Character.FORMAT && cp != 0x200C && cp != 0x200D))
-                return "";
+            int cp = text.codePointAt(i);
+            if (!PlainTextSanitizer.isSafeDisplayCodePoint(cp)) return "";
             i += Character.charCount(cp);
         }
         return text.trim();

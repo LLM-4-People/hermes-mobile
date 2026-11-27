@@ -137,4 +137,17 @@ public final class QrScannerActivityTest {
         QrScannerActivity.deferredEpochUiAction(5, () -> liveEpoch[0], null).run();
         assertEquals(1, fallbackCalls[0]);
     }
+
+    @Test
+    public void viewfinderAccentColorAdaptsLightModeAccentForDarkViewportContrast() {
+        int darkViewportBg = 0xFF0E1112;
+        int adaptedLightAccent = QrScannerActivity.viewfinderAccentColor(0xFF1E4D45);
+        int adaptedDarkAccent = QrScannerActivity.viewfinderAccentColor(0xFF63B5A7);
+        double lightContrast = org.llm4people.hermes.artifact.ThemePalette.contrastRatio(adaptedLightAccent, darkViewportBg);
+        double darkContrast = org.llm4people.hermes.artifact.ThemePalette.contrastRatio(adaptedDarkAccent, darkViewportBg);
+        assertTrue("Adapted light accent must meet >= 4.5:1 contrast on #0E1112 (got " + lightContrast + ")",
+                lightContrast >= 4.5);
+        assertTrue("Adapted dark accent must meet >= 4.5:1 contrast on #0E1112 (got " + darkContrast + ")",
+                darkContrast >= 4.5);
+    }
 }
