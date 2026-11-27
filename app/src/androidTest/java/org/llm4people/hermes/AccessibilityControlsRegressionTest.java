@@ -2883,11 +2883,114 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
                         assertEquals(activity.getString(R.string.share_tray_cleared),
                                 String.valueOf(trayLive.getText()));
 
-                        // R37.5.2: Shared horizontal progress/slider track drawable uses background + progress layers.
+                        // R37.5.2 / R38.5.1 / R38.5.2: Shared horizontal progress/slider track uses 4dp centered layers
+                        // and ProgressBar applies a centered opaque background track for indeterminate mode.
                         android.graphics.drawable.LayerDrawable trackDrawable = Ui.horizontalTrackDrawable(
                                 activity, activity.getColor(R.color.line_strong), activity.getColor(R.color.accent));
                         assertNotNull(trackDrawable.findDrawableByLayerId(android.R.id.background));
                         assertNotNull(trackDrawable.findDrawableByLayerId(android.R.id.progress));
+                        int expectedTrackH = Ui.dp(activity, 4);
+                        int expectedTrackGravity = android.view.Gravity.CENTER_VERTICAL | android.view.Gravity.FILL_HORIZONTAL;
+                        for (int idx = 0; idx < trackDrawable.getNumberOfLayers(); idx++) {
+                            assertEquals(expectedTrackH, trackDrawable.getLayerHeight(idx));
+                            assertEquals(expectedTrackGravity, trackDrawable.getLayerGravity(idx));
+                        }
+                        android.widget.ProgressBar styledBar = new android.widget.ProgressBar(
+                                activity, null, android.R.attr.progressBarStyleHorizontal);
+                        Ui.styleHorizontalProgressBar(activity, styledBar);
+                        assertTrue("ProgressBar must have centered opaque LayerDrawable background",
+                                styledBar.getBackground() instanceof android.graphics.drawable.LayerDrawable);
+                        android.graphics.drawable.LayerDrawable barBg =
+                                (android.graphics.drawable.LayerDrawable) styledBar.getBackground();
+                        assertEquals(expectedTrackH, barBg.getLayerHeight(0));
+                        assertEquals(expectedTrackGravity, barBg.getLayerGravity(0));
+
+                        // R38.5.3: Ui.styleSwitch applies custom opaque track/thumb drawables with null tints.
+                        android.widget.Switch styledSwitch = new android.widget.Switch(activity);
+                        Ui.styleSwitch(activity, styledSwitch,
+                                activity.getColor(R.color.line_strong), activity.getColor(R.color.accent),
+                                activity.getColor(R.color.surface), activity.getColor(R.color.line_strong),
+                                activity.getColor(R.color.on_accent));
+                        assertNotNull(styledSwitch.getTrackDrawable());
+                        assertNotNull(styledSwitch.getThumbDrawable());
+                        assertNull(styledSwitch.getTrackTintList());
+                        assertNull(styledSwitch.getThumbTintList());
+
+                        // R38.5.3 / R38.5.4: InteractiveControlsBlock Switch/CheckBox and WorkspaceForms Spinner honor ThemePalette.
+                        org.llm4people.hermes.artifact.ThemePalette customPal =
+                                org.llm4people.hermes.artifact.ThemePalette.resolve(
+                                        org.llm4people.hermes.artifact.ThemePalette.OverrideSpec.defaults(), false);
+                        LinearLayout r38FormGroup = Ui.column(activity);
+                        Class<?> blockCls = Class.forName("org.llm4people.hermes.artifact.WorkspaceLayout$Block");
+                        java.lang.reflect.Constructor<?> blockCtor = blockCls.getDeclaredConstructor();
+                        blockCtor.setAccessible(true);
+                        Object choiceForm = blockCtor.newInstance();
+                        setField(choiceForm, "prompt", "Pick");
+                        Class<?> fieldCls = Class.forName("org.llm4people.hermes.artifact.DraftForm$Field");
+                        java.lang.reflect.Constructor<?> fieldCtor = fieldCls.getDeclaredConstructor();
+                        fieldCtor.setAccessible(true);
+                        Object envField = fieldCtor.newInstance();
+                        setField(envField, "id", "env");
+                        setField(envField, "kind", "choice");
+                        setField(envField, "label", "Env");
+                        setField(envField, "options", java.util.Arrays.asList("Dev", "Prod"));
+                        setField(choiceForm, "fields", java.util.Collections.singletonList(envField));
+                        Class<?> wsFormsCls = Class.forName("org.llm4people.hermes.artifact.WorkspaceForms");
+                        Method mountForm = wsFormsCls.getDeclaredMethod(
+                                "mount", LinearLayout.class, blockCls,
+                                org.llm4people.hermes.artifact.ThemePalette.class,
+                                Activity.class,
+                                org.llm4people.hermes.artifact.ArtifactDesk.Host.class);
+                        mountForm.setAccessible(true);
+                        org.llm4people.hermes.artifact.ArtifactDesk.Host stubHost =
+                                (org.llm4people.hermes.artifact.ArtifactDesk.Host) java.lang.reflect.Proxy.newProxyInstance(
+                                        org.llm4people.hermes.artifact.ArtifactDesk.Host.class.getClassLoader(),
+                                        new Class<?>[]{org.llm4people.hermes.artifact.ArtifactDesk.Host.class},
+                                        (proxy, m, args) -> null);
+                        mountForm.invoke(null, r38FormGroup, choiceForm, customPal, activity, stubHost);
+                        android.widget.Spinner r38Spinner = findFirst(r38FormGroup, android.widget.Spinner.class);
+                        assertNotNull("Expected themed Spinner in WorkspaceForms", r38Spinner);
+                        assertTrue("Spinner popup background must use ColorDrawable(colors.surface)",
+                                r38Spinner.getPopupBackground() instanceof android.graphics.drawable.ColorDrawable);
+                        assertEquals(customPal.surface,
+                                ((android.graphics.drawable.ColorDrawable) r38Spinner.getPopupBackground()).getColor());
+                        assertNotNull("Spinner must set backgroundTintList", r38Spinner.getBackgroundTintList());
+
+                        LinearLayout r38CtrlGroup = Ui.column(activity);
+                        org.llm4people.hermes.artifact.InteractiveControlsBlock.Control toggleCtrl =
+                                new org.llm4people.hermes.artifact.InteractiveControlsBlock.Control(
+                                        "t1", "Toggle", "toggle", "", "", false, 0, 1, 1, 0,
+                                        java.util.Collections.emptyList(), false, java.util.Collections.emptyList());
+                        org.llm4people.hermes.artifact.InteractiveControlsBlock.Control checkCtrl =
+                                new org.llm4people.hermes.artifact.InteractiveControlsBlock.Control(
+                                        "c1", "Check", "checkbox", "", "", true, 0, 1, 1, 0,
+                                        java.util.Collections.emptyList(), false, java.util.Collections.emptyList());
+                        Class<?> storeCls = Class.forName("org.llm4people.hermes.artifact.InstrumentStateStore");
+                        Method addToggle = org.llm4people.hermes.artifact.InteractiveControlsBlock.class.getDeclaredMethod(
+                                "addToggle", LinearLayout.class,
+                                org.llm4people.hermes.artifact.InteractiveControlsBlock.Control.class,
+                                Map.class, storeCls, String.class, String.class,
+                                org.llm4people.hermes.artifact.ThemePalette.class, boolean.class);
+                        addToggle.setAccessible(true);
+                        Method addCheckbox = org.llm4people.hermes.artifact.InteractiveControlsBlock.class.getDeclaredMethod(
+                                "addCheckbox", LinearLayout.class,
+                                org.llm4people.hermes.artifact.InteractiveControlsBlock.Control.class,
+                                Map.class, storeCls, String.class, String.class,
+                                org.llm4people.hermes.artifact.ThemePalette.class, boolean.class);
+                        addCheckbox.setAccessible(true);
+                        Map<String, Object> ctrlState = new java.util.LinkedHashMap<>();
+                        addToggle.invoke(null, r38CtrlGroup, toggleCtrl, ctrlState, null, "test", "home", customPal, false);
+                        addCheckbox.invoke(null, r38CtrlGroup, checkCtrl, ctrlState, null, "test", "home", customPal, false);
+                        android.widget.Switch ctrlSwitch = findFirst(r38CtrlGroup, android.widget.Switch.class);
+                        android.widget.CheckBox ctrlCheck = findFirst(r38CtrlGroup, android.widget.CheckBox.class);
+                        assertNotNull(ctrlSwitch);
+                        assertNotNull(ctrlCheck);
+                        assertNull("Themed Switch must clear stock trackTintList", ctrlSwitch.getTrackTintList());
+                        assertNull("Themed Switch must clear stock thumbTintList", ctrlSwitch.getThumbTintList());
+                        assertNotNull("Themed CheckBox must set buttonTintList", ctrlCheck.getButtonTintList());
+                        assertEquals(customPal.accent,
+                                ctrlCheck.getButtonTintList().getColorForState(
+                                        new int[]{android.R.attr.state_checked}, 0));
                     } catch (Exception err) {
                         throw new AssertionError(err);
                     }

@@ -271,6 +271,8 @@ public final class InteractiveControlsBlock {
         sw.setText(ctrl.label);
         sw.setTextSize(colors.scaledSp(16));
         sw.setTextColor(Ui.enabledDisabledInk(colors.ink, colors.muted));
+        int trackOff = WorkspaceForms.editorUnfocusedStrokeColor(colors);
+        Ui.styleSwitch(c, sw, trackOff, colors.accent, colors.surface, trackOff, colors.onAccent);
         sw.setMinHeight(Ui.dp(c, 48));
         sw.setChecked(checked);
         sw.setEnabled(interactive);
@@ -295,6 +297,8 @@ public final class InteractiveControlsBlock {
         box.setText(ctrl.label);
         box.setTextSize(colors.scaledSp(16));
         box.setTextColor(Ui.enabledDisabledInk(colors.ink, colors.muted));
+        box.setButtonTintList(Ui.checkedUncheckedTint(
+                colors.accent, WorkspaceForms.editorUnfocusedStrokeColor(colors)));
         box.setMinHeight(Ui.dp(c, 48));
         box.setChecked(checked);
         box.setEnabled(interactive);

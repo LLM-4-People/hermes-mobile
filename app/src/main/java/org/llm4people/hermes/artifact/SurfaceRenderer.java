@@ -195,21 +195,37 @@ final class SurfaceRenderer {
             List<LayoutHistory.Revision> revs = history.revisions();
             String revNote = revs.isEmpty() ? "" : activity.getString(
                     revs.size() == 1 ? R.string.ws_surface_rev_single : R.string.ws_surface_rev_plural, revs.size());
+            boolean[] handled = {false};
             if (removed) {
                 builder.setMessage(activity.getString(R.string.ws_surface_removed_message, revNote))
-                        .setPositiveButton(R.string.ws_surface_erase_rev_action, (d, w) -> DeskDialogs.open(activity,
-                                new AlertDialog.Builder(activity).setTitle(R.string.ws_surface_erase_rev_title)
-                                        .setNegativeButton(R.string.ws_cancel, null)
-                                        .setPositiveButton(R.string.ws_erase, (dialog, n) ->
-                                                change(activity, host, history::forgetRemoved))));
+                        .setPositiveButton(R.string.ws_surface_erase_rev_action, (d, w) -> {
+                            if (handled[0]) return;
+                            handled[0] = true;
+                            boolean[] eraseHandled = {false};
+                            DeskDialogs.open(activity,
+                                    new AlertDialog.Builder(activity).setTitle(R.string.ws_surface_erase_rev_title)
+                                            .setNegativeButton(R.string.ws_cancel, null)
+                                            .setPositiveButton(R.string.ws_erase, (dialog, n) -> {
+                                                if (eraseHandled[0]) return;
+                                                eraseHandled[0] = true;
+                                                change(activity, host, history::forgetRemoved);
+                                            }));
+                        });
             } else {
                 builder.setMessage(activity.getString(page
                                 ? R.string.ws_surface_delete_page_message : R.string.ws_surface_restore_message, revNote))
-                        .setPositiveButton(page ? R.string.ws_delete : R.string.ws_restore, (d, w) ->
-                                change(activity, host, () -> history.replace("")));
+                        .setPositiveButton(page ? R.string.ws_delete : R.string.ws_restore, (d, w) -> {
+                            if (handled[0]) return;
+                            handled[0] = true;
+                            change(activity, host, () -> history.replace(""));
+                        });
             }
             if (history.canUndo()) builder.setNeutralButton(R.string.ws_surface_undo_change,
-                    (d, w) -> change(activity, host, history::undo));
+                    (d, w) -> {
+                        if (handled[0]) return;
+                        handled[0] = true;
+                        change(activity, host, history::undo);
+                    });
             return DeskDialogs.open(activity, builder);
         } catch (PageLayouts.Damaged damaged) {
             return WorkspacePages.confirmRecovery(activity, damaged, host);
@@ -218,12 +234,16 @@ final class SurfaceRenderer {
             String screen = WorkspaceLayout.SURFACES.containsKey(history.surface)
                     ? WorkspaceLayout.screenName(activity, history.surface) : null;
             if (screen == null) return failure(activity);
+            boolean[] resetHandled = {false};
             return DeskDialogs.open(activity, new AlertDialog.Builder(activity)
                     .setTitle(activity.getString(R.string.ws_surface_restore_unreadable_title, screen))
                     .setMessage(R.string.ws_surface_restore_unreadable_message)
                     .setNegativeButton(R.string.ws_cancel, null)
-                    .setPositiveButton(R.string.ws_restore, (d, w) ->
-                            change(activity, host, history::resetUnreadable)));
+                    .setPositiveButton(R.string.ws_restore, (d, w) -> {
+                        if (resetHandled[0]) return;
+                        resetHandled[0] = true;
+                        change(activity, host, history::resetUnreadable);
+                    }));
         } catch (IllegalStateException e) { return failure(activity); }
     }
 

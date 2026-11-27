@@ -28,6 +28,7 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.ScrollView;
+import android.widget.Switch;
 import android.widget.TextView;
 
 /** Shared native Material 3 primitives. Dimensions follow screen density and text follows font scale. */
@@ -486,17 +487,39 @@ public final class Ui {
                 new int[]{disabledColor, enabledColor});
     }
 
+    /** Checked/unchecked ColorStateList pairing raw {@code checkedColor} and {@code uncheckedColor} ARGB values. */
+    public static ColorStateList checkedUncheckedTint(int checkedColor, int uncheckedColor) {
+        return new ColorStateList(
+                new int[][]{new int[]{android.R.attr.state_checked}, new int[]{}},
+                new int[]{checkedColor, uncheckedColor});
+    }
+
     /** Styles a horizontal {@link ProgressBar} with a >= 3:1 opaque {@code line_strong} track and {@code accent} fill. */
     public static void styleHorizontalProgressBar(Context context, ProgressBar bar) {
         if (context == null || bar == null) return;
-        bar.setProgressDrawable(horizontalTrackDrawable(
-                context, context.getColor(R.color.line_strong), context.getColor(R.color.accent)));
-        bar.setIndeterminateTintList(ColorStateList.valueOf(context.getColor(R.color.accent)));
+        int trackColor = context.getColor(R.color.line_strong);
+        int progressColor = context.getColor(R.color.accent);
+        bar.setProgressDrawable(horizontalTrackDrawable(context, trackColor, progressColor));
+        bar.setBackground(centeredTrackDrawable(context, trackColor));
+        bar.setIndeterminateTintList(ColorStateList.valueOf(progressColor));
     }
 
-    /** Builds a rounded horizontal track {@link LayerDrawable} for {@link ProgressBar} or {@link android.widget.SeekBar}. */
+    /** Builds a centered 4dp opaque horizontal track background for indeterminate {@link ProgressBar}s. */
+    private static LayerDrawable centeredTrackDrawable(Context context, int trackColor) {
+        int trackHeight = dp(context, 4);
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(trackColor);
+        bg.setCornerRadius(trackHeight / 2f);
+        LayerDrawable layers = new LayerDrawable(new Drawable[]{bg});
+        layers.setLayerHeight(0, trackHeight);
+        layers.setLayerGravity(0, Gravity.CENTER_VERTICAL | Gravity.FILL_HORIZONTAL);
+        return layers;
+    }
+
+    /** Builds a centered 4dp rounded horizontal track {@link LayerDrawable} for {@link ProgressBar} or {@link android.widget.SeekBar}. */
     public static LayerDrawable horizontalTrackDrawable(Context context, int trackColor, int progressColor) {
-        float radius = dp(context, 4);
+        int trackHeight = dp(context, 4);
+        float radius = trackHeight / 2f;
         GradientDrawable bg = new GradientDrawable();
         bg.setColor(trackColor);
         bg.setCornerRadius(radius);
@@ -507,6 +530,62 @@ public final class Ui {
         LayerDrawable layers = new LayerDrawable(new Drawable[]{bg, clip});
         layers.setId(0, android.R.id.background);
         layers.setId(1, android.R.id.progress);
+        for (int i = 0; i < layers.getNumberOfLayers(); i++) {
+            layers.setLayerHeight(i, trackHeight);
+            layers.setLayerGravity(i, Gravity.CENTER_VERTICAL | Gravity.FILL_HORIZONTAL);
+        }
         return layers;
+    }
+
+    /** Styles a {@link Switch} with opaque high-contrast track and thumb drawables for custom {@code ThemePalette}s. */
+    public static void styleSwitch(Context context, Switch sw, int trackOff, int trackOn,
+                                   int thumbOffFill, int thumbOffStroke, int thumbOn) {
+        if (context == null || sw == null) return;
+        int trackW = dp(context, 48);
+        int trackH = dp(context, 28);
+        float trackRadius = trackH / 2f;
+
+        GradientDrawable onTrack = new GradientDrawable();
+        onTrack.setShape(GradientDrawable.RECTANGLE);
+        onTrack.setColor(trackOn);
+        onTrack.setCornerRadius(trackRadius);
+        onTrack.setSize(trackW, trackH);
+
+        GradientDrawable offTrack = new GradientDrawable();
+        offTrack.setShape(GradientDrawable.RECTANGLE);
+        offTrack.setColor(trackOff);
+        offTrack.setCornerRadius(trackRadius);
+        offTrack.setSize(trackW, trackH);
+
+        StateListDrawable track = new StateListDrawable();
+        track.addState(new int[]{android.R.attr.state_checked}, onTrack);
+        track.addState(new int[]{}, offTrack);
+
+        int thumbSize = dp(context, 22);
+        int inset = dp(context, 3);
+
+        GradientDrawable onThumbShape = new GradientDrawable();
+        onThumbShape.setShape(GradientDrawable.OVAL);
+        onThumbShape.setColor(thumbOn);
+        onThumbShape.setSize(thumbSize, thumbSize);
+        LayerDrawable onThumb = new LayerDrawable(new Drawable[]{onThumbShape});
+        onThumb.setLayerInset(0, inset, inset, inset, inset);
+
+        GradientDrawable offThumbShape = new GradientDrawable();
+        offThumbShape.setShape(GradientDrawable.OVAL);
+        offThumbShape.setColor(thumbOffFill);
+        offThumbShape.setStroke(dp(context, 2), thumbOffStroke);
+        offThumbShape.setSize(thumbSize, thumbSize);
+        LayerDrawable offThumb = new LayerDrawable(new Drawable[]{offThumbShape});
+        offThumb.setLayerInset(0, inset, inset, inset, inset);
+
+        StateListDrawable thumb = new StateListDrawable();
+        thumb.addState(new int[]{android.R.attr.state_checked}, onThumb);
+        thumb.addState(new int[]{}, offThumb);
+
+        sw.setTrackTintList(null);
+        sw.setThumbTintList(null);
+        sw.setTrackDrawable(track);
+        sw.setThumbDrawable(thumb);
     }
 }

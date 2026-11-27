@@ -123,7 +123,7 @@ final class MemoryPanel {
         msg.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
         banner.addView(msg, new LinearLayout.LayoutParams(0, -2, 1));
         banner.addView(Ui.button(panel.activity, panel.t(R.string.brain_memory_undo_delete),
-                v -> restoreDeleted(deleted)));
+                v -> restoreDeleted(deleted, v)));
         undoSlot.addView(banner);
     }
 
@@ -470,12 +470,14 @@ final class MemoryPanel {
         }, error -> handleMutationError(error));
     }
 
-    private void restoreDeleted(MemoryModel.DeletedEntry deleted) {
+    private void restoreDeleted(MemoryModel.DeletedEntry deleted, View trigger) {
+        if (lastDeleted != deleted || (trigger != null && !trigger.isEnabled())) return;
+        if (trigger != null) trigger.setEnabled(false);
         lastDeleted = null;
         renderUndoBanner();
         JSONObject payload = PanelData.put(
                 PanelData.put(new JSONObject(), "text", deleted.entry().text()), "pin", deleted.entry().pinned());
-        panel.request(body, () -> BrainJson.parseMemorySnapshot(
+        if (!panel.request(body, () -> BrainJson.parseMemorySnapshot(
                 panel.api.post("/api/memory/" + HermesApi.segment(deleted.target()), payload)),
                 updated -> {
                     Diagnostics.event("memory", "entry_restored");
@@ -486,7 +488,10 @@ final class MemoryPanel {
                     lastDeleted = deleted;
                     renderUndoBanner();
                     handleMutationError(error);
-                });
+                })) {
+            lastDeleted = deleted;
+            renderUndoBanner();
+        }
     }
 
     private void handleMutationError(Exception error) {

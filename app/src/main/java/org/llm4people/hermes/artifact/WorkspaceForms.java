@@ -3,11 +3,14 @@ package org.llm4people.hermes.artifact;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Context;
+import android.content.res.ColorStateList;
+import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.StateListDrawable;
 import android.text.InputFilter;
 import android.text.InputType;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.inputmethod.EditorInfo;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
@@ -61,10 +64,32 @@ final class WorkspaceForms {
                 options.add(c.getString(R.string.ws_form_choose));
                 options.addAll(field.options);
                 Spinner choice = new Spinner(c);
-                ArrayAdapter<String> adapter = new ArrayAdapter<>(c,android.R.layout.simple_spinner_item,options);
+                ArrayAdapter<String> adapter = new ArrayAdapter<>(c, android.R.layout.simple_spinner_item, options) {
+                    @Override
+                    public View getView(int position, View convertView, ViewGroup parent) {
+                        View v = super.getView(position, convertView, parent);
+                        if (v instanceof TextView tv) {
+                            tv.setTextColor(colors.ink);
+                            tv.setTextSize(colors.scaledSp(16));
+                        }
+                        return v;
+                    }
+
+                    @Override
+                    public View getDropDownView(int position, View convertView, ViewGroup parent) {
+                        View v = super.getDropDownView(position, convertView, parent);
+                        if (v instanceof TextView tv) {
+                            tv.setTextColor(colors.ink);
+                            tv.setTextSize(colors.scaledSp(16));
+                        }
+                        return v;
+                    }
+                };
                 adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
                 choice.setAdapter(adapter);
-                choice.setMinimumHeight(Ui.dp(c,48));
+                choice.setPopupBackgroundDrawable(new ColorDrawable(colors.surface));
+                choice.setBackgroundTintList(ColorStateList.valueOf(editorUnfocusedStrokeColor(colors)));
+                choice.setMinimumHeight(Ui.dp(c, 48));
                 answers.put(field.id, () -> choice.getSelectedItemPosition() > 0 ? (String)choice.getSelectedItem() : "");
                 control = choice;
             } else {
