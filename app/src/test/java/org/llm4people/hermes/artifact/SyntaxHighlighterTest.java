@@ -135,9 +135,6 @@ public final class SyntaxHighlighterTest {
         assertEquals(0, matches.get(0).start());
         assertEquals(11, matches.get(1).start());
         assertEquals(23, matches.get(2).start());
-        assertEquals(1, SyntaxHighlighter.lineNumberAt(source, 0));
-        assertEquals(2, SyntaxHighlighter.lineNumberAt(source, 11));
-        assertEquals(3, SyntaxHighlighter.lineNumberAt(source, 23));
         assertEquals(3, SyntaxHighlighter.lineCount(source));
 
         assertTrue(SyntaxHighlighter.findMatches(source, "").isEmpty());

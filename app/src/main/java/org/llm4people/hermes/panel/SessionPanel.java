@@ -54,7 +54,6 @@ public final class SessionPanel implements AutoCloseable {
     public void setLayoutHost(ArtifactDesk.Host host) { layoutHost = host; }
     public void setOpenNotifications(Runnable handler) { openNotifications = handler; }
     void openNotifications() { if (openNotifications != null) openNotifications.run(); }
-    public void show(String stableId, String remoteId) { show(stableId, remoteId, () -> false, null); }
     public void show(String stableId, String remoteId, BooleanSupplier activeThread, Consumer<String> stageDraft) {
         new SessionSettings(this, stableId, remoteId, activeThread, stageDraft,
                 () -> activity.getResources().getConfiguration()).show();

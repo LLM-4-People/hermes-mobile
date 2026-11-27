@@ -114,13 +114,6 @@ public final class PermissionCenter {
         return granted ? State.GRANTED : State.NOT_REQUESTED;
     }
 
-    /** True when the user must be guided to an Android Settings screen rather than a runtime dialog. */
-    public static boolean requiresSettingsRedirect(Key key, State state) {
-        if (key == null || state == null) return false;
-        if (state == State.PERMANENTLY_DENIED) return true;
-        return key.specialAccess;
-    }
-
     /** Resolve a {@link Key} from an activity permission request code, or null if unmanaged. */
     public static Key fromRequestCode(int requestCode) {
         if (requestCode <= 0) return null;

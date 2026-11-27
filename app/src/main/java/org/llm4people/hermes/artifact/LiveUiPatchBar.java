@@ -334,7 +334,7 @@ public final class LiveUiPatchBar extends LinearLayout {
             GradientDrawable bg = new GradientDrawable();
             bg.setCornerRadius(Ui.dp(context, Ui.BUTTON_CORNER_DP));
             bg.setColor(colors.surface);
-            bg.setStroke(Math.max(1, Ui.dp(context, 1)), colors.line);
+            bg.setStroke(Math.max(1, Ui.dp(context, 1)), WorkspaceForms.editorUnfocusedStrokeColor(colors));
             chip.setBackground(Ui.roundedRipple(context, Ui.BUTTON_CORNER_DP, bg));
             chip.setContentDescription(context.getString(item.draft != null
                     ? R.string.ws_liveui_chip_draft_a11y

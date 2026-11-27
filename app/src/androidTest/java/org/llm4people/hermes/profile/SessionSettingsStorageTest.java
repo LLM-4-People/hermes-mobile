@@ -55,7 +55,7 @@ public final class SessionSettingsStorageTest extends InstrumentationTestCase {
             Activity activity = getInstrumentation().startActivitySync(launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
             SessionPanel panel = new SessionPanel(activity, new HermesApi(server.endpoint(), "test", org.llm4people.hermes.net.HermesApi.Limits.defaults()), account);
             try {
-                runTestOnUiThread(() -> panel.show("thread", "thread"));
+                runTestOnUiThread(() -> panel.show("thread", "thread", () -> false, null));
                 server.observed();
                 long end = SystemClock.elapsedRealtime() + 5000;
                 boolean[] ready = {false};
@@ -127,7 +127,7 @@ public final class SessionSettingsStorageTest extends InstrumentationTestCase {
             Activity activity = getInstrumentation().startActivitySync(launch);
             SessionPanel panel = new SessionPanel(activity, new HermesApi(server.endpoint(), "test", org.llm4people.hermes.net.HermesApi.Limits.defaults()), owner);
             try {
-                runTestOnUiThread(() -> panel.show("thread", "thread"));
+                runTestOnUiThread(() -> panel.show("thread", "thread", () -> false, null));
                 awaitLoadingDone(activity);
                 runTestOnUiThread(() -> {
                     View choice = matching(activity.getString(R.string.panel_route)).get(0);
@@ -172,7 +172,7 @@ public final class SessionSettingsStorageTest extends InstrumentationTestCase {
             SessionPanel panel = new SessionPanel(activity, new HermesApi(server.endpoint(), "test", org.llm4people.hermes.net.HermesApi.Limits.defaults()), owner);
             try {
                 runTestOnUiThread(() -> {
-                    if (landscape == null) panel.show("thread", "thread");
+                    if (landscape == null) panel.show("thread", "thread", () -> false, null);
                     else PickerWindow.open(panel, landscape);
                 });
                 awaitLoadingDone(activity);

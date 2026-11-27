@@ -101,18 +101,6 @@ public final class SettingsHubModel {
         return Collections.unmodifiableList(out);
     }
 
-    /** Count total visible setting rows across filtered sections. */
-    public static int countItems(List<SectionSpec> sections) {
-        if (sections == null) return 0;
-        int total = 0;
-        for (SectionSpec section : sections) {
-            if (section != null && section.items() != null) {
-                total += section.items().size();
-            }
-        }
-        return total;
-    }
-
     /** Format a clean dot-separated summary such as "System · Forest · Comfortable". */
     public static String formatAppearanceSummary(String themeLabel, String paletteLabel, String densityLabel) {
         List<String> parts = new ArrayList<>(3);

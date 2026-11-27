@@ -5,7 +5,6 @@ import org.llm4people.hermes.profile.Account;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
@@ -81,17 +80,13 @@ final class ThreadJournal {
     }
 
     static String scope(String account, String endpoint, String bearer, String session) {
-        try {
-            MessageDigest hash = MessageDigest.getInstance("SHA-256");
-            for (String part : new String[]{account, endpoint, bearer, session}) {
-                hash.update(part.getBytes(StandardCharsets.UTF_8));
-                hash.update((byte) 0);
-            }
-            // Only retained inside the account's authenticated encryption envelope.
-            return Base64.getEncoder().encodeToString(hash.digest());
-        } catch (NoSuchAlgorithmException e) {
-            throw new AssertionError(e);
+        MessageDigest hash = org.llm4people.hermes.Digests.sha256();
+        for (String part : new String[]{account, endpoint, bearer, session}) {
+            hash.update(part.getBytes(StandardCharsets.UTF_8));
+            hash.update((byte) 0);
         }
+        // Only retained inside the account's authenticated encryption envelope.
+        return Base64.getEncoder().encodeToString(hash.digest());
     }
 
     boolean sameOwner() { return owner.equals(ThreadData.string(pending(), "owner")); }

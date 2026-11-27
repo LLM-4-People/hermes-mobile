@@ -8,8 +8,6 @@ import android.content.pm.Signature;
 import android.content.pm.SigningInfo;
 import android.os.Bundle;
 
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
@@ -27,10 +25,8 @@ final class DistributorIdentity {
     }
 
     private static String digest(Signature cert) {
-        try {
-            byte[] hash = MessageDigest.getInstance("SHA-256").digest(cert.toByteArray());
-            return Base64.getUrlEncoder().withoutPadding().encodeToString(hash);
-        } catch (NoSuchAlgorithmException impossible) { throw new AssertionError(impossible); }
+        byte[] hash = org.llm4people.hermes.Digests.sha256().digest(cert.toByteArray());
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(hash);
     }
 
     private static String current(SigningInfo signing) {

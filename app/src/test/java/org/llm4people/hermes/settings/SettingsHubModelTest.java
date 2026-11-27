@@ -46,7 +46,7 @@ public final class SettingsHubModelTest {
         );
 
         assertEquals(2, SettingsHubModel.filterSections(sections, "").size());
-        assertEquals(3, SettingsHubModel.countItems(SettingsHubModel.filterSections(sections, "   ")));
+        assertEquals(2, SettingsHubModel.filterSections(sections, "   ").size());
 
         // Accent-insensitive title match ("dictee" -> "dictée")
         List<SettingsHubModel.SectionSpec> voice = SettingsHubModel.filterSections(sections, "dictee");
@@ -102,7 +102,7 @@ public final class SettingsHubModelTest {
     }
 
     @Test
-    public void filterSectionsAndCountItemsSafelyIgnoreNullSectionsAndNullItems() {
+    public void filterSectionsSafelyIgnoreNullSectionsAndNullItems() {
         SettingsHubModel.SectionSpec withNullItems = new SettingsHubModel.SectionSpec(
                 "sec", "General", Arrays.asList(
                         null,
@@ -113,8 +113,6 @@ public final class SettingsHubModelTest {
         List<SettingsHubModel.SectionSpec> mixed = Arrays.asList(null, withNullItems, null);
         List<SettingsHubModel.SectionSpec> all = SettingsHubModel.filterSections(mixed, "");
         assertEquals(1, all.size());
-        assertEquals(1, SettingsHubModel.countItems(mixed));
-        assertEquals(0, SettingsHubModel.countItems(null));
 
         List<SettingsHubModel.SectionSpec> matched = SettingsHubModel.filterSections(mixed, "theme");
         assertEquals(1, matched.size());

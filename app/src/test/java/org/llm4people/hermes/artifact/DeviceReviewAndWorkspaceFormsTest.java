@@ -34,7 +34,9 @@ public final class DeviceReviewAndWorkspaceFormsTest {
             int focused = WorkspaceForms.editorFocusedStrokeColor(palette);
             double unfocusedContrast = ThemePalette.contrastRatio(unfocused, palette.surface);
             double focusedContrast = ThemePalette.contrastRatio(focused, palette.surface);
-            assertTrue("Unfocused editor border contrast must be >= 3.0 (night=" + night + ", got " + unfocusedContrast + ")",
+            assertTrue("Unfocused editor/chip border must not use low-contrast palette.line (night=" + night + ")",
+                    unfocused != palette.line);
+            assertTrue("Unfocused editor/chip border contrast must be >= 3.0 (night=" + night + ", got " + unfocusedContrast + ")",
                     unfocusedContrast >= 3.0);
             assertTrue("Focused editor border contrast must be >= 3.0 (night=" + night + ", got " + focusedContrast + ")",
                     focusedContrast >= 3.0);

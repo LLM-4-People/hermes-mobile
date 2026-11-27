@@ -9,7 +9,6 @@ import java.util.Set;
 /** Client-side path validation, secret-file denylist, and bounds for read-only workspace exploration. */
 public final class WorkspacePathGuard {
     public static final int DEFAULT_TREE_DEPTH = 2;
-    public static final int MAX_TREE_DEPTH = 3;
     public static final int DEFAULT_TREE_LIMIT = 200;
     public static final int DEFAULT_FILE_LINES = 400;
     public static final int MAX_FILE_LINES = 500;
@@ -119,11 +118,6 @@ public final class WorkspacePathGuard {
             if (base.endsWith(ext)) return true;
         }
         return false;
-    }
-
-    public static int clampDepth(int requested) {
-        if (requested <= 0) return DEFAULT_TREE_DEPTH;
-        return Math.min(requested, MAX_TREE_DEPTH);
     }
 
     public static int clampEndLine(int startLine, int requestedEndLine) {

@@ -66,9 +66,7 @@ public final class WorkspacePathGuardTest {
     }
 
     @Test
-    public void boundsDepthLinesContentAndInfersLanguageAndGitStatus() {
-        assertEquals(WorkspacePathGuard.DEFAULT_TREE_DEPTH, WorkspacePathGuard.clampDepth(0));
-        assertEquals(WorkspacePathGuard.MAX_TREE_DEPTH, WorkspacePathGuard.clampDepth(99));
+    public void boundsLinesContentAndInfersLanguageAndGitStatus() {
         assertEquals(500, WorkspacePathGuard.clampEndLine(1, 10000));
         assertEquals(510, WorkspacePathGuard.clampEndLine(11, 900));
 
