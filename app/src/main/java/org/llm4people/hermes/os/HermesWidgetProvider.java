@@ -93,7 +93,7 @@ public final class HermesWidgetProvider extends AppWidgetProvider {
 
     /** Refreshes all widget instances while preserving the latest {@code runActive} state. */
     public static void refresh(Context context) {
-        refresh(context, runActive);
+        refreshInternal(context, runActive, false);
     }
 
     /** Refreshes all widget instances using a context explicitly localized for {@code mode}. */

@@ -1,9 +1,6 @@
 package org.llm4people.hermes.thread;
 
 import android.app.AlertDialog;
-import android.content.ActivityNotFoundException;
-import android.content.Intent;
-import android.net.Uri;
 import android.text.InputType;
 import android.view.View;
 import android.view.inputmethod.EditorInfo;
@@ -199,8 +196,7 @@ final class ThreadPlaces {
             }
 
             public void route(View clicked, NearbyResult.Place place, NearbyCategory.RouteMode mode) {
-                if (!selected(place) || mode == null) return;
-                reviewRoute(active, place, mode);
+                if (selected(place) && mode != null) DeviceReview.placeRoute(thread.activity, host, clicked, place, mode);
             }
 
             private boolean selected(NearbyResult.Place place) {
@@ -246,34 +242,6 @@ final class ThreadPlaces {
             e.phase = NearbyGuide.Phase.UNAVAILABLE;
             e.update();
         });
-    }
-
-    private void reviewRoute(BooleanSupplier active, NearbyResult.Place place, NearbyCategory.RouteMode mode) {
-        String preview = thread.activity.getString(R.string.places_route_preview,
-                place.name, mode.chipLabel(thread.activity), place.coordinates());
-        thread.screen.show(new AlertDialog.Builder(thread.activity)
-                .setTitle(mode.title(thread.activity))
-                .setMessage(preview)
-                .setNegativeButton(R.string.ws_cancel, null)
-                .setPositiveButton(mode.openLabel(thread.activity), (dialog, which) -> {
-                    if (!active.getAsBoolean()) return;
-                    Intent nav = new Intent(Intent.ACTION_VIEW, Uri.parse(mode.navigationUri(place.latitude, place.longitude)));
-                    try {
-                        thread.activity.startActivity(nav);
-                    } catch (ActivityNotFoundException | SecurityException firstFailure) {
-                        try {
-                            Intent fallback = new Intent(Intent.ACTION_VIEW,
-                                    Uri.parse(mode.fallbackGeoUri(place.latitude, place.longitude)));
-                            thread.activity.startActivity(fallback);
-                        } catch (ActivityNotFoundException | SecurityException secondFailure) {
-                            Diagnostics.warning("places", "maps_unavailable");
-                            thread.screen.show(new AlertDialog.Builder(thread.activity)
-                                    .setTitle(R.string.places_map_unavailable_title)
-                                    .setMessage(R.string.places_map_unavailable_body)
-                                    .setPositiveButton(R.string.ws_close, null));
-                        }
-                    }
-                }));
     }
 
     private void choose(String title, List<String> labels, int selected, BooleanSupplier active, java.util.function.IntConsumer action) {

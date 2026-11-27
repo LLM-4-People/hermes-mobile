@@ -112,11 +112,20 @@ public final class HomePinBridge {
                         pinWidgetShortcut(activity, spec, ownerProfileId)));
     }
 
+    static String widgetShortcutId(HermesWidgetSpec spec) {
+        return spec == null ? null : spec.widgetId;
+    }
+
+    static boolean hasValidShortcutTarget(String surfaceId, String widgetId) {
+        return (surfaceId != null && WorkspaceLayout.custom(surfaceId))
+                || (widgetId != null && HermesWidgetSpec.validWidgetId(widgetId));
+    }
+
     private static void pinWidgetShortcut(Activity activity, LiveUiPatch.WidgetSpec spec, String ownerProfileId) {
         HermesWidgetSpec osSpec = toOsWidgetSpec(spec, ownerProfileId);
         if (osSpec == null) return;
         if (!new HermesWidgetStore(activity.getApplicationContext()).upsertSpec(osSpec, ownerProfileId)) return;
-        pinShortcutAsync(activity, osSpec.widgetId, osSpec.title, null, osSpec.widgetId);
+        pinShortcutAsync(activity, widgetShortcutId(osSpec), osSpec.title, null, osSpec.widgetId);
     }
 
     static String safeSurfaceTitle(String title) {
@@ -175,19 +184,16 @@ public final class HomePinBridge {
                         activity.getString(R.string.home_pin_shortcut_unsupported_body));
                 return false;
             }
+            if (!hasValidShortcutTarget(surfaceId, widgetId)) return false;
             Intent launch = new Intent(app, MainActivity.class)
                     .setAction(Intent.ACTION_VIEW)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-            boolean attachedTarget = false;
             if (surfaceId != null && WorkspaceLayout.custom(surfaceId)) {
                 launch.putExtra(EXTRA_SURFACE_ID, surfaceId);
-                attachedTarget = true;
             }
             if (widgetId != null && HermesWidgetSpec.validWidgetId(widgetId)) {
                 launch.putExtra(EXTRA_WIDGET_ID, widgetId);
-                attachedTarget = true;
             }
-            if (!attachedTarget) return false;
             String safeLabel = HermesWidgetSpec.sanitizeHomeText(label, 50);
             if (safeLabel.isEmpty()) return false;
             String shortLabel = safeShortShortcutLabel(safeLabel);

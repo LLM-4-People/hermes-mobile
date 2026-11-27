@@ -425,7 +425,7 @@ public final class PresenceSettingsPanel {
     }
 
     /** Called by host Activity with the outcome of a notification permission prompt for proactive nudges. */
-    public void onNotificationPermissionResult(boolean granted) {
+    public void onNotificationPermissionResult() {
         PermissionCenter.State state = PermissionCenter.state(context, PermissionCenter.Key.NOTIFICATIONS);
         boolean channelEnabled = DeepAndroidActions.isNudgeChannelEnabled(context);
         if (state == PermissionCenter.State.GRANTED && channelEnabled) {

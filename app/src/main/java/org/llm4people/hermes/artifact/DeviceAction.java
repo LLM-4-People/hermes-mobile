@@ -11,6 +11,7 @@ import android.util.JsonToken;
 import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.PlainTextSanitizer;
+import org.llm4people.hermes.places.NearbyCategory;
 import org.llm4people.hermes.places.NearbyResult;
 
 import java.io.IOException;
@@ -128,6 +129,10 @@ public sealed interface DeviceAction {
     String preview(Context context);
     Intent target();
     default Intent fallbackTarget() { return null; }
+    default String title(Context context) { return kind().title(context); }
+    default String openLabel(Context context) { return kind().open(context); }
+    default int unavailableTitleRes() { return R.string.ws_dev_app_unavailable_title; }
+    default int unavailableMessageRes() { return R.string.ws_dev_app_unavailable_message; }
 
     record CalendarEvent(String title, OffsetDateTime start, OffsetDateTime end, String location) implements DeviceAction {
         private static final DateTimeFormatter WIRE = new DateTimeFormatterBuilder()
@@ -312,6 +317,24 @@ public sealed interface DeviceAction {
         }
         @Override public Intent fallbackTarget() {
             return new Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=" + Uri.encode(destination)));
+        }
+    }
+
+    record PlaceRoute(NearbyResult.Place place, NearbyCategory.RouteMode mode) implements DeviceAction {
+        @Override public Kind kind() { return Kind.NAVIGATION; }
+        @Override public String title(Context context) { return mode.title(context); }
+        @Override public String openLabel(Context context) { return mode.openLabel(context); }
+        @Override public int unavailableTitleRes() { return R.string.places_map_unavailable_title; }
+        @Override public int unavailableMessageRes() { return R.string.places_map_unavailable_body; }
+        @Override public String preview(Context context) {
+            return context.getString(R.string.places_route_preview,
+                    place.name, mode.chipLabel(context), place.coordinates());
+        }
+        @Override public Intent target() {
+            return new Intent(Intent.ACTION_VIEW, Uri.parse(mode.navigationUri(place.latitude, place.longitude)));
+        }
+        @Override public Intent fallbackTarget() {
+            return new Intent(Intent.ACTION_VIEW, Uri.parse(mode.fallbackGeoUri(place.latitude, place.longitude)));
         }
     }
 

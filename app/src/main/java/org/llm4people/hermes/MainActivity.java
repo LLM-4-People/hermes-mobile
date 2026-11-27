@@ -1148,12 +1148,14 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                 details.append("\n• ").append(line);
             }
             if (notice != null) notice.dismiss();
+            boolean[] handled = {false};
             notice = Ui.secureDialog(new AlertDialog.Builder(this)
                     .setTitle(R.string.live_ui_delivery_title)
                     .setMessage(details.toString())
                     .setNegativeButton(R.string.ws_close, null)
                     .setPositiveButton(R.string.live_ui_delivery_apply, (d, w) -> {
-                        if (owner != account) return;
+                        if (handled[0] || owner != account) return;
+                        handled[0] = true;
                         try {
                             LiveUiPatch.StateManager manager = LiveUiPatch.StateManager.forAccount(
                                     owner, ThemePalette.isNight(this));
@@ -2204,11 +2206,9 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             return;
         }
         if (code == REQUEST_PRESENCE_NOTIFICATIONS) {
-            boolean granted = PermissionCenter.isCompletedResult(results)
-                    && results[0] == PackageManager.PERMISSION_GRANTED;
             if (account != null) {
                 if (activePresencePanel != null) {
-                    activePresencePanel.onNotificationPermissionResult(granted);
+                    activePresencePanel.onNotificationPermissionResult();
                 } else if (DeepAndroidActions.areNudgesReady(this)) {
                     PresencePolicy current = PresencePolicy.load(account);
                     PresencePolicy updated = current.withProactiveNudges(true);

@@ -1039,16 +1039,13 @@ public final class ThreadWorkspace implements AutoCloseable {
             if (keysetBeforeId != null || older) {
                 InfiniteTranscriptWindow.PageResult result = transcriptWindow.prependOlder(
                         InfiniteTranscriptWindow.fromJsonArray(visiblePage), hasMore, cursorOldest);
-                messages = InfiniteTranscriptWindow.toJsonArray(transcriptWindow.snapshot());
-                hasMore = transcriptWindow.hasOlder();
                 prependedCount = result.prependedCount();
                 anchorShift = result.anchorDelta();
             } else {
-                messages = ThreadData.visibleMessages(ThreadData.join(page, new JSONArray()));
-                transcriptWindow.replaceLatest(InfiniteTranscriptWindow.fromJsonArray(messages), hasMore, cursorOldest, cursorNewest);
-                messages = InfiniteTranscriptWindow.toJsonArray(transcriptWindow.snapshot());
-                hasMore = transcriptWindow.hasOlder();
+                transcriptWindow.replaceLatest(InfiniteTranscriptWindow.fromJsonArray(visiblePage), hasMore, cursorOldest, cursorNewest);
             }
+            messages = InfiniteTranscriptWindow.toJsonArray(transcriptWindow.snapshot());
+            hasMore = transcriptWindow.hasOlder();
             hasOlderMessages = hasMore;
             // Advance by the rows this response actually returned. The scroll anchor counts displayed rows.
             messageOffset = offset + window.rawCount();

@@ -321,7 +321,7 @@ public final class PermissionCenter {
         if (context == null || permission == null || permission.isEmpty()) return false;
         try {
             PackageManager pm = context.getPackageManager();
-            if (pm == null) return true;
+            if (pm == null) return false;
             PackageInfo info = Build.VERSION.SDK_INT >= 33
                     ? pm.getPackageInfo(context.getPackageName(),
                     PackageManager.PackageInfoFlags.of(PackageManager.GET_PERMISSIONS))

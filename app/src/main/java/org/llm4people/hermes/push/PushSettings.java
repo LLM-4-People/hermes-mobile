@@ -176,35 +176,72 @@ final class PushSettings {
     }
 
     AlertDialog.Builder settingsDialog(PushStore.Device device, boolean allowed) {
+        boolean[] handled = {false};
         AlertDialog.Builder builder = new AlertDialog.Builder(activity).setTitle(R.string.push_settings_title)
                 .setNegativeButton(R.string.ws_close, null)
-                .setNeutralButton(R.string.push_settings_history, (d,w) -> history(0, new ArrayDeque<>()));
+                .setNeutralButton(R.string.push_settings_history, (d,w) -> {
+                    if (handled[0]) return;
+                    handled[0] = true;
+                    history(0, new ArrayDeque<>());
+                });
         if (device != null && PushStore.REMOVING.equals(device.state)) {
             builder.setMessage(R.string.push_settings_removal_pending)
-                    .setPositiveButton(R.string.instrument_retry, (d,w) -> remove(device));
+                    .setPositiveButton(R.string.instrument_retry, (d,w) -> {
+                        if (handled[0]) return;
+                        handled[0] = true;
+                        remove(device);
+                    });
         } else if (device != null && (PushStore.ACTIVE.equals(device.state) || pendingRepair(device))) {
             if (!allowed) {
                 String android = activity.getString(R.string.push_settings_blocked_message);
                 builder.setTitle(R.string.push_settings_blocked_title)
                         .setMessage(device.repair == PushStore.NO_REPAIR ? android : android + "\n\n" + activeMessage(device))
                         .setPositiveButton(R.string.push_settings_android_settings, null)
-                        .setNegativeButton(R.string.push_settings_disable, (d,w) -> remove(device));
+                        .setNegativeButton(R.string.push_settings_disable, (d,w) -> {
+                            if (handled[0]) return;
+                            handled[0] = true;
+                            remove(device);
+                        });
             } else if (device.repair != PushStore.NO_REPAIR) {
                 builder.setTitle(R.string.push_settings_distributor_connecting).setMessage(activeMessage(device))
-                        .setNegativeButton(R.string.push_settings_disable, (d,w) -> remove(device));
+                        .setNegativeButton(R.string.push_settings_disable, (d,w) -> {
+                            if (handled[0]) return;
+                            handled[0] = true;
+                            remove(device);
+                        });
                 if (device.repair == PushStore.REPAIR_ACTION)
-                    builder.setPositiveButton(R.string.instrument_retry, (d,w) -> retryRepair(device));
+                    builder.setPositiveButton(R.string.instrument_retry, (d,w) -> {
+                        if (handled[0]) return;
+                        handled[0] = true;
+                        retryRepair(device);
+                    });
             } else {
-                builder.setMessage(activeMessage(device)).setPositiveButton(R.string.push_settings_disable, (d,w) -> remove(device));
+                builder.setMessage(activeMessage(device)).setPositiveButton(R.string.push_settings_disable, (d,w) -> {
+                    if (handled[0]) return;
+                    handled[0] = true;
+                    remove(device);
+                });
             }
         } else if (device != null) {
             builder.setTitle(R.string.push_settings_registration_confirm)
                     .setMessage(registrationMessage(device))
-                    .setPositiveButton(R.string.instrument_retry, (d,w) -> begin())
-                    .setNegativeButton(R.string.push_settings_disable, (d,w) -> remove(device));
+                    .setPositiveButton(R.string.instrument_retry, (d,w) -> {
+                        if (handled[0]) return;
+                        handled[0] = true;
+                        begin();
+                    })
+                    .setNegativeButton(R.string.push_settings_disable, (d,w) -> {
+                        if (handled[0]) return;
+                        handled[0] = true;
+                        remove(device);
+                    });
         } else {
             builder.setMessage(R.string.push_settings_intro)
-                    .setPositiveButton(R.string.push_settings_enable, (d,w) -> begin());
+                    .setPositiveButton(R.string.push_settings_enable, (d,w) -> {
+                        if (handled[0]) return;
+                        handled[0] = true;
+                        begin();
+                    });
         }
         LinearLayout extras = null;
         if (offersDistributor(device)) {
@@ -490,29 +527,44 @@ final class PushSettings {
                 if (!current()) return;
                 PushHistory.Page page = PushHistory.load(activity, api, cursor, locale);
                 finishProgress(progress, () -> {
+                    boolean[] handled = {false};
                     AlertDialog.Builder list = new AlertDialog.Builder(activity)
                             .setTitle(R.string.push_settings_history_title)
                             .setNegativeButton(R.string.ws_close, null);
                     if (page.labels.isEmpty()) list.setMessage(R.string.push_settings_history_empty);
                     else list.setItems(page.labels.toArray(new String[0]), (d,index) -> {
+                        if (handled[0]) return;
+                        handled[0] = true;
                         if (current() && activity instanceof MobilePush.EventHost host) {
                             host.openPushEvent(account, page.events.get(index));
                         }
                     });
                     if (page.more) list.setPositiveButton(R.string.push_settings_next, (d,w) -> {
+                        if (handled[0]) return;
+                        handled[0] = true;
                         previous.push(cursor);
                         history(page.next, previous);
                     });
-                    if (!previous.isEmpty()) list.setNeutralButton(R.string.push_settings_previous,
-                            (d,w) -> history(previous.pop(), previous));
+                    if (!previous.isEmpty()) list.setNeutralButton(R.string.push_settings_previous, (d,w) -> {
+                        if (handled[0] || previous.isEmpty()) return;
+                        handled[0] = true;
+                        history(previous.pop(), previous);
+                    });
                     display(list);
                 });
             } catch (Exception error) {
                 Diagnostics.warning("push", "history_load_failed");
-                finishProgress(progress, () -> display(new AlertDialog.Builder(activity)
-                        .setTitle(R.string.push_settings_history_unavailable).setMessage(errorMessage(error))
-                        .setPositiveButton(R.string.instrument_retry, (d,w) -> history(cursor, previous))
-                        .setNegativeButton(R.string.ws_close, null)));
+                finishProgress(progress, () -> {
+                    boolean[] handled = {false};
+                    display(new AlertDialog.Builder(activity)
+                            .setTitle(R.string.push_settings_history_unavailable).setMessage(errorMessage(error))
+                            .setPositiveButton(R.string.instrument_retry, (d,w) -> {
+                                if (handled[0]) return;
+                                handled[0] = true;
+                                history(cursor, previous);
+                            })
+                            .setNegativeButton(R.string.ws_close, null));
+                });
             }
         });
     }
@@ -638,10 +690,19 @@ final class PushSettings {
             choices.add(() -> run(activity.getString(R.string.push_settings_registering), () -> PushConnection.enroll(
                     activity.getApplicationContext(), account, api, PushConfig.parse(discovery), epoch, this::current)));
         }
+        boolean[] handled = {false};
         AlertDialog.Builder picker = new AlertDialog.Builder(activity).setTitle(R.string.push_settings_service_title)
-                .setNegativeButton(R.string.push_settings_back, (d,w) -> show());
+                .setNegativeButton(R.string.push_settings_back, (d,w) -> {
+                    if (handled[0]) return;
+                    handled[0] = true;
+                    show();
+                });
         if (choices.isEmpty()) picker.setMessage(R.string.push_settings_no_service);
-        else picker.setItems(labels.toArray(new String[0]), (d,w) -> choices.get(w).run());
+        else picker.setItems(labels.toArray(new String[0]), (d,w) -> {
+            if (handled[0]) return;
+            handled[0] = true;
+            choices.get(w).run();
+        });
         display(picker);
     }
 
@@ -670,14 +731,21 @@ final class PushSettings {
     }
 
     private void showDistributorPicker(JSONObject discovery, long epoch, List<DistributorChoice> choices) {
+        boolean[] handled = {false};
         AlertDialog.Builder picker = new AlertDialog.Builder(activity).setTitle(R.string.push_settings_choose_distributor)
-                .setNegativeButton(R.string.push_settings_back, (d,w) -> show());
+                .setNegativeButton(R.string.push_settings_back, (d,w) -> {
+                    if (handled[0]) return;
+                    handled[0] = true;
+                    show();
+                });
         if (choices == null || choices.isEmpty()) {
             picker.setMessage(R.string.push_settings_install_up);
         } else {
             String[] labels = new String[choices.size()];
             for (int i = 0; i < choices.size(); i++) labels[i] = choices.get(i).label();
             picker.setItems(labels, (d,w) -> {
+                if (handled[0]) return;
+                handled[0] = true;
                 DistributorChoice chosen = choices.get(w);
                 run(activity.getString(R.string.push_settings_registering_distributor), () ->
                         DistributorEnrollment.enroll(activity.getApplicationContext(), account, api,
