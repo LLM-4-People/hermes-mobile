@@ -165,8 +165,11 @@ final class PromptCard extends LinearLayout {
             case OFFLINE -> getContext().getString(R.string.prompt_waiting_reconnect);
             default -> "";
         };
-        status.setText(message);
-        status.setVisibility(message.isEmpty() ? GONE : VISIBLE);
+        if (message.isEmpty()) {
+            Ui.clearLiveStatus(status);
+        } else {
+            Ui.announceLiveStatus(status, message);
+        }
         verify.setVisibility(next == State.VERIFY ? VISIBLE : GONE);
     }
 

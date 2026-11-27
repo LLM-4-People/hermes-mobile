@@ -295,9 +295,7 @@ public final class PermissionsPanel {
     private void clearFeedback() {
         pendingFeedbackKey = null;
         pendingFeedbackWasGranted = false;
-        if (feedback == null) return;
-        feedback.setText("");
-        feedback.setVisibility(View.GONE);
+        Ui.clearLiveStatus(feedback);
     }
 
     private static TextView statusPill(Context context, PermissionCenter.State state) {

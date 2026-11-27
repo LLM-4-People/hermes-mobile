@@ -226,8 +226,7 @@ final class WorkspaceShell {
 
     void pendingResponse(Runnable open) {
         if (open == null) {
-            pending.setVisibility(View.GONE);
-            pending.setText("");
+            Ui.clearLiveStatus(pending);
             pending.setOnClickListener(null);
             return;
         }

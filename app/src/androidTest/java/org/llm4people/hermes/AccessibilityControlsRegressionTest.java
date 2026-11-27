@@ -2652,10 +2652,8 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
                                 List.of(View.VISIBLE, View.VISIBLE), visAtMutation);
                         assertEquals("Saved", String.valueOf(liveProbe.getText()));
 
-                        // R31.5.2: VoiceDrafts.Controls.modelAction unhides feedback BEFORE live-region action text updates.
-                        VoiceDrafts r31Voice = new VoiceDrafts(activity);
-                        voiceRef.set(r31Voice);
-                        VoiceDrafts.Controls r31Controls = r31Voice.bind(new EditText(activity));
+                        // R31.5.2 / R32.8.1: VoiceDrafts.Controls.modelAction unhides feedback BEFORE live-region action text updates (reusing existing voice instance).
+                        VoiceDrafts.Controls r31Controls = voice.bind(new EditText(activity));
                         Field actionField = VoiceDrafts.Controls.class.getDeclaredField("action");
                         actionField.setAccessible(true);
                         Button voiceAction = (Button) actionField.get(r31Controls);
@@ -2678,6 +2676,47 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
                         assertEquals(View.ACCESSIBILITY_LIVE_REGION_POLITE, voiceAction.getAccessibilityLiveRegion());
                         assertEquals("feedback must already be VISIBLE when modelAction updates live-region action text",
                                 List.of(View.VISIBLE), feedbackVisOnActionChange);
+
+                        // R32.5.3: Ui.clearLiveStatus hides view BEFORE clearing text and is a safe no-op on null/empty.
+                        Ui.clearLiveStatus(null);
+                        visAtMutation.clear();
+                        Ui.clearLiveStatus(liveProbe);
+                        assertEquals(View.GONE, liveProbe.getVisibility());
+                        assertEquals("", String.valueOf(liveProbe.getText()));
+                        assertEquals("clearLiveStatus must set GONE before clearing text",
+                                List.of(View.GONE), visAtMutation);
+                        visAtMutation.clear();
+                        Ui.clearLiveStatus(liveProbe);
+                        assertTrue("clearLiveStatus on already-empty GONE view must not mutate text",
+                                visAtMutation.isEmpty());
+
+                        // R32.5.2: InfiniteScrollController unhides jumpPill BEFORE mutating text/contentDescription.
+                        boolean[] hasNewerFlag = {false};
+                        org.llm4people.hermes.thread.InfiniteScrollController scrollCtrl =
+                                new org.llm4people.hermes.thread.InfiniteScrollController(
+                                        new org.llm4people.hermes.thread.InfiniteScrollController.Callbacks() {
+                                            @Override public boolean hasOlder() { return false; }
+                                            @Override public boolean hasNewer() { return hasNewerFlag[0]; }
+                                            @Override public boolean isLoadingOlder() { return false; }
+                                            @Override public boolean isLoadingNewer() { return false; }
+                                            @Override public void loadOlder() {}
+                                            @Override public void loadNewer() {}
+                                        }, 6, 6, 0, 0);
+                        Button jumpPill = scrollCtrl.createJumpPill(activity, () -> {});
+                        assertEquals(View.GONE, jumpPill.getVisibility());
+                        List<Integer> jumpPillVisAtMutation = new ArrayList<>();
+                        jumpPill.addTextChangedListener(new android.text.TextWatcher() {
+                            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+                            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
+                                jumpPillVisAtMutation.add(jumpPill.getVisibility());
+                            }
+                            @Override public void afterTextChanged(android.text.Editable s) {}
+                        });
+                        hasNewerFlag[0] = true;
+                        scrollCtrl.onNewMessagesArrived(2);
+                        assertEquals(View.VISIBLE, jumpPill.getVisibility());
+                        assertEquals("jumpPill must already be VISIBLE when live-region text updates",
+                                List.of(View.VISIBLE), jumpPillVisAtMutation);
                     } catch (Exception err) {
                         throw new AssertionError(err);
                     }

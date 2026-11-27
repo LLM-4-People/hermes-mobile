@@ -622,8 +622,7 @@ public final class FirstRunWizard {
     private static void showStatus(Activity activity, TextView view, String message, int colorRes) {
         if (view == null) return;
         if (message == null || message.isEmpty()) {
-            view.setText("");
-            view.setVisibility(View.GONE);
+            Ui.clearLiveStatus(view);
             return;
         }
         view.setTextColor(activity.getColor(colorRes));

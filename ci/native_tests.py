@@ -160,6 +160,17 @@ def _timeout_seconds(env_var, default):
     return value
 
 
+def _collect_crash_summary(serial, timeout=15):
+    try:
+        crash = subprocess.run(
+            ["adb", "-s", serial, "logcat", "-d", "-b", "crash", "-v", "raw", "AndroidRuntime:E", "*:S"],
+            capture_output=True, text=True, errors="replace", timeout=timeout,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    return crash_summary(crash.stdout or "")
+
+
 def timeout_diagnostics(serial):
     """Collect privacy-safe focus, resumed activity, and crash summary when instrumentation hangs."""
     lines = []
@@ -178,16 +189,9 @@ def timeout_diagnostics(serial):
         match = re.search(pattern, proc.stdout or "")
         if match:
             lines.append(f"{label}: {match.group(0).strip()}")
-    try:
-        crash = subprocess.run(
-            ["adb", "-s", serial, "logcat", "-d", "-b", "crash", "-v", "raw", "AndroidRuntime:E", "*:S"],
-            capture_output=True, text=True, errors="replace", timeout=15,
-        )
-        summary = crash_summary(crash.stdout or "")
-        if summary:
-            lines.append("crash_summary:\n" + summary)
-    except (OSError, subprocess.SubprocessError):
-        pass
+    summary = _collect_crash_summary(serial)
+    if summary:
+        lines.append("crash_summary:\n" + summary)
     return "\n".join(lines)
 
 
@@ -238,9 +242,7 @@ def run(serial, directory, expected):
         except (ValueError, KeyError, subprocess.CalledProcessError):
             print(output, file=sys.stderr)
             if "INSTRUMENTATION_RESULT: shortMsg=Process crashed." in output:
-                crash = subprocess.run(["adb", "-s", serial, "logcat", "-d", "-b", "crash", "-v", "raw",
-                                        "AndroidRuntime:E", "*:S"], capture_output=True, text=True, errors="replace")
-                summary = crash_summary(crash.stdout)
+                summary = _collect_crash_summary(serial)
                 if summary:
                     (directory / "crash.txt").write_text(summary + "\n")
                     print(summary, file=sys.stderr)

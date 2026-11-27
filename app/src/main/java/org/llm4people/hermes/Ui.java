@@ -455,6 +455,19 @@ public final class Ui {
         view.setText(next);
     }
 
+    /** Hide a live-region status view before clearing its text so TalkBack never announces an empty string. */
+    public static void clearLiveStatus(TextView view) {
+        if (view == null) {
+            return;
+        }
+        if (view.getVisibility() != View.GONE) {
+            view.setVisibility(View.GONE);
+        }
+        if (view.getText().length() > 0) {
+            view.setText("");
+        }
+    }
+
     /**
      * Show an inline validation/status error with POLITE live region, forcing a fresh text-change
      * announcement when the error view is already visible with identical text.

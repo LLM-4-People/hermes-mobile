@@ -467,10 +467,7 @@ public final class ReminderPanel {
         button.setEnabled(false);
         String original = button.getText().toString();
         button.setText(panel.t(R.string.panel_jobs_running_now));
-        if (feedbackView != null) {
-            feedbackView.setText("");
-            feedbackView.setVisibility(View.GONE);
-        }
+        Ui.clearLiveStatus(feedbackView);
         LinearLayout statusSlot = Ui.column(panel.activity);
         panel.request(statusSlot, () -> panel.api.post(ScheduledJobModel.triggerPath(jobId), new JSONObject()),
                 ok -> {

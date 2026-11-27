@@ -215,15 +215,15 @@ public final class InfiniteScrollController implements AbsListView.OnScrollListe
             nextText = ctx.getString(R.string.infinite_jump_latest);
             nextCd = ctx.getString(cdRes);
         }
+        if (jumpPill.getVisibility() != View.VISIBLE) {
+            jumpPill.setVisibility(View.VISIBLE);
+        }
         if (!nextText.contentEquals(jumpPill.getText())) {
             jumpPill.setText(nextText);
         }
         CharSequence currentCd = jumpPill.getContentDescription();
         if (currentCd == null || !nextCd.contentEquals(currentCd)) {
             jumpPill.setContentDescription(nextCd);
-        }
-        if (jumpPill.getVisibility() != View.VISIBLE) {
-            jumpPill.setVisibility(View.VISIBLE);
         }
     }
 

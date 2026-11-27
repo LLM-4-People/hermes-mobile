@@ -201,3 +201,33 @@ java.lang.NoClassDefFoundError: private content
         for bad in ("2/2", "-1/2", "0/0", "1/0", "abc", "0/2/3", "1/2"):
             with self.subTest(spec=bad), self.assertRaises(ValueError):
                 shard_cases(cases, bad)
+
+    def test_process_crash_bounds_logcat_timeout_and_preserves_primary_error(self):
+        for exc_factory in (
+            lambda cmd: subprocess.TimeoutExpired(cmd, 15),
+            lambda cmd: OSError("adb vanished"),
+        ):
+            with self.subTest(exc=exc_factory.__name__), tempfile.TemporaryDirectory() as temporary:
+                directory = Path(temporary)
+                logcat_timeouts = []
+
+                def adb(command, *, stdout=None, stderr=None, capture_output=False, text=False, errors=None, timeout=None):
+                    if capture_output and "logcat" in command:
+                        logcat_timeouts.append(timeout)
+                        raise exc_factory(command)
+                    if "log" in command:
+                        stdout.write(report())
+                        return subprocess.CompletedProcess(command, 0)
+                    stdout.write(
+                        status("testLaunch", 1)
+                        + "INSTRUMENTATION_RESULT: shortMsg=Process crashed.\n"
+                        + "INSTRUMENTATION_CODE: 0\n"
+                    )
+                    return subprocess.CompletedProcess(command, 0)
+
+                with (patch("native_tests.subprocess.run", adb),
+                      contextlib.redirect_stderr(io.StringIO()),
+                      self.assertRaises(ValueError)):
+                    run("serial", directory, self.expected)
+                self.assertEqual(logcat_timeouts, [15])
+                self.assertFalse((directory / "crash.txt").exists())
