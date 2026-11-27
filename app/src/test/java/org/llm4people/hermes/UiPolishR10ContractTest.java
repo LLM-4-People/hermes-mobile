@@ -168,7 +168,11 @@ public final class UiPolishR10ContractTest {
 
         String skillBrowser = read("src/main/java/org/llm4people/hermes/panel/SkillBrowser.java");
         assertTrue(skillBrowser.contains("Ui.announceLiveStatus(empty, msg)"));
-        assertTrue(skillBrowser.contains("empty.setText(\"\")"));
+        assertTrue(skillBrowser.contains("Ui.clearLiveStatus(empty)"));
+
+        String promptCard = read("src/main/java/org/llm4people/hermes/thread/PromptCard.java");
+        assertTrue(promptCard.contains("Ui.clearLiveStatus(status)"));
+        assertTrue(promptCard.contains("Ui.announceLiveStatus(status, message)"));
 
         String profileGate = read("src/main/java/org/llm4people/hermes/profile/ProfileGate.java");
         assertTrue(profileGate.contains("TextView stagedSummary = screen.note(\"\");"));

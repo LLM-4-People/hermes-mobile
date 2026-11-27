@@ -2,7 +2,6 @@ from concurrent.futures import ThreadPoolExecutor
 import json
 import math
 import sqlite3
-from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import MagicMock, Mock, patch

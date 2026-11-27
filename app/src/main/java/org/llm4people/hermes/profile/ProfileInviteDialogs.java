@@ -231,10 +231,7 @@ final class ProfileInviteDialogs {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
             @Override public void onTextChanged(CharSequence s, int start, int before, int count) {}
             @Override public void afterTextChanged(Editable s) {
-                if (inlineError.getVisibility() == View.VISIBLE) {
-                    inlineError.setText("");
-                    inlineError.setVisibility(View.GONE);
-                }
+                Ui.clearLiveStatus(inlineError);
             }
         });
         slugField.setOnFocusChangeListener((v, hasFocus) -> {
@@ -268,8 +265,7 @@ final class ProfileInviteDialogs {
                     slugField.requestFocus();
                     return;
                 }
-                inlineError.setText("");
-                inlineError.setVisibility(View.GONE);
+                Ui.clearLiveStatus(inlineError);
                 if (isClosed.getAsBoolean()) return;
                 boolean grantAdmin = allowAdminToggle && adminToggle.isChecked();
                 submitted[0] = true;

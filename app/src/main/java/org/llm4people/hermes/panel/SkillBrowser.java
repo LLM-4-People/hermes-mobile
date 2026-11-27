@@ -169,8 +169,7 @@ final class SkillBrowser {
                 Ui.announceLiveStatus(empty, msg);
             }
         } else if (empty.getVisibility() != View.GONE) {
-            empty.setVisibility(View.GONE);
-            empty.setText("");
+            Ui.clearLiveStatus(empty);
         }
     }
 

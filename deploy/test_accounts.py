@@ -40,10 +40,30 @@ class AccountDeploymentTest(unittest.TestCase):
         self.assertIn("handle_path /p/alice/* {", routes)
         self.assertIn("handle_path /p/bob_work/* {", routes)
         self.assertIn("@nested_profiles path /p /p/*", routes)
+        self.assertIn(
+            "@push path /api/mobile/push /api/mobile/push/* /api/mobile/deliveries /api/mobile/deliveries/*",
+            routes,
+        )
         self.assertIn("reverse_proxy gateway-alice:8642", routes)
         self.assertIn("reverse_proxy gateway-bob_work:8642", routes)
         self.assertNotIn("push-alice", routes)
         self.assertIn("reverse_proxy push-bob_work:8766", routes)
+        alice_block = routes.split("handle_path /p/alice/* {")[1].split("handle_path /p/bob_work/* {")[0]
+        bob_block = routes.split("handle_path /p/bob_work/* {")[1]
+        self.assertIn(
+            "@push path /api/mobile/push /api/mobile/push/* /api/mobile/deliveries /api/mobile/deliveries/*\n"
+            "        handle @push {\n"
+            "            respond 404\n"
+            "        }",
+            alice_block,
+        )
+        self.assertIn(
+            "@push path /api/mobile/push /api/mobile/push/* /api/mobile/deliveries /api/mobile/deliveries/*\n"
+            "        handle @push {\n"
+            "            reverse_proxy push-bob_work:8766\n"
+            "        }",
+            bob_block,
+        )
         self.assertTrue(routes.rstrip().endswith("    handle {\n        respond 404\n    }\n}"))
         for name in self.profiles:
             gateway = services["gateway-" + name]

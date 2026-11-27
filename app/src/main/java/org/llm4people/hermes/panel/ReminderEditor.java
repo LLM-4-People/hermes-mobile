@@ -216,8 +216,7 @@ final class ReminderEditor {
     }
 
     private void clearError() {
-        error.setText("");
-        error.setVisibility(View.GONE);
+        Ui.clearLiveStatus(error);
     }
 
     private void addPresetButton(ReminderSchedule.Preset preset, int labelRes) {

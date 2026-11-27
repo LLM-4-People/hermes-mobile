@@ -534,8 +534,7 @@ public final class AdminConsoleSheet implements AutoCloseable {
                 Ui.showInlineError(settingsError, activity.getString(R.string.admin_settings_invalid_number));
                 return;
             }
-            settingsError.setText("");
-            settingsError.setVisibility(View.GONE);
+            Ui.clearLiveStatus(settingsError);
             if (closed || io.isShutdown()) return;
             saveBtn.setEnabled(false);
             if (!submitIo(() -> {
@@ -814,10 +813,7 @@ public final class AdminConsoleSheet implements AutoCloseable {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
             @Override public void onTextChanged(CharSequence s, int start, int before, int count) {}
             @Override public void afterTextChanged(Editable s) {
-                if (inlineError.getVisibility() == View.VISIBLE) {
-                    inlineError.setText("");
-                    inlineError.setVisibility(View.GONE);
-                }
+                Ui.clearLiveStatus(inlineError);
             }
         });
 
@@ -838,8 +834,7 @@ public final class AdminConsoleSheet implements AutoCloseable {
                     confirmInput.requestFocus();
                     return;
                 }
-                inlineError.setText("");
-                inlineError.setVisibility(View.GONE);
+                Ui.clearLiveStatus(inlineError);
                 if (closed || io.isShutdown()) return;
                 dialog.dismiss();
                 submitIo(() -> {
