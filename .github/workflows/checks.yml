@@ -107,20 +107,21 @@ jobs:
     needs: changes
     if: ${{ !cancelled() && needs.changes.outputs.run_workspace == 'true' }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
-        with:
-          version: '0.11.17'
-          enable-cache: true
-          cache-dependency-glob: server/requirements.txt
-      - run: |
-          uv venv "$RUNNER_TEMP/server-env"
-          uv pip install --python "$RUNNER_TEMP/server-env/bin/python" -r server/requirements.txt
-      - run: python3 -B scripts/fast_check.py --workspace-only --server-python "$RUNNER_TEMP/server-env/bin/python"
+      - uses: ./.github/actions/hermes-fixture
+      - name: Install locked Hermes and server dependencies
+        run: |
+          UV_PROJECT_ENVIRONMENT="$RUNNER_TEMP/hermes-env" \
+            uv sync --project .fixture/hermes --frozen --group dev --no-install-project --extra sms
+          uv pip install --python "$RUNNER_TEMP/hermes-env/bin/python" -r server/requirements.txt
+      - name: Run workspace tests
+        env:
+          HERMES_TEST_CHECKOUT: ${{ github.workspace }}/.fixture/hermes
+        run: python3 -B scripts/fast_check.py --workspace-only --server-python "$RUNNER_TEMP/hermes-env/bin/python"
 
   package-debug:
     name: Android debug package
@@ -321,12 +322,6 @@ jobs:
         run: |
           UV_PROJECT_ENVIRONMENT="$RUNNER_TEMP/hermes-env" \
             uv sync --project .fixture/hermes --frozen --group dev --no-install-project --extra sms
-          uv pip install --python "$RUNNER_TEMP/hermes-env/bin/python" -r server/requirements.txt
-      - name: Verify the notification bridge against real Hermes ledger writers
-        env:
-          HERMES_TEST_CHECKOUT: ${{ github.workspace }}/.fixture/hermes
-        run: |
-          "$RUNNER_TEMP/hermes-env/bin/python" -B -m unittest discover -s server/tests
       - name: Verify the conversational HTTP contract on the selected gateway
         run: |
           "$RUNNER_TEMP/hermes-env/bin/python" -B verification/conversation_cards.py --source .fixture/hermes \

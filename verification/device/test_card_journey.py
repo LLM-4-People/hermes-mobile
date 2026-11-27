@@ -73,3 +73,46 @@ class CardJourneyTest(unittest.TestCase):
             self.phone.cleanup()
         self.assertFalse((self.output / "card-1.png").exists())
         self.phone.device.shell.assert_called_with("run-as", APP, "rm", "-r", self.phone.directory)
+
+    def test_conversation_cards_admission_closes_sqlite_connection(self):
+        import importlib
+        import sqlite3
+        import sys
+
+        verif_dir = str(Path(__file__).resolve().parents[1])
+        db_path = self.output / "state.db"
+        setup_conn = sqlite3.connect(db_path)
+        try:
+            setup_conn.execute(
+                "CREATE TABLE session_admissions (seq INTEGER, principal_id TEXT, request_id TEXT, target_session_id TEXT)"
+            )
+            setup_conn.execute(
+                "INSERT INTO session_admissions VALUES (1, 'api', 'req-1', 'sess-1')"
+            )
+            setup_conn.commit()
+        finally:
+            setup_conn.close()
+
+        closed = []
+        real_connect = sqlite3.connect
+
+        class TrackingConnection:
+            def __init__(self, inner):
+                self._inner = inner
+
+            def execute(self, *args, **kwargs):
+                return self._inner.execute(*args, **kwargs)
+
+            def close(self):
+                closed.append(True)
+                return self._inner.close()
+
+        gateway = SimpleNamespace(env={"HERMES_HOME": str(self.output)})
+        with (
+            patch.object(sys, "path", [verif_dir, *sys.path]),
+            patch.object(sqlite3, "connect", side_effect=lambda *a, **kw: TrackingConnection(real_connect(*a, **kw))),
+        ):
+            conversation_cards = importlib.import_module("conversation_cards")
+            row = conversation_cards.admission(gateway, 0)
+        self.assertEqual(row, ("req-1", "sess-1"))
+        self.assertEqual(closed, [True])

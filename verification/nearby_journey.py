@@ -15,12 +15,6 @@ PROMPT = "Quels restaurants se trouvent près de moi ?"
 GMS_PACKAGE = "com.google.android.gms"
 
 
-def dismiss_ime(ui):
-    if ui.device.ime_shown():
-        ui.device.shell("input", "keyevent", "BACK")
-        eventually("soft keyboard to hide", lambda: not ui.device.ime_shown(), timeout=15)
-
-
 def enter_message(ui, prompt=PROMPT):
     s = ui.strings
     send_btn = s["thread_send"]
@@ -40,7 +34,7 @@ def enter_message(ui, prompt=PROMPT):
     if current != prompt:
         label = current or composer_hint
         ui.set_text(label, prompt, description="the public Android composer to accept the request")
-    dismiss_ime(ui)
+    ui.dismiss_ime()
 
 
 def open_consent(ui):
@@ -51,7 +45,7 @@ def open_consent(ui):
     searching_status = s["nearby_locating"]
     choose_profile = s["profile_choose_title"]
     composer_hint = s["thread_message_hint"]
-    dismiss_ime(ui)
+    ui.dismiss_ime()
     taps = 0
     ime_dismissals = 0
     gms_dismissals = 0
@@ -202,6 +196,39 @@ def lock(ui):
     )
 
 
+def _find_visible_app_node(root, fragment, *, attribute=None):
+    for node in root.iter("node"):
+        if node.get("package") != APP:
+            continue
+        labels = (node.get(attribute, ""),) if attribute else (node.get("text", ""), node.get("content-desc", ""))
+        if any(fragment.casefold() in label.casefold() for label in labels):
+            box = [int(value) for value in re.findall(r'-?\d+', node.get("bounds", ""))]
+            if len(box) == 4 and box[2] > box[0] and box[3] > box[1]:
+                return node
+    return None
+
+
+def _scroll_app_step(ui, root, last, upward):
+    areas = []
+    for node in root.iter("node"):
+        if node.get("package") == APP and node.get("scrollable") == "true":
+            bounds = tuple(int(v) for v in re.findall(r'-?\d+', node.get("bounds", "")))
+            if len(bounds) == 4:
+                areas.append(bounds)
+    if areas:
+        x1, y1, x2, y2 = max(areas, key=lambda b: (b[2] - b[0]) * (b[3] - b[1]))
+        view = tuple((node.get("text"), node.get("content-desc"), node.get("bounds"))
+                     for node in root.iter("node") if node.get("package") == APP)
+        if view == last:
+            upward = not upward
+        last = view
+        low, high = y1 + (y2 - y1) // 3, y1 + 3 * (y2 - y1) // 4
+        start, end = (low, high) if upward else (high, low)
+        x = str((x1 + x2) // 2)
+        ui.device.shell("input", "swipe", x, str(start), x, str(end), "240")
+    return last, upward
+
+
 def visible_app_node(ui, fragment, *, attribute=None):
     """Find a rendered, on-screen bit of guide data, revealing it by normal vertical scrolling."""
     last = None
@@ -210,31 +237,10 @@ def visible_app_node(ui, fragment, *, attribute=None):
     def find():
         nonlocal last, upward
         root = ui.hierarchy()
-        for node in root.iter("node"):
-            if node.get("package") != APP:
-                continue
-            labels = (node.get(attribute, ""),) if attribute else (node.get("text", ""), node.get("content-desc", ""))
-            if any(fragment.casefold() in label.casefold() for label in labels):
-                box = [int(value) for value in re.findall(r'-?\d+', node.get("bounds", ""))]
-                if len(box) == 4 and box[2] > box[0] and box[3] > box[1]:
-                    return (node,)
-        areas = []
-        for node in root.iter("node"):
-            if node.get("package") == APP and node.get("scrollable") == "true":
-                bounds = tuple(int(v) for v in re.findall(r'-?\d+', node.get("bounds", "")))
-                if len(bounds) == 4:
-                    areas.append(bounds)
-        if areas:
-            x1, y1, x2, y2 = max(areas, key=lambda b: (b[2] - b[0]) * (b[3] - b[1]))
-            view = tuple((node.get("text"), node.get("content-desc"), node.get("bounds"))
-                         for node in root.iter("node") if node.get("package") == APP)
-            if view == last:
-                upward = not upward
-            last = view
-            low, high = y1 + (y2 - y1) // 3, y1 + 3 * (y2 - y1) // 4
-            start, end = (low, high) if upward else (high, low)
-            x = str((x1 + x2) // 2)
-            ui.device.shell("input", "swipe", x, str(start), x, str(end), "240")
+        node = _find_visible_app_node(root, fragment, attribute=attribute)
+        if node is not None:
+            return (node,)
+        last, upward = _scroll_app_step(ui, root, last, upward)
         return False
 
     return eventually("visible restaurant guide element " + fragment, find, timeout=45)[0]
@@ -243,17 +249,23 @@ def visible_app_node(ui, fragment, *, attribute=None):
 def tap_visible_app_until(ui, fragment, ready, *, attribute=None, description=None):
     """Reveal a rendered app control and tap it until the expected UI transition settles."""
     last_tap = None
+    last_view = None
+    upward = False
 
     def attempt():
-        nonlocal last_tap
+        nonlocal last_tap, last_view, upward
         root = ui.hierarchy()
         result = ready(root)
-        if result:
+        if result is not None and result is not False:
             return (result,)
+        node = _find_visible_app_node(root, fragment, attribute=attribute)
+        if node is None:
+            last_view, upward = _scroll_app_step(ui, root, last_view, upward)
+            return None
         now = _ui.monotonic()
         if last_tap is None or now - last_tap >= TAP_RETRY_COOLDOWN_SECONDS:
-            ui.tap_node(visible_app_node(ui, fragment, attribute=attribute))
-            last_tap = now
+            ui.tap_node(node)
+            last_tap = _ui.monotonic()
         return None
 
     return eventually(description or ("state after tapping " + fragment), attempt)[0]

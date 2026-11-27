@@ -309,10 +309,7 @@ def confirm_review(ui, kind, confirm):
 
 
 def leave_receiver(ui, package, kind):
-    if ui.device.ime_shown():
-        ui.device.shell("input", "keyevent", "BACK")
-        eventually("the receiving keyboard to close", lambda:
-                   not ui.device.ime_shown())
+    ui.dismiss_ime()
     if not focused(ui.device).startswith(package + "/"):
         return
     last_back = None
@@ -402,9 +399,8 @@ def review(ui, kind, request, output, full_screen):
                     break
         return False
     component = eventually("visible proposal fields in " + package, ready, timeout=150)
-    if kind == "calendar_event" and ui.device.ime_shown():
-        ui.device.shell("input", "keyevent", "BACK")
-        eventually("the calendar keyboard to close", lambda: not ui.device.ime_shown())
+    if kind == "calendar_event":
+        ui.dismiss_ime()
     matches = [[value] for value in detail]
     if kind == "calendar_event":
         matches.extend(calendar_fields(request, ui.device.shell("getprop", "persist.sys.timezone")))
@@ -468,9 +464,7 @@ def send_composer_message(ui, prompt):
     s = ui.strings
     send_btn = s["thread_send"]
     stop_btn = s["thread_stop"]
-    if ui.device.ime_shown():
-        ui.device.shell("input", "keyevent", "BACK")
-        eventually("soft keyboard to hide", lambda: not ui.device.ime_shown(), timeout=15)
+    ui.dismiss_ime()
 
     def submitted(root):
         if ui.node(stop_btn, root) is not None:

@@ -7,7 +7,7 @@ The Android journey uses an instrumentation-only recognizer. Hardware speech qua
 """
 
 import argparse
-from contextlib import ExitStack
+from contextlib import ExitStack, closing
 import json
 from pathlib import Path
 import secrets
@@ -90,7 +90,7 @@ def admission(gateway, number):
     db = Path(gateway.env["HERMES_HOME"]) / "state.db"
     if not db.exists():
         return None
-    with sqlite3.connect(db.as_uri() + "?mode=ro", uri=True) as conn:
+    with closing(sqlite3.connect(db.as_uri() + "?mode=ro", uri=True)) as conn:
         row = conn.execute(
             "SELECT request_id,target_session_id FROM session_admissions WHERE principal_id='api' "
             "ORDER BY seq LIMIT 1 OFFSET ?", (number,),
