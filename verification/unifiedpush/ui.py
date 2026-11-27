@@ -13,10 +13,10 @@ from xml.etree import ElementTree
 
 try:
     from verification.device.app_strings import AppStrings
-    from verification.device.run import APP
+    from verification.device.run import APP, cleanup_all
 except ImportError:
     from device.app_strings import AppStrings
-    from device.run import APP
+    from device.run import APP, cleanup_all
 from .shade import bounds, current_notice, show_notice
 from .stack import eventually
 
@@ -336,7 +336,7 @@ def distributor(ui, apk, endpoint):
         eventually("ntfy Subscribed topics screen", back_to_topics)
         yield
     finally:
-        d.run("uninstall", NTFY)
+        cleanup_all(lambda: d.run("uninstall", NTFY))
 
 
 def start_account(ui, label, endpoint, bearer, phrase):

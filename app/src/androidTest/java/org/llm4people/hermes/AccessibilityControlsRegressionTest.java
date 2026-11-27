@@ -2752,6 +2752,85 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
                         assertEquals(View.VISIBLE, jumpPill.getVisibility());
                         assertEquals("jumpPill must already be VISIBLE when live-region text updates",
                                 List.of(View.VISIBLE), jumpPillVisAtMutation);
+
+                        // R34.5.1: QrScannerActivity.announceImageStatus routes to fallbackDetail when fallback is
+                        // visible, to statusText otherwise, and re-announces identical repeat failures.
+                        TextView qrStatus = Ui.text(activity, "", 14);
+                        TextView qrFallback = Ui.text(activity, "", 14);
+                        LinearLayout qrFallbackWrap = Ui.column(activity);
+                        qrFallbackWrap.setVisibility(View.VISIBLE);
+                        Method announceImageStatus = QrScannerActivity.class.getDeclaredMethod(
+                                "announceImageStatus", TextView.class, TextView.class, View.class, String.class);
+                        announceImageStatus.setAccessible(true);
+                        AtomicInteger qrFallbackMutations = countTextMutations(qrFallback);
+                        AtomicInteger qrStatusMutations = countTextMutations(qrStatus);
+                        announceImageStatus.invoke(null, qrStatus, qrFallback, qrFallbackWrap, "No QR");
+                        assertEquals("No QR", String.valueOf(qrFallback.getText()));
+                        assertEquals(1, qrFallbackMutations.get());
+                        assertEquals(0, qrStatusMutations.get());
+                        announceImageStatus.invoke(null, qrStatus, qrFallback, qrFallbackWrap, "No QR");
+                        assertEquals("Repeat failure in fallback mode must clear+set for TalkBack",
+                                3, qrFallbackMutations.get());
+                        qrFallbackWrap.setVisibility(View.GONE);
+                        announceImageStatus.invoke(null, qrStatus, qrFallback, qrFallbackWrap, "Reading");
+                        assertEquals("Reading", String.valueOf(qrStatus.getText()));
+                        assertEquals(1, qrStatusMutations.get());
+
+                        // R34.6.1: UniversalSearchSheet.dispatchResult is single-fire once closed.
+                        AtomicInteger searchDispatches = new AtomicInteger();
+                        UniversalSearchSheet singleFireSearch = UniversalSearchSheet.show(
+                                activity, null, Collections.emptyList(),
+                                new UniversalSearchSheet.Callbacks() {
+                                    @Override public void openThread(String id, String title) {}
+                                    @Override public void openNote(String id) {}
+                                    @Override public void openSharedItem(UniversalSearchModel.Result item) {}
+                                    @Override public void runAction(String actionId) { searchDispatches.incrementAndGet(); }
+                                    @Override public void onDismissed() {}
+                                });
+                        Method dispatchResult = UniversalSearchSheet.class.getDeclaredMethod(
+                                "dispatchResult", UniversalSearchModel.Result.class);
+                        dispatchResult.setAccessible(true);
+                        UniversalSearchModel.Result sampleAction = new UniversalSearchModel.Result(
+                                "id1", UniversalSearchModel.Category.SETTINGS, "Settings", "", "", "act-1",
+                                "", "", "", "", false, 1, java.util.Collections.emptyList());
+                        dispatchResult.invoke(singleFireSearch, sampleAction);
+                        dispatchResult.invoke(singleFireSearch, sampleAction);
+                        assertEquals("Second dispatchResult after close must be a no-op", 1, searchDispatches.get());
+
+                        // R34.6.2: CommandPalette.executeItem is single-fire once dismissed (dialog == null).
+                        AtomicInteger paletteExecs = new AtomicInteger();
+                        CommandRegistry r34Reg = new CommandRegistry(java.util.Collections.emptyList());
+                        CommandItem r34Item = new CommandItem(
+                                "cmd-once", CommandItem.Category.ACTION, "Run once", "", "",
+                                paletteExecs::incrementAndGet);
+                        r34Reg.add(r34Item);
+                        CommandPalette r34Palette = new CommandPalette(activity, r34Reg, () -> true);
+                        r34Palette.show(null);
+                        Method executeItem = CommandPalette.class.getDeclaredMethod("executeItem", CommandItem.class);
+                        executeItem.setAccessible(true);
+                        executeItem.invoke(r34Palette, r34Item);
+                        executeItem.invoke(r34Palette, r34Item);
+                        assertEquals("Second executeItem after dismiss must be a no-op", 1, paletteExecs.get());
+
+                        // R34.6.3: ProfileHubSheet.closeAndRun is single-fire once closed.
+                        AtomicInteger hubActions = new AtomicInteger();
+                        org.llm4people.hermes.profile.ProfileHubSheet hubSheet =
+                                new org.llm4people.hermes.profile.ProfileHubSheet(
+                                        activity, fixture.account, 0, false, () -> true,
+                                        new org.llm4people.hermes.profile.ProfileHubSheet.Callbacks() {
+                                            @Override public void onSwitchProfile(String id) {}
+                                            @Override public void onAddProfile() {}
+                                            @Override public void onScanQrCode() {}
+                                            @Override public void onOpenAdminConsole() {}
+                                            @Override public void onAdminStateResolved(boolean isAdmin) {}
+                                        });
+                        Method closeAndRun = org.llm4people.hermes.profile.ProfileHubSheet.class
+                                .getDeclaredMethod("closeAndRun", Runnable.class);
+                        closeAndRun.setAccessible(true);
+                        Runnable hubAction = hubActions::incrementAndGet;
+                        closeAndRun.invoke(hubSheet, hubAction);
+                        closeAndRun.invoke(hubSheet, hubAction);
+                        assertEquals("Second closeAndRun after close must be a no-op", 1, hubActions.get());
                     } catch (Exception err) {
                         throw new AssertionError(err);
                     }

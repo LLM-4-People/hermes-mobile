@@ -372,3 +372,48 @@ class OwnedChildTest(unittest.TestCase):
                     gw.start()
                 self.assertEqual(gw.port, 22000)
                 self.assertIs(gw.process, second_proc)
+
+    def test_same_port_and_caddy_binary_cleanup_preserves_primary_error(self):
+        from .prove import same_port
+        from .stack import caddy_binary
+
+        # same_port: primary error preserved with cleanup note when reverse --remove fails.
+        device = Mock()
+        device.run.side_effect = [b"", b"", RuntimeError("adb reverse remove failed")]
+        primary = ValueError("body boom")
+        with self.assertRaises(ValueError) as raised:
+            with same_port(device, "http://127.0.0.1:18080"):
+                raise primary
+        self.assertIs(raised.exception, primary)
+        self.assertIn("adb reverse remove failed", str(primary.__notes__))
+
+        # same_port: clean exit propagates ExceptionGroup when teardown fails.
+        device.run.side_effect = [b"", b"", RuntimeError("adb reverse remove failed")]
+        with self.assertRaises(ExceptionGroup) as clean_err:
+            with same_port(device, "http://127.0.0.1:18080"):
+                pass
+        self.assertIn("adb reverse remove failed", str(clean_err.exception.exceptions[0]))
+
+        # caddy_binary: primary docker cp error preserved when docker rm fails.
+        with tempfile.TemporaryDirectory() as tmp:
+            cp_err = subprocess.CalledProcessError(1, ["docker", "cp"])
+            rm_err = subprocess.CalledProcessError(1, ["docker", "rm"])
+            with (
+                patch("verification.unifiedpush.stack.subprocess.check_output", return_value="cid123\n"),
+                patch("verification.unifiedpush.stack.subprocess.run", side_effect=[cp_err, rm_err]),
+                self.assertRaises(subprocess.CalledProcessError) as raised_cp,
+            ):
+                caddy_binary(Path(tmp))
+            self.assertIs(raised_cp.exception, cp_err)
+            self.assertTrue(any("docker" in note for note in getattr(cp_err, "__notes__", [])))
+
+            # caddy_binary: clean exit propagates ExceptionGroup when docker rm fails.
+            with (
+                patch("verification.unifiedpush.stack.subprocess.check_output", return_value="cid123\n"),
+                patch(
+                    "verification.unifiedpush.stack.subprocess.run",
+                    side_effect=[subprocess.CompletedProcess([], 0), rm_err],
+                ),
+                self.assertRaises(ExceptionGroup),
+            ):
+                caddy_binary(Path(tmp))
