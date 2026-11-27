@@ -166,13 +166,11 @@ final class SkillBrowser {
         if (matches.isEmpty()) {
             String msg = panel.t(inventory.isEmpty() ? R.string.skills_empty : R.string.skills_no_matches);
             if (empty.getVisibility() != View.VISIBLE || !msg.contentEquals(empty.getText())) {
-                empty.setText(msg);
-            }
-            if (empty.getVisibility() != View.VISIBLE) {
-                empty.setVisibility(View.VISIBLE);
+                Ui.announceLiveStatus(empty, msg);
             }
         } else if (empty.getVisibility() != View.GONE) {
             empty.setVisibility(View.GONE);
+            empty.setText("");
         }
     }
 

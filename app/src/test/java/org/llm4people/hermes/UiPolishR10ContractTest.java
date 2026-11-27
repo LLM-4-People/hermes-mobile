@@ -156,5 +156,22 @@ public final class UiPolishR10ContractTest {
         assertFalse(surfaceRenderer.contains("ArtifactDesk.Host host, boolean showTitle)"));
         String nearbyGuide = read("src/main/java/org/llm4people/hermes/places/NearbyGuide.java");
         assertFalse(nearbyGuide.contains("public static String distance(int meters)"));
+
+        // R31.4.2 / R31.5.3 / R31.5.4 contracts.
+        String deviceSecret = read("src/main/java/org/llm4people/hermes/push/DeviceSecret.java");
+        assertTrue(deviceSecret.contains("Digests.toHex(bytes)"));
+        assertFalse(deviceSecret.contains("Character.forDigit"));
+
+        String reminderPanel = read("src/main/java/org/llm4people/hermes/panel/ReminderPanel.java");
+        assertTrue(reminderPanel.contains("Ui.announceLiveStatus(feedbackView, panel.t(R.string.panel_jobs_triggered))"));
+        assertTrue(reminderPanel.contains("Ui.announceLiveStatus(feedbackView, panel.t(R.string.panel_jobs_trigger_failed))"));
+
+        String skillBrowser = read("src/main/java/org/llm4people/hermes/panel/SkillBrowser.java");
+        assertTrue(skillBrowser.contains("Ui.announceLiveStatus(empty, msg)"));
+        assertTrue(skillBrowser.contains("empty.setText(\"\")"));
+
+        String profileGate = read("src/main/java/org/llm4people/hermes/profile/ProfileGate.java");
+        assertTrue(profileGate.contains("TextView stagedSummary = screen.note(\"\");"));
+        assertFalse(profileGate.contains("TextView stagedSummary = screen.liveNote(\"\");"));
     }
 }

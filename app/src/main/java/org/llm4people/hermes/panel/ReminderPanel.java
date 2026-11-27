@@ -479,8 +479,7 @@ public final class ReminderPanel {
                     Diagnostics.event("jobs", "triggered_now");
                     if (feedbackView != null) {
                         feedbackView.setTextColor(panel.activity.getColor(R.color.accent));
-                        feedbackView.setText(R.string.panel_jobs_triggered);
-                        feedbackView.setVisibility(View.VISIBLE);
+                        Ui.announceLiveStatus(feedbackView, panel.t(R.string.panel_jobs_triggered));
                     }
                     if (onTriggered != null) onTriggered.run();
                 },
@@ -490,8 +489,7 @@ public final class ReminderPanel {
                     Diagnostics.warning("jobs", "trigger_failed");
                     if (feedbackView != null) {
                         feedbackView.setTextColor(panel.activity.getColor(R.color.danger));
-                        feedbackView.setText(R.string.panel_jobs_trigger_failed);
-                        feedbackView.setVisibility(View.VISIBLE);
+                        Ui.announceLiveStatus(feedbackView, panel.t(R.string.panel_jobs_trigger_failed));
                     }
                 });
     }

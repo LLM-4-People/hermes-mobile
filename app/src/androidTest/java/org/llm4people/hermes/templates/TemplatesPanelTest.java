@@ -27,7 +27,7 @@ public final class TemplatesPanelTest extends InstrumentationTestCase {
         // 1. Route registration under APPS.
         RouteRegistry registry = new RouteRegistry();
         AtomicBoolean opened = new AtomicBoolean(false);
-        TemplatesPanel.registerRoute(registry, context, () -> opened.set(true));
+        TemplatesPanel.registerRoute(registry, () -> opened.set(true));
         assertTrue(registry.dispatch(TemplatesPanel.ROUTE_ID));
         assertTrue(opened.get());
 

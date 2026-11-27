@@ -68,33 +68,12 @@ public final class DeliveryRouter {
         this.actions = actions == null ? new Actions() {} : actions;
     }
 
-    /** Localized overload plugging delivery and notification-policy routes into the shared RouteRegistry. */
-    public static void registerRoutes(RouteRegistry registry, Context context,
+    /** Plugs delivery inbox and notification-policy routes into the shared RouteRegistry. */
+    public static void registerRoutes(RouteRegistry registry,
                                       Runnable openInbox, Runnable openPolicy) {
         Objects.requireNonNull(registry, "registry");
-        Context localized = context == null ? null : AppLanguage.wrapContext(context);
-        String deliveriesLabel = localized == null ? ROUTE_DELIVERIES : localized.getString(R.string.push_route_deliveries_label);
-        String deliveriesHint = localized == null ? "" : localized.getString(R.string.push_route_deliveries_hint);
-        String policyLabel = localized == null ? ROUTE_PUSH_POLICY : localized.getString(R.string.push_route_policy_label);
-        String policyHint = localized == null ? "" : localized.getString(R.string.push_route_policy_hint);
-        registry.register(new RouteRegistry.Destination(
-                ROUTE_DELIVERIES,
-                RouteRegistry.Section.NOTES_TASKS,
-                deliveriesLabel,
-                deliveriesHint,
-                R.drawable.ic_push_notification,
-                false,
-                null,
-                Objects.requireNonNull(openInbox, "openInbox")));
-        registry.register(new RouteRegistry.Destination(
-                ROUTE_PUSH_POLICY,
-                RouteRegistry.Section.SETTINGS,
-                policyLabel,
-                policyHint,
-                R.drawable.ic_push_notification,
-                false,
-                null,
-                Objects.requireNonNull(openPolicy, "openPolicy")));
+        registry.registerAction(ROUTE_DELIVERIES, Objects.requireNonNull(openInbox, "openInbox"));
+        registry.registerAction(ROUTE_PUSH_POLICY, Objects.requireNonNull(openPolicy, "openPolicy"));
     }
 
     public void dismiss() {

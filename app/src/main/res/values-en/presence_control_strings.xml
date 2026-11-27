@@ -1,6 +1,5 @@
 <resources xmlns:tools="http://schemas.android.com/tools" tools:locale="en">
     <!-- Route & panel chrome -->
-    <string name="presence_route_label">Presence &amp; look</string>
     <string name="presence_route_hint">Optional sharing, continuous location, personalization</string>
     <string name="presence_panel_title">Presence &amp; look</string>
     <string name="presence_panel_intro">Everything is off by default. You choose what your assistant may see or adjust, and you can turn everything off in one tap.</string>

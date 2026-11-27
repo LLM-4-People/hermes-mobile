@@ -127,7 +127,7 @@ public final class ConnectionDoctorPanelTest extends InstrumentationTestCase {
             // Verify RouteRegistry registration contract.
             RouteRegistry registry = new RouteRegistry();
             AtomicInteger routeOpened = new AtomicInteger();
-            ConnectionDoctorPanel.registerRoute(registry, activity, routeOpened::incrementAndGet);
+            ConnectionDoctorPanel.registerRoute(registry, routeOpened::incrementAndGet);
             assertTrue(registry.dispatch(ConnectionDoctorPanel.ROUTE_ID));
             assertEquals(1, routeOpened.get());
 

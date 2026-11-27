@@ -2,7 +2,6 @@ package org.llm4people.hermes.templates;
 
 import android.app.Activity;
 import android.app.AlertDialog;
-import android.content.Context;
 import android.text.InputFilter;
 import android.text.InputType;
 import android.view.Gravity;
@@ -55,19 +54,10 @@ public final class TemplatesPanel {
         this.isOpen = isOpen != null ? isOpen : () -> !activity.isFinishing() && !activity.isDestroyed();
     }
 
-    /** Register this panel in {@link RouteRegistry} under {@link RouteRegistry.Section#APPS}. */
-    public static RouteRegistry registerRoute(RouteRegistry registry, Context context, Runnable open) {
+    /** Register this panel in {@link RouteRegistry} under Apps. */
+    public static RouteRegistry registerRoute(RouteRegistry registry, Runnable open) {
         Objects.requireNonNull(registry, "registry");
-        Objects.requireNonNull(context, "context");
-        return registry.register(new RouteRegistry.Destination(
-                ROUTE_ID,
-                RouteRegistry.Section.APPS,
-                context.getString(R.string.templates_route_label),
-                context.getString(R.string.templates_route_hint),
-                0,
-                false,
-                null,
-                open));
+        return registry.registerAction(ROUTE_ID, open);
     }
 
     public View buildView() {

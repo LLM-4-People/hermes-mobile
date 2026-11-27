@@ -2,7 +2,6 @@ package org.llm4people.hermes.settings;
 
 import android.app.Activity;
 import android.app.AlertDialog;
-import android.content.Context;
 import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
 import android.text.Editable;
@@ -85,19 +84,10 @@ public final class AppearanceSettingsPanel {
         this.listener = Objects.requireNonNull(listener, "listener");
     }
 
-    /** Register Appearance Studio under {@link RouteRegistry.Section#SETTINGS}. */
-    public static RouteRegistry registerRoute(RouteRegistry registry, Context context, Runnable open) {
+    /** Register Appearance Studio under Settings. */
+    public static RouteRegistry registerRoute(RouteRegistry registry, Runnable open) {
         Objects.requireNonNull(registry, "registry");
-        Objects.requireNonNull(context, "context");
-        return registry.register(new RouteRegistry.Destination(
-                ROUTE_ID,
-                RouteRegistry.Section.SETTINGS,
-                context.getString(R.string.appearance_route_label),
-                context.getString(R.string.appearance_route_hint),
-                0,
-                false,
-                null,
-                open));
+        return registry.registerAction(ROUTE_ID, open);
     }
 
     public View buildView() {

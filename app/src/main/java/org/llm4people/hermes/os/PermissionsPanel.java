@@ -35,19 +35,10 @@ public final class PermissionsPanel {
         this.activity = Objects.requireNonNull(activity, "activity");
     }
 
-    /** Register this panel in {@link RouteRegistry} under {@link RouteRegistry.Section#SETTINGS}. */
-    public static RouteRegistry registerRoute(RouteRegistry registry, Context context, Runnable open) {
+    /** Register this panel in {@link RouteRegistry} under Settings. */
+    public static RouteRegistry registerRoute(RouteRegistry registry, Runnable open) {
         Objects.requireNonNull(registry, "registry");
-        Objects.requireNonNull(context, "context");
-        return registry.register(new RouteRegistry.Destination(
-                ROUTE_ID,
-                RouteRegistry.Section.SETTINGS,
-                context.getString(R.string.perm_route_label),
-                context.getString(R.string.perm_route_hint),
-                0,
-                false,
-                null,
-                open));
+        return registry.registerAction(ROUTE_ID, open);
     }
 
     /** Format a concise live summary line for Settings or Connection Doctor cards. */

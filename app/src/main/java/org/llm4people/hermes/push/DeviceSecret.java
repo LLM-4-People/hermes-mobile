@@ -3,6 +3,8 @@ package org.llm4people.hermes.push;
 import android.security.keystore.KeyGenParameterSpec;
 import android.security.keystore.KeyProperties;
 
+import org.llm4people.hermes.Digests;
+
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
@@ -21,12 +23,7 @@ final class DeviceSecret {
     static String generate() {
         byte[] bytes = new byte[32];
         new SecureRandom().nextBytes(bytes);
-        StringBuilder result = new StringBuilder(bytes.length * 2);
-        for (byte value : bytes) {
-            result.append(Character.forDigit(value >>> 4 & 15, 16));
-            result.append(Character.forDigit(value & 15, 16));
-        }
-        return result.toString();
+        return Digests.toHex(bytes);
     }
 
     private static synchronized SecretKey key() throws GeneralSecurityException, java.io.IOException {

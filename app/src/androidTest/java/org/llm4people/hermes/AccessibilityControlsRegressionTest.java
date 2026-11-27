@@ -2184,12 +2184,14 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
                         skillSearch.setText("git");
                         filterSkills.invoke(skillBrowser);
                         assertEquals(View.GONE, skillEmpty.getVisibility());
-                        assertEquals("Hiding empty notice must not call setText", 1, skillEmptyMutations.get());
+                        assertEquals("Hiding empty notice must clear text for clean re-announcement",
+                                "", String.valueOf(skillEmpty.getText()));
+                        assertEquals(2, skillEmptyMutations.get());
 
                         skillSearch.setText("qqq");
                         filterSkills.invoke(skillBrowser);
                         assertEquals(View.VISIBLE, skillEmpty.getVisibility());
-                        assertEquals("Re-entering empty state must announce cleanly", 2, skillEmptyMutations.get());
+                        assertEquals("Re-entering empty state must announce cleanly", 3, skillEmptyMutations.get());
 
                         // R20.5.6: CodeReader guards searchCounter.setText against unchanged labels.
                         Constructor<CodeReader> codeReaderCtor = CodeReader.class.getDeclaredConstructor(
@@ -2625,6 +2627,57 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
                         assertNotNull(offerNote3);
                         assertEquals(View.ACCESSIBILITY_LIVE_REGION_POLITE,
                                 offerNote3.getAccessibilityLiveRegion());
+
+                        // R31.5.1: Ui.announceLiveStatus must unhide BEFORE setText and re-announce identical text after GONE.
+                        TextView liveProbe = Ui.text(activity, "", 14);
+                        liveProbe.setVisibility(View.GONE);
+                        List<Integer> visAtMutation = new ArrayList<>();
+                        liveProbe.addTextChangedListener(new android.text.TextWatcher() {
+                            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+                            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
+                                visAtMutation.add(liveProbe.getVisibility());
+                            }
+                            @Override public void afterTextChanged(android.text.Editable s) {}
+                        });
+                        Ui.announceLiveStatus(liveProbe, "Saved");
+                        assertEquals(List.of(View.VISIBLE), visAtMutation);
+                        assertEquals(View.ACCESSIBILITY_LIVE_REGION_POLITE, liveProbe.getAccessibilityLiveRegion());
+                        assertEquals("Saved", String.valueOf(liveProbe.getText()));
+
+                        // Hide without clearing, then re-announce identical text: must unhide, clear, and set while VISIBLE.
+                        visAtMutation.clear();
+                        liveProbe.setVisibility(View.GONE);
+                        Ui.announceLiveStatus(liveProbe, "Saved");
+                        assertEquals("Identical text after GONE must clear+set while VISIBLE",
+                                List.of(View.VISIBLE, View.VISIBLE), visAtMutation);
+                        assertEquals("Saved", String.valueOf(liveProbe.getText()));
+
+                        // R31.5.2: VoiceDrafts.Controls.modelAction unhides feedback BEFORE live-region action text updates.
+                        VoiceDrafts r31Voice = new VoiceDrafts(activity);
+                        voiceRef.set(r31Voice);
+                        VoiceDrafts.Controls r31Controls = r31Voice.bind(new EditText(activity));
+                        Field actionField = VoiceDrafts.Controls.class.getDeclaredField("action");
+                        actionField.setAccessible(true);
+                        Button voiceAction = (Button) actionField.get(r31Controls);
+                        assertNotNull(voiceAction);
+                        List<Integer> feedbackVisOnActionChange = new ArrayList<>();
+                        voiceAction.addTextChangedListener(new android.text.TextWatcher() {
+                            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+                            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
+                                if (s.length() > 0) {
+                                    feedbackVisOnActionChange.add(r31Controls.feedback.getVisibility());
+                                }
+                            }
+                            @Override public void afterTextChanged(android.text.Editable s) {}
+                        });
+                        Method modelActionMethod = VoiceDrafts.Controls.class.getDeclaredMethod(
+                                "modelAction", int.class, Runnable.class);
+                        modelActionMethod.setAccessible(true);
+                        modelActionMethod.invoke(r31Controls, R.string.voice_cancel_short, (Runnable) () -> {});
+                        assertEquals(View.VISIBLE, r31Controls.feedback.getVisibility());
+                        assertEquals(View.ACCESSIBILITY_LIVE_REGION_POLITE, voiceAction.getAccessibilityLiveRegion());
+                        assertEquals("feedback must already be VISIBLE when modelAction updates live-region action text",
+                                List.of(View.VISIBLE), feedbackVisOnActionChange);
                     } catch (Exception err) {
                         throw new AssertionError(err);
                     }

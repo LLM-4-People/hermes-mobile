@@ -1,6 +1,5 @@
 <resources xmlns:tools="http://schemas.android.com/tools" tools:locale="fr">
     <!-- Route & panel chrome -->
-    <string name="presence_route_label">Présence &amp; apparence</string>
     <string name="presence_route_hint">Partage optionnel, position continue, personnalisation</string>
     <string name="presence_panel_title">Présence &amp; apparence</string>
     <string name="presence_panel_intro">Tout est désactivé par défaut. Vous choisissez ce que votre assistant peut voir ou ajuster, et vous pouvez tout couper en un geste.</string>

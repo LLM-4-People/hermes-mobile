@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools" tools:locale="fr">
     <string name="ambient_listener_label">Accès aux notifications Hermes</string>
-    <string name="ambient_route_label">Contexte du téléphone</string>
     <string name="ambient_route_hint">Notifications choisies, médias en cours et agenda</string>
     <string name="ambient_panel_title">Contexte du téléphone</string>
     <string name="ambient_panel_intro">Tout est désactivé par défaut. Vous choisissez exactement quelles informations locales partager avec ce profil. Les codes de vérification, banques et gestionnaires de mots de passe sont toujours bloqués.</string>

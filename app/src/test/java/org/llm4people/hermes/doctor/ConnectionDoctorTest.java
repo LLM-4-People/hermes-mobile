@@ -370,15 +370,7 @@ public final class ConnectionDoctorTest {
     public void routeIdMatchesRegistryContractUnderSettings() {
         RouteRegistry registry = new RouteRegistry();
         AtomicInteger opened = new AtomicInteger();
-        registry.register(new RouteRegistry.Destination(
-                ConnectionDoctorPanel.ROUTE_ID,
-                RouteRegistry.Section.SETTINGS,
-                "Connection doctor",
-                "Verify server, features, notifications, and language",
-                0,
-                false,
-                null,
-                opened::incrementAndGet));
+        ConnectionDoctorPanel.registerRoute(registry, opened::incrementAndGet);
 
         assertTrue(registry.dispatch(ConnectionDoctorPanel.ROUTE_ID));
         assertEquals(1, opened.get());

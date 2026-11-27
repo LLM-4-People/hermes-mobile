@@ -90,8 +90,6 @@
     <string name="settings_lang_fr">Français</string>
     <string name="settings_lang_en">English</string>
 
-    <string name="appearance_route_label">Appearance and layout</string>
-    <string name="appearance_route_hint">Theme, accent color, density, text size, and shortcuts</string>
     <string name="appearance_panel_title">Appearance</string>
     <string name="appearance_preview_title">Live preview</string>
     <string name="appearance_preview_default_greeting">Ready for your next request.</string>

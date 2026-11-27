@@ -185,7 +185,7 @@ public final class VoiceDrafts {
             feedback.setGravity(stacked ? Gravity.START : Gravity.CENTER_VERTICAL);
             status.setLayoutParams(stacked ? new LinearLayout.LayoutParams(-1, -2)
                     : new LinearLayout.LayoutParams(0, -2, 1));
-            feedback.setVisibility(message == 0 ? View.GONE : View.VISIBLE);
+            feedback.setVisibility(message == 0 && click == null ? View.GONE : View.VISIBLE);
             status.setText(message == 0 ? "" : activity.getString(message));
             action.setAccessibilityLiveRegion(message == 0 && click != null
                     ? View.ACCESSIBILITY_LIVE_REGION_POLITE : View.ACCESSIBILITY_LIVE_REGION_NONE);
@@ -202,7 +202,6 @@ public final class VoiceDrafts {
         private void modelAction(int label, Runnable click) {
             report(0, label, click);
             showMeter(false);
-            feedback.setVisibility(View.VISIBLE);
         }
 
         private void reset() {

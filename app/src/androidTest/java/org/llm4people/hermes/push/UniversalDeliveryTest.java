@@ -280,7 +280,7 @@ public final class UniversalDeliveryTest extends InstrumentationTestCase {
 
         RouteRegistry registry = new RouteRegistry();
         int[] routeHits = {0};
-        DeliveryRouter.registerRoutes(registry, null, () -> routeHits[0]++, () -> routeHits[0]++);
+        DeliveryRouter.registerRoutes(registry, () -> routeHits[0]++, () -> routeHits[0]++);
         assertTrue(registry.dispatch(DeliveryRouter.ROUTE_DELIVERIES));
         assertTrue(registry.dispatch(DeliveryRouter.ROUTE_PUSH_POLICY));
         assertEquals(2, routeHits[0]);

@@ -1,21 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools" tools:locale="fr">
-    <!-- Cerveau Studio RouteRegistry labels & hints (FR) -->
-    <string name="brain_route_memory_label">Mémoire de Hermes</string>
-    <string name="brain_route_memory_hint">Ce que Hermes retient et ce qu’il sait à propos de vous.</string>
-    <string name="brain_route_notes_label">Notes intelligentes</string>
-    <string name="brain_route_notes_hint">Vos notes structurées et partagées avec Hermes.</string>
-    <string name="brain_route_shared_label">Partagé avec moi</string>
-    <string name="brain_route_shared_hint">Notes, savoir-faire et éléments partagés par d’autres utilisateurs sur ce serveur.</string>
-    <string name="brain_route_search_label">Rechercher dans vos discussions</string>
-    <string name="brain_route_search_hint">Retrouvez un passage dans tout votre historique.</string>
-    <string name="brain_route_skills_label">Savoir-faire</string>
-    <string name="brain_route_skills_hint">Guides et méthodes réutilisables par Hermes.</string>
-    <string name="brain_route_files_label">Fichiers du projet</string>
-    <string name="brain_route_files_hint">Parcourez les fichiers et modifications de cette discussion.</string>
-    <string name="brain_route_profile_label">Réglages du profil</string>
-    <string name="brain_route_profile_hint">Modèle et capacités utilisés par défaut pour ce profil.</string>
-
     <!-- Thread fork turn-not-found error (distinct from server upgrade notice) -->
     <string name="brain_thread_fork_message_not_found">Ce message n’existe plus dans la discussion. Rechargez la discussion ou choisissez un message plus récent.</string>
 </resources>

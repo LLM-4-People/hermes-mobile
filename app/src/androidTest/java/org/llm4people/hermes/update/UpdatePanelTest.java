@@ -26,7 +26,7 @@ public final class UpdatePanelTest extends InstrumentationTestCase {
         // 1. Route registration under SETTINGS.
         RouteRegistry registry = new RouteRegistry();
         AtomicBoolean opened = new AtomicBoolean(false);
-        UpdatePanel.registerRoute(registry, context, () -> opened.set(true));
+        UpdatePanel.registerRoute(registry, () -> opened.set(true));
         assertTrue(registry.dispatch(UpdatePanel.ROUTE_ID));
         assertTrue(opened.get());
 
