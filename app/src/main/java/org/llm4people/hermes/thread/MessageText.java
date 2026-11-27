@@ -2,8 +2,6 @@ package org.llm4people.hermes.thread;
 
 import android.app.AlertDialog;
 import android.content.ActivityNotFoundException;
-import android.content.ClipData;
-import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.Canvas;
@@ -11,7 +9,6 @@ import android.graphics.Paint;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
-import android.os.PersistableBundle;
 import android.text.Layout;
 import android.text.SpannableStringBuilder;
 import android.text.Spanned;
@@ -348,15 +345,9 @@ final class MessageText {
     }
 
     private static void copyLink(Context context, String url) {
-        ClipboardManager clipboard = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
-        if (clipboard == null) return;
         try {
-            ClipData clip = ClipData.newPlainText(context.getString(R.string.thread_link_fallback), url);
-            PersistableBundle extras = new PersistableBundle();
-            extras.putBoolean("android.content.extra.IS_SENSITIVE", true);
-            clip.getDescription().setExtras(extras);
-            clipboard.setPrimaryClip(clip);
-            if (android.os.Build.VERSION.SDK_INT < 33) {
+            if (Ui.copySensitiveText(context, context.getString(R.string.thread_link_fallback), url)
+                    && android.os.Build.VERSION.SDK_INT < 33) {
                 Toast.makeText(context, R.string.markdown_link_copied, Toast.LENGTH_SHORT).show();
             }
         } catch (RuntimeException failed) {

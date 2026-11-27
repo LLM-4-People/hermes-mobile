@@ -1,6 +1,9 @@
 package org.llm4people.hermes;
 
 import android.app.AlertDialog;
+import android.content.ClipData;
+import android.content.ClipDescription;
+import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
@@ -9,6 +12,9 @@ import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.RippleDrawable;
 import android.graphics.drawable.StateListDrawable;
+import android.os.Build;
+import android.os.PersistableBundle;
+import android.text.TextUtils;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
@@ -261,6 +267,7 @@ public final class Ui {
         TextView view = text(context, label, 12);
         view.setTypeface(mediumTypeface());
         view.setSingleLine(true);
+        view.setEllipsize(TextUtils.TruncateAt.END);
         view.setTextColor(context.getColor(textColorRes));
         view.setPaddingRelative(dp(context, 10), dp(context, 4), dp(context, 10), dp(context, 4));
         view.setBackground(shape(context, 999, bgColorRes, 0, 0));
@@ -405,6 +412,45 @@ public final class Ui {
         button.setMinimumHeight(minTouch);
         button.setOnClickListener(action);
         return button;
+    }
+
+    /** Build a sensitive plain-text ClipData (redacted on Android 13+ clipboard preview). */
+    public static ClipData createSensitiveClip(CharSequence label, String text) {
+        ClipData clip = ClipData.newPlainText(label, text);
+        PersistableBundle extras = new PersistableBundle();
+        extras.putBoolean(
+                Build.VERSION.SDK_INT >= 33
+                        ? ClipDescription.EXTRA_IS_SENSITIVE
+                        : "android.content.extra.IS_SENSITIVE",
+                true);
+        clip.getDescription().setExtras(extras);
+        return clip;
+    }
+
+    /** Write text to the system clipboard as sensitive content. Returns true on success. */
+    public static boolean copySensitiveText(Context context, CharSequence label, String text) {
+        if (context == null || text == null) return false;
+        ClipboardManager clipboard = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
+        if (clipboard == null) return false;
+        clipboard.setPrimaryClip(createSensitiveClip(label, text));
+        return true;
+    }
+
+    /**
+     * Show an inline validation/status error with POLITE live region, forcing a fresh text-change
+     * announcement when the error view is already visible with identical text.
+     */
+    public static void showInlineError(TextView view, CharSequence message) {
+        if (view == null) return;
+        CharSequence next = message == null ? "" : message;
+        if (view.getAccessibilityLiveRegion() != View.ACCESSIBILITY_LIVE_REGION_POLITE) {
+            view.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+        }
+        if (view.getVisibility() == View.VISIBLE && next.toString().contentEquals(view.getText())) {
+            view.setText("");
+        }
+        view.setText(next);
+        view.setVisibility(View.VISIBLE);
     }
 
     /** Enabled/disabled ColorStateList pairing raw {@code enabledColor} and {@code disabledColor} ARGB values. */

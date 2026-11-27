@@ -8,6 +8,7 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import android.widget.Toast;
 import org.json.JSONObject;
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.R;
@@ -35,8 +36,16 @@ public final class ShareWithUserSheet {
      */
     public static void openShareSheet(SessionPanel panel, String resourceKind, String resourceId,
                                       String label, Runnable parent) {
-        String safeKind = UniversalShareModel.validateKind(resourceKind);
-        String safeId = UniversalShareModel.validateResourceId(resourceId);
+        String safeKind;
+        String safeId;
+        try {
+            safeKind = UniversalShareModel.validateKind(resourceKind);
+            safeId = UniversalShareModel.validateResourceId(resourceId);
+        } catch (LocalizedInputException invalid) {
+            Diagnostics.warning("sharing", "invalid_share_target");
+            Toast.makeText(panel.activity, invalid.resolve(panel.activity), Toast.LENGTH_LONG).show();
+            return;
+        }
         String displayLabel = label == null || label.trim().isEmpty() ? safeId : label.trim();
         new OutgoingController(panel, safeKind, safeId, displayLabel, parent).show();
     }
@@ -253,7 +262,14 @@ public final class ShareWithUserSheet {
 
         private void revokeShare(String shareId, Button trigger) {
             if (trigger != null && !trigger.isEnabled()) return;
-            String safeId = UniversalShareModel.validateShareId(shareId);
+            String safeId;
+            try {
+                safeId = UniversalShareModel.validateShareId(shareId);
+            } catch (LocalizedInputException invalid) {
+                Diagnostics.warning("sharing", "invalid_share_id");
+                BrainUi.liveNote(panel, body, invalid.resolve(panel.activity));
+                return;
+            }
             if (trigger != null) trigger.setEnabled(false);
             if (!panel.request(body, () -> panel.api.deleteJson("/api/shares/" + HermesApi.segment(safeId)),
                     ok -> {
@@ -411,7 +427,14 @@ public final class ShareWithUserSheet {
         }
 
         private void openSharedContent(UniversalShareModel.ShareGrant grant) {
-            String safeId = UniversalShareModel.validateShareId(grant.shareId());
+            String safeId;
+            try {
+                safeId = UniversalShareModel.validateShareId(grant.shareId());
+            } catch (LocalizedInputException invalid) {
+                Diagnostics.warning("sharing", "invalid_share_id");
+                BrainUi.liveNote(panel, body, invalid.resolve(panel.activity));
+                return;
+            }
             panel.request(body, () -> panel.api.get("/api/shares/incoming/" + HermesApi.segment(safeId) + "/content"),
                     reply -> {
                         Diagnostics.event("sharing", "content_opened");
@@ -440,7 +463,14 @@ public final class ShareWithUserSheet {
 
         private void dismissShare(String shareId, Button trigger) {
             if (trigger != null && !trigger.isEnabled()) return;
-            String safeId = UniversalShareModel.validateShareId(shareId);
+            String safeId;
+            try {
+                safeId = UniversalShareModel.validateShareId(shareId);
+            } catch (LocalizedInputException invalid) {
+                Diagnostics.warning("sharing", "invalid_share_id");
+                BrainUi.liveNote(panel, body, invalid.resolve(panel.activity));
+                return;
+            }
             if (trigger != null) trigger.setEnabled(false);
             if (!panel.request(body, () -> panel.api.deleteJson("/api/shares/" + HermesApi.segment(safeId)),
                     ok -> {

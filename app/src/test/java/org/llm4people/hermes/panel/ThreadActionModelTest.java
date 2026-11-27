@@ -40,14 +40,11 @@ public final class ThreadActionModelTest {
     }
 
     @Test
-    public void turnChoiceHandlesNullsInvisibleOnlyPreviewAndTargetSessionFallbacks() {
-        ThreadActionModel.TurnChoice nullFields = new ThreadActionModel.TurnChoice(3L, null, null, null);
+    public void turnChoiceHandlesNullsAndInvisibleOnlyPreview() {
+        ThreadActionModel.TurnChoice nullFields = new ThreadActionModel.TurnChoice(3L, null, null);
         assertEquals("", nullFields.speakerLabel());
         assertEquals("", nullFields.preview());
-        assertEquals("", nullFields.sessionId());
         assertEquals("", nullFields.displayLabel());
-        assertEquals("", nullFields.targetSessionId(null));
-        assertEquals("fallback-1", nullFields.targetSessionId("fallback-1"));
 
         String invisibleOnly = "  \u202E\u034F\n ";
         ThreadActionModel.TurnChoice invisibleNoSpeaker = new ThreadActionModel.TurnChoice(4L, "", invisibleOnly);
@@ -55,10 +52,5 @@ public final class ThreadActionModelTest {
 
         ThreadActionModel.TurnChoice invisibleWithSpeaker = new ThreadActionModel.TurnChoice(5L, "Vous", invisibleOnly);
         assertEquals("Vous · ", invisibleWithSpeaker.displayLabel());
-
-        ThreadActionModel.TurnChoice explicitSession = new ThreadActionModel.TurnChoice(
-                6L, "Hermes", "OK", "  sess-42  ");
-        assertEquals("sess-42", explicitSession.targetSessionId(null));
-        assertEquals("sess-42", explicitSession.targetSessionId("fallback-ignored"));
     }
 }

@@ -133,7 +133,7 @@ public final class HomePinBridgeTest {
             @Override public void shareThread() {}
         };
 
-        RouteRegistry registry = BrainStudioRoutes.register(new RouteRegistry(), brain);
+        RouteRegistry registry = BrainStudioRoutes.register(new RouteRegistry(), resId -> "res:" + resId, brain);
         DeliveryRouter.registerRoutes(registry, null, deliveriesOpened::incrementAndGet, policyOpened::incrementAndGet);
 
         assertTrue(registry.dispatch(BrainStudioRoutes.ROUTE_MEMORY));

@@ -231,9 +231,32 @@ public final class BrainJsonAndApiContractTest extends InstrumentationTestCase {
                 """));
         assertEquals(2, turns.size());
         assertEquals(10L, turns.get(0).messageId());
-        assertEquals("seg-older", turns.get(0).targetSessionId("seg-current"));
-        assertEquals("seg-current", turns.get(1).targetSessionId("seg-current"));
+        assertEquals(11L, turns.get(1).messageId());
         assertEquals(context.getString(R.string.ws_role_user) + " · Question initiale", turns.get(0).displayLabel());
+    }
+
+    public void testBrainJsonSkipsMalformedShareAndMemoryIds() throws Exception {
+        java.util.List<UniversalShareModel.ShareGrant> shares = BrainJson.parseShareList(new JSONObject("""
+                {"data":[
+                  {"share_id":"../escape","resource_kind":"note","resource_id":"n1","label":"Bad"},
+                  {"share_id":"share_ok","resource_kind":"invalid_kind","resource_id":"n1","label":"BadKind"},
+                  {"share_id":"share_ok_2","resource_kind":"note","resource_id":"../bad","label":"BadRes"},
+                  {"share_id":"share_1","resource_kind":"note","resource_id":"note_1","label":"Valid"}
+                ]}
+                """));
+        assertEquals(1, shares.size());
+        assertEquals("share_1", shares.get(0).shareId());
+
+        MemoryModel.Snapshot mem = BrainJson.parseMemorySnapshot(new JSONObject("""
+                {"memory":{"entries":[
+                  {"id":"../bad","text":"Ignored"},
+                  {"id":"bad id","text":"Ignored 2"},
+                  {"id":"entry_1","text":"Valid entry","pinned":true}
+                ],"chars":11,"limit":2000,"enabled":true},
+                "user":{"entries":[],"chars":0,"limit":2000,"enabled":true}}
+                """));
+        assertEquals(1, mem.memory().entries().size());
+        assertEquals("entry_1", mem.memory().entries().get(0).id());
     }
 
     public void testBrainJsonSaturatesOverflowNegativeFractionalAndNonFiniteCounts() throws Exception {
