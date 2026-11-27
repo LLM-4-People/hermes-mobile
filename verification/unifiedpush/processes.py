@@ -2,7 +2,10 @@
 
 import subprocess
 
-from verification.device.run import cleanup_all
+try:
+    from verification.device.run import cleanup_all
+except ImportError:
+    from device.run import cleanup_all
 
 
 ESCALATION_SECONDS = 5

@@ -176,3 +176,40 @@ class OwnedChildTest(unittest.TestCase):
         self.assertIsNone(gateway.process)
         self.assertIsNotNone(child.poll())
         self.assertTrue(child.stdout.closed)
+
+    def test_script_mode_imports_and_gateway_stop_work_without_repo_root_on_sys_path(self):
+        verification_dir = str(Path(__file__).resolve().parents[1])
+        probe = (
+            "import os, subprocess, sys, tempfile\n"
+            "from pathlib import Path\n"
+            "from unittest.mock import patch\n"
+            "import device.app_strings as app_strings\n"
+            "import device.run as device_run\n"
+            "import gateway_fixture\n"
+            "import unifiedpush.processes as processes\n"
+            "assert app_strings.APP == device_run.APP == 'org.llm4people.hermes'\n"
+            "gw = object.__new__(gateway_fixture.Gateway)\n"
+            "gw.python = sys.executable\n"
+            "gw.root = Path(tempfile.gettempdir())\n"
+            "gw.env = dict(os.environ)\n"
+            "child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'], "
+            "stdout=subprocess.PIPE, stderr=subprocess.STDOUT)\n"
+            "gw.process = child\n"
+            "with patch('gateway_fixture.subprocess.run', side_effect=subprocess.TimeoutExpired('cmd', 1)):\n"
+            "    try:\n"
+            "        gw.stop()\n"
+            "    except RuntimeError:\n"
+            "        pass\n"
+            "assert gw.process is None and child.poll() is not None and child.stdout.closed\n"
+        )
+        env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
+        env["PYTHONPATH"] = verification_dir
+        result = subprocess.run(
+            [sys.executable, "-B", "-c", probe],
+            cwd=tempfile.gettempdir(),
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=20,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)

@@ -218,7 +218,10 @@ class Gateway:
     def stop(self):
         if self.process is None:
             return
-        from verification.unifiedpush.processes import close_child
+        try:
+            from verification.unifiedpush.processes import close_child
+        except ImportError:
+            from unifiedpush.processes import close_child
 
         process = self.process
         code = None
