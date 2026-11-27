@@ -117,12 +117,6 @@ public final class LockGracePolicy {
         return (nowElapsedMs - startedAtElapsedMs) >= timeoutMs;
     }
 
-    public static long remainingMillis(long backgroundedAtElapsedMs, long nowElapsedMs, long graceMillis) {
-        if (graceMillis <= 0L || backgroundedAtElapsedMs < 0L || nowElapsedMs < backgroundedAtElapsedMs) return 0L;
-        long elapsed = nowElapsedMs - backgroundedAtElapsedMs;
-        return elapsed >= graceMillis ? 0L : graceMillis - elapsed;
-    }
-
     public static Window window(Context context, String profileId) {
         if (context == null || profileId == null || profileId.isEmpty()) return Window.IMMEDIATE;
         SharedPreferences prefs = prefs(context);

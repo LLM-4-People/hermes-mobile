@@ -6,7 +6,6 @@ import org.llm4people.hermes.PlainTextSanitizer;
 import org.llm4people.hermes.camera.CapturedMedia;
 import org.llm4people.hermes.net.HermesApi;
 import java.io.IOException;
-import java.security.MessageDigest;
 
 final class PublishedFile {
     final String name, mime, path, hash;
@@ -30,10 +29,6 @@ final class PublishedFile {
 
     boolean text() { return mime.startsWith("text/") || mime.equals("application/json"); }
     boolean image() { return mime.equals("image/png") || mime.equals("image/jpeg") || mime.equals("image/webp"); }
-
-    static MessageDigest digest() {
-        return org.llm4people.hermes.Digests.sha256();
-    }
 
     boolean matches(byte[] bytes) {
         return hash.equals(org.llm4people.hermes.Digests.toHex(bytes));

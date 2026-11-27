@@ -16,12 +16,10 @@ public class LockGracePolicyTest {
 
         // Within 30s grace window stays unlocked.
         assertFalse(LockGracePolicy.shouldLockOnReturn(1_000L, 30_999L, 30_000L, false));
-        assertEquals(1L, LockGracePolicy.remainingMillis(1_000L, 30_999L, 30_000L));
 
         // At or past exact expiry locks strictly.
         assertTrue(LockGracePolicy.shouldLockOnReturn(1_000L, 31_000L, 30_000L, false));
         assertTrue(LockGracePolicy.shouldLockOnReturn(1_000L, 45_000L, 30_000L, false));
-        assertEquals(0L, LockGracePolicy.remainingMillis(1_000L, 31_000L, 30_000L));
     }
 
     @Test public void manualLockAlwaysOverridesAnyGraceWindow() {
@@ -33,7 +31,6 @@ public class LockGracePolicyTest {
         assertTrue(LockGracePolicy.shouldLockOnReturn(-1L, 5_000L, 300_000L, false));
         assertTrue(LockGracePolicy.shouldLockOnReturn(10_000L, 9_999L, 300_000L, false));
         assertTrue(LockGracePolicy.shouldLockOnReturn(1_000L, 2_000L, -5_000L, false));
-        assertEquals(0L, LockGracePolicy.remainingMillis(10_000L, 9_000L, 300_000L));
 
         assertEquals(LockGracePolicy.Window.IMMEDIATE, LockGracePolicy.Window.fromKey(null));
         assertEquals(LockGracePolicy.Window.IMMEDIATE, LockGracePolicy.Window.fromKey(""));

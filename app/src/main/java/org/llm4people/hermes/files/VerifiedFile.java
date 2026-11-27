@@ -26,7 +26,7 @@ final class VerifiedFile implements Closeable {
         try {
             // On Android internal storage the open descriptor outlives the directory entry.
             if (!file.delete()) throw new IOException("Could not unlink temporary file");
-            MessageDigest digest = PublishedFile.digest();
+            MessageDigest digest = org.llm4people.hermes.Digests.sha256();
             try (ParcelFileDescriptor dup = ParcelFileDescriptor.dup(data.getFD());
                  OutputStream copy = new ParcelFileDescriptor.AutoCloseOutputStream(dup);
                  DigestOutputStream sink = new DigestOutputStream(copy, digest)) {

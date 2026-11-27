@@ -502,17 +502,6 @@ public final class SyntaxHighlighter {
         return matches;
     }
 
-    /** 1-based line number of character offset inside source. */
-    public static int lineNumberAt(String source, int offset) {
-        if (source == null || offset <= 0) return 1;
-        int limit = Math.min(offset, source.length());
-        int line = 1;
-        for (int i = 0; i < limit; i++) {
-            if (source.charAt(i) == '\n') line++;
-        }
-        return line;
-    }
-
     /** Count total lines in a text segment (minimum 1). */
     public static int lineCount(String text) {
         if (text == null || text.isEmpty()) return 1;

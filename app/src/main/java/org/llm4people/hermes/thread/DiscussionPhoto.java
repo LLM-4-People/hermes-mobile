@@ -10,8 +10,6 @@ import org.llm4people.hermes.camera.CapturedMedia;
 import org.llm4people.hermes.perf.ThumbnailCache;
 
 import java.io.IOException;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.Base64;
 
 /** A user-selected still image. Only re-encoded pixels leave the phone. */
@@ -71,8 +69,7 @@ final class DiscussionPhoto {
     }
 
     static String digest(byte[] bytes) {
-        try { return Base64.getEncoder().encodeToString(MessageDigest.getInstance("SHA-256").digest(bytes)); }
-        catch (NoSuchAlgorithmException impossible) { throw new AssertionError(impossible); }
+        return Base64.getEncoder().encodeToString(org.llm4people.hermes.Digests.sha256().digest(bytes));
     }
 
     static final class Unavailable extends IOException {

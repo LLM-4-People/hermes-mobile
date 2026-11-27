@@ -64,23 +64,10 @@ public final class PermissionCenterTest {
     }
 
     @Test
-    public void evaluateSpecialStateAndSettingsRedirect() {
+    public void evaluateSpecialState() {
         assertEquals(PermissionCenter.State.GRANTED, PermissionCenter.evaluateSpecialState(true, true));
         assertEquals(PermissionCenter.State.NOT_REQUESTED, PermissionCenter.evaluateSpecialState(true, false));
         assertEquals(PermissionCenter.State.UNAVAILABLE, PermissionCenter.evaluateSpecialState(false, true));
-
-        assertTrue(PermissionCenter.requiresSettingsRedirect(
-                PermissionCenter.Key.MICROPHONE, PermissionCenter.State.PERMANENTLY_DENIED));
-        assertFalse(PermissionCenter.requiresSettingsRedirect(
-                PermissionCenter.Key.MICROPHONE, PermissionCenter.State.DENIED));
-        assertFalse(PermissionCenter.requiresSettingsRedirect(
-                PermissionCenter.Key.MICROPHONE, PermissionCenter.State.NOT_REQUESTED));
-        assertTrue(PermissionCenter.requiresSettingsRedirect(
-                PermissionCenter.Key.NOTIFICATION_ACCESS, PermissionCenter.State.NOT_REQUESTED));
-        assertTrue(PermissionCenter.requiresSettingsRedirect(
-                PermissionCenter.Key.INSTALL_UPDATES, PermissionCenter.State.NOT_REQUESTED));
-        assertFalse(PermissionCenter.requiresSettingsRedirect(null, PermissionCenter.State.DENIED));
-        assertFalse(PermissionCenter.requiresSettingsRedirect(PermissionCenter.Key.CAMERA, null));
     }
 
     @Test
