@@ -24,10 +24,6 @@ final class SpokenText {
     private static final Pattern URL = Pattern.compile("(?i)https?://\\S+");
     private static final Pattern MARKUP = Pattern.compile("[`*_]+|^\\s{0,3}[#>]+\\s*");
 
-    static String prose(String source) {
-        return prose(source, (String) null);
-    }
-
     static String prose(Context context, String source) {
         String suffix = context == null
                 ? null
@@ -111,7 +107,7 @@ final class SpokenText {
         void reset() { emittedChars = 0; }
 
         List<String> push(String cumulativeRaw) {
-            String clean = prose(cumulativeRaw);
+            String clean = prose(cumulativeRaw, (String) null);
             if (clean.length() <= emittedChars) return Collections.emptyList();
             boolean endsWithSpace = cumulativeRaw != null && !cumulativeRaw.isEmpty()
                     && Character.isWhitespace(cumulativeRaw.charAt(cumulativeRaw.length() - 1));
@@ -130,7 +126,7 @@ final class SpokenText {
         }
 
         List<String> flush(String finalRaw) {
-            String clean = prose(finalRaw);
+            String clean = prose(finalRaw, (String) null);
             if (clean.length() <= emittedChars) return Collections.emptyList();
             List<String> out = new ArrayList<>(push(finalRaw));
             if (emittedChars < clean.length()) {

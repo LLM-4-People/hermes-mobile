@@ -253,18 +253,18 @@ public final class UniversalDeliveryTest extends InstrumentationTestCase {
     public void testDeliveryRouterDeviceActionValidationAndActiviteRouteRegistration() throws Exception {
         JSONObject validShare = new JSONObject()
                 .put("action", new JSONObject().put("kind", "share_text").put("text", "Bonjour depuis Hermes"));
-        assertNotNull(DeliveryRouter.parseSafeDeviceAction(validShare));
+        assertNotNull(DeliveryRouter.parseSafeDeviceAction(null, validShare));
 
         JSONObject validMap = new JSONObject().put("kind", "map_search").put("query", "Montréal");
-        assertNotNull(DeliveryRouter.parseSafeDeviceAction(validMap));
+        assertNotNull(DeliveryRouter.parseSafeDeviceAction(null, validMap));
 
         JSONObject invertedCal = new JSONObject()
                 .put("kind", "calendar_event")
                 .put("title", "Réunion")
                 .put("start", "2027-01-01T12:00:00Z")
                 .put("end", "2027-01-01T11:00:00Z");
-        assertNull(DeliveryRouter.parseSafeDeviceAction(invertedCal));
-        assertNull(DeliveryRouter.parseSafeDeviceAction(new JSONObject().put("kind", "shell_exec")));
+        assertNull(DeliveryRouter.parseSafeDeviceAction(null, invertedCal));
+        assertNull(DeliveryRouter.parseSafeDeviceAction(null, new JSONObject().put("kind", "shell_exec")));
 
         RouteRegistry registry = new RouteRegistry();
         DeliveryRouter.registerRoutes(registry, null, () -> {}, () -> {});

@@ -44,7 +44,21 @@ public final class HermesApiRevokeTest {
     @Test
     public void limitsCarriesConfiguredArtifactByteCeilingAndPostMultipartEnforcesIt() {
         org.llm4people.hermes.HermesConfig tight = new org.llm4people.hermes.HermesConfig(
-                1000, 2000, 512, 512, 3000, 500, 1024L, 2048L, 10, 20, 2);
+                1000, 2000, 512, 512, 3000, 500, 1024L, 2048L, 10, 20, 2,
+                org.llm4people.hermes.HermesConfig.DEFAULT_UPDATE_REPO,
+                org.llm4people.hermes.HermesConfig.DEFAULT_UPDATE_API_BASE,
+                org.llm4people.hermes.HermesConfig.DEFAULT_UPDATE_MAX_APK_BYTES,
+                org.llm4people.hermes.HermesConfig.DEFAULT_UPDATE_CHECK_INTERVAL_MS,
+                org.llm4people.hermes.HermesConfig.DEFAULT_GITHUB_WEB_BASE_URL,
+                org.llm4people.hermes.HermesConfig.DEFAULT_OSM_BASE_URL,
+                org.llm4people.hermes.HermesConfig.DEFAULT_DOCTOR_CHECK_TIMEOUT_MS,
+                org.llm4people.hermes.HermesConfig.DEFAULT_SLOW_LATENCY_THRESHOLD_MS,
+                org.llm4people.hermes.HermesConfig.DEFAULT_EXPECTED_FORK_CAPABILITIES,
+                org.llm4people.hermes.HermesConfig.DEFAULT_PROBE_TIMEOUT_MS,
+                org.llm4people.hermes.HermesConfig.DEFAULT_VOICE_SERVICE_TIMEOUT_MS,
+                org.llm4people.hermes.HermesConfig.DEFAULT_TTS_INIT_TIMEOUT_MS,
+                org.llm4people.hermes.HermesConfig.DEFAULT_VOICE_MODEL_RELEASE_TIMEOUT_MS,
+                org.llm4people.hermes.HermesConfig.DEFAULT_HTTP_MAX_REDIRECTS);
         HermesApi.Limits limits = HermesApi.Limits.from(tight);
         assertEquals(1024L, limits.artifactDefaultMaxBytes);
 

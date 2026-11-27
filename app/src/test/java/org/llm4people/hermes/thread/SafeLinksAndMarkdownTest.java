@@ -107,7 +107,7 @@ public final class SafeLinksAndMarkdownTest {
 
     @Test public void reasoningExtractionHandlesTagsStreamingAndProtectsFencedCode() {
         String reply = "<think>Étape 1\nÉtape 2</think>\nVoici la réponse.\n```xml\n<think>exemple littéral</think>\n```";
-        var split = TranscriptPage.splitReasoning(reply);
+        var split = TranscriptPage.splitReasoning(reply, "");
         assertEquals("Étape 1\nÉtape 2", split.reasoning());
         assertFalse(split.open());
         assertTrue(split.visible().startsWith("Voici la réponse."));
@@ -121,7 +121,7 @@ public final class SafeLinksAndMarkdownTest {
 
         // Huge reasoning stays strictly bounded without splitting surrogate pairs.
         String hugeThought = "<think>" + "a".repeat(TranscriptPage.MAX_REASONING_CHARS - 1) + "😀suite</think>\nOK";
-        var bounded = TranscriptPage.splitReasoning(hugeThought);
+        var bounded = TranscriptPage.splitReasoning(hugeThought, "");
         assertTrue(bounded.reasoning().length() <= TranscriptPage.MAX_REASONING_CHARS);
         assertFalse(Character.isHighSurrogate(bounded.reasoning().charAt(bounded.reasoning().length() - 1)));
         assertEquals("OK", bounded.visible());

@@ -87,7 +87,7 @@ public final class SpeechPlaybackTest {
 
     @Test public void longSingleParagraphKeepsItsOpeningAndSkipsRawBase64() {
         String longInput = "Premier point. " + "Prenez le train. ".repeat(10_000);
-        String prose = SpokenText.prose(longInput);
+        String prose = SpokenText.prose(longInput, (String) null);
         assertTrue(prose.startsWith("Premier point. Prenez le train."));
         assertFalse("1-arg prose must not append hardcoded French", prose.contains("La suite"));
         assertFalse("1-arg prose must not append hardcoded English", prose.contains("available on screen"));
@@ -105,8 +105,8 @@ public final class SpeechPlaybackTest {
         assertEquals("Short reply.", SpokenText.prose("Short reply.", enSuffix));
         assertEquals(prose, SpokenText.prose(longInput, "   "));
 
-        assertEquals("", SpokenText.prose("YQ=="));
-        assertEquals("", SpokenText.prose("data:application/pdf;base64,YQ=="));
+        assertEquals("", SpokenText.prose("YQ==", (String) null));
+        assertEquals("", SpokenText.prose("data:application/pdf;base64,YQ==", (String) null));
     }
 
     @Test public void narrationOmitsInternalTagsCodeAttachmentsAndAddresses() {
@@ -114,13 +114,13 @@ public final class SpeechPlaybackTest {
                 + "{\"screen\":\"thread\"}\n```\n````\n    commande\n"
                 + "![Aperçu](data:image/png;base64," + "ABC".repeat(130) + ")\n"
                 + "Puis **choisissez** [le modèle](https://exemple.fr/secret).";
-        String text = SpokenText.prose(input);
+        String text = SpokenText.prose(input, (String) null);
         assertTrue(text.startsWith("Bonjour"));
         assertTrue(text.endsWith("Puis choisissez le modèle."));
         for (String privateOrTechnical : List.of("notes", "suite", "screen", "commande", "ABC", "exemple", "```"))
             assertFalse(privateOrTechnical, text.contains(privateOrTechnical));
-        assertEquals("", SpokenText.prose("<analysis>analyse inachevée"));
-        assertEquals("", SpokenText.prose("~~~java\ncode sans fin"));
+        assertEquals("", SpokenText.prose("<analysis>analyse inachevée", (String) null));
+        assertEquals("", SpokenText.prose("~~~java\ncode sans fin", (String) null));
     }
 
     @Test public void factoryExceptionNotifiesPerCallDoneAndDoesNotInvokeDefaultCallback() {

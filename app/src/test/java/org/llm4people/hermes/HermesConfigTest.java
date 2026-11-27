@@ -67,7 +67,7 @@ public final class HermesConfigTest {
             new HermesConfig(1000, 1000, 1000, 1000, 1000, 500, 1024, 2048, 10, 10, 1,
                     "owner/repo", "https://api.github.com", 1024, 1000,
                     "http://github.com", "https://www.openstreetmap.org",
-                    1000, 500, 1, 1000, 1000, 1000);
+                    1000, 500, 1, 1000, 1000, 1000, HermesConfig.DEFAULT_VOICE_MODEL_RELEASE_TIMEOUT_MS, HermesConfig.DEFAULT_HTTP_MAX_REDIRECTS);
             fail("Expected rejection for non-HTTPS githubWebBaseUrl");
         } catch (IllegalArgumentException expected) {
             // ok
@@ -76,7 +76,7 @@ public final class HermesConfigTest {
             new HermesConfig(1000, 1000, 1000, 1000, 1000, 500, 1024, 2048, 10, 10, 1,
                     "owner/repo", "https://api.github.com", 1024, 1000,
                     "https://github.com", "http://www.openstreetmap.org",
-                    1000, 500, 1, 1000, 1000, 1000);
+                    1000, 500, 1, 1000, 1000, 1000, HermesConfig.DEFAULT_VOICE_MODEL_RELEASE_TIMEOUT_MS, HermesConfig.DEFAULT_HTTP_MAX_REDIRECTS);
             fail("Expected rejection for non-HTTPS openStreetMapBaseUrl");
         } catch (IllegalArgumentException expected) {
             // ok
@@ -94,7 +94,7 @@ public final class HermesConfigTest {
                 new HermesConfig(1000, 1000, 1000, 1000, 1000, 500, 1024, 2048, 10, 10, 1,
                         "owner/repo", "https://api.github.com", 1024, 1000,
                         "https://github.com", "https://www.openstreetmap.org",
-                        c[0], c[1], c[2], c[3], c[4], c[5]);
+                        c[0], c[1], c[2], c[3], c[4], c[5], HermesConfig.DEFAULT_VOICE_MODEL_RELEASE_TIMEOUT_MS, HermesConfig.DEFAULT_HTTP_MAX_REDIRECTS);
                 fail("Expected rejection for non-positive operational bound");
             } catch (IllegalArgumentException expected) {
                 // ok
@@ -133,19 +133,26 @@ public final class HermesConfigTest {
     @Test
     public void constructorRejectsNonPositiveOrInvertedBounds() {
         try {
-            new HermesConfig(0, 1000, 1000, 1000, 1000, 500, 1024, 2048, 10, 10, 1);
+            new HermesConfig(0, 1000, 1000, 1000, 1000, 500, 1024, 2048, 10, 10, 1, HermesConfig.DEFAULT_UPDATE_REPO, HermesConfig.DEFAULT_UPDATE_API_BASE, HermesConfig.DEFAULT_UPDATE_MAX_APK_BYTES, HermesConfig.DEFAULT_UPDATE_CHECK_INTERVAL_MS, HermesConfig.DEFAULT_GITHUB_WEB_BASE_URL, HermesConfig.DEFAULT_OSM_BASE_URL, HermesConfig.DEFAULT_DOCTOR_CHECK_TIMEOUT_MS, HermesConfig.DEFAULT_SLOW_LATENCY_THRESHOLD_MS, HermesConfig.DEFAULT_EXPECTED_FORK_CAPABILITIES, HermesConfig.DEFAULT_PROBE_TIMEOUT_MS, HermesConfig.DEFAULT_VOICE_SERVICE_TIMEOUT_MS, HermesConfig.DEFAULT_TTS_INIT_TIMEOUT_MS, HermesConfig.DEFAULT_VOICE_MODEL_RELEASE_TIMEOUT_MS, HermesConfig.DEFAULT_HTTP_MAX_REDIRECTS);
             fail("Expected rejection for zero connect timeout");
         } catch (IllegalArgumentException expected) {
             // ok
         }
         try {
-            new HermesConfig(1000, 1000, 1000, 1000, 1000, 2000, 1024, 2048, 10, 10, 1);
+            new HermesConfig(1000, 1000, 1000, 1000, 1000, 2000, 1024, 2048, 10, 10, 1, HermesConfig.DEFAULT_UPDATE_REPO, HermesConfig.DEFAULT_UPDATE_API_BASE, HermesConfig.DEFAULT_UPDATE_MAX_APK_BYTES, HermesConfig.DEFAULT_UPDATE_CHECK_INTERVAL_MS, HermesConfig.DEFAULT_GITHUB_WEB_BASE_URL, HermesConfig.DEFAULT_OSM_BASE_URL, HermesConfig.DEFAULT_DOCTOR_CHECK_TIMEOUT_MS, HermesConfig.DEFAULT_SLOW_LATENCY_THRESHOLD_MS, HermesConfig.DEFAULT_EXPECTED_FORK_CAPABILITIES, HermesConfig.DEFAULT_PROBE_TIMEOUT_MS, HermesConfig.DEFAULT_VOICE_SERVICE_TIMEOUT_MS, HermesConfig.DEFAULT_TTS_INIT_TIMEOUT_MS, HermesConfig.DEFAULT_VOICE_MODEL_RELEASE_TIMEOUT_MS, HermesConfig.DEFAULT_HTTP_MAX_REDIRECTS);
             fail("Expected rejection when fused grace exceeds nearby timeout");
         } catch (IllegalArgumentException expected) {
             // ok
         }
         try {
-            new HermesConfig(1000, 1000, 1000, 1000, 1000, 500, 4096, 2048, 10, 10, 1);
+            new HermesConfig(1000, 1000, 1000, 1000, 1000, 500, 4096, 2048, 10, 10, 1,
+                    HermesConfig.DEFAULT_UPDATE_REPO, HermesConfig.DEFAULT_UPDATE_API_BASE,
+                    HermesConfig.DEFAULT_UPDATE_MAX_APK_BYTES, HermesConfig.DEFAULT_UPDATE_CHECK_INTERVAL_MS,
+                    HermesConfig.DEFAULT_GITHUB_WEB_BASE_URL, HermesConfig.DEFAULT_OSM_BASE_URL,
+                    HermesConfig.DEFAULT_DOCTOR_CHECK_TIMEOUT_MS, HermesConfig.DEFAULT_SLOW_LATENCY_THRESHOLD_MS,
+                    HermesConfig.DEFAULT_EXPECTED_FORK_CAPABILITIES, HermesConfig.DEFAULT_PROBE_TIMEOUT_MS,
+                    HermesConfig.DEFAULT_VOICE_SERVICE_TIMEOUT_MS, HermesConfig.DEFAULT_TTS_INIT_TIMEOUT_MS,
+                    HermesConfig.DEFAULT_VOICE_MODEL_RELEASE_TIMEOUT_MS, HermesConfig.DEFAULT_HTTP_MAX_REDIRECTS);
             fail("Expected rejection when hard artifact limit is below default");
         } catch (IllegalArgumentException expected) {
             // ok
@@ -162,7 +169,7 @@ public final class HermesConfigTest {
 
             HermesConfig first = HermesConfig.loadCached(appA, () -> {
                 loads.incrementAndGet();
-                return new HermesConfig(5000, 10000, 1024, 1024, 4000, 1000, 4096, 8192, 50, 20, 3);
+                return new HermesConfig(5000, 10000, 1024, 1024, 4000, 1000, 4096, 8192, 50, 20, 3, HermesConfig.DEFAULT_UPDATE_REPO, HermesConfig.DEFAULT_UPDATE_API_BASE, HermesConfig.DEFAULT_UPDATE_MAX_APK_BYTES, HermesConfig.DEFAULT_UPDATE_CHECK_INTERVAL_MS, HermesConfig.DEFAULT_GITHUB_WEB_BASE_URL, HermesConfig.DEFAULT_OSM_BASE_URL, HermesConfig.DEFAULT_DOCTOR_CHECK_TIMEOUT_MS, HermesConfig.DEFAULT_SLOW_LATENCY_THRESHOLD_MS, HermesConfig.DEFAULT_EXPECTED_FORK_CAPABILITIES, HermesConfig.DEFAULT_PROBE_TIMEOUT_MS, HermesConfig.DEFAULT_VOICE_SERVICE_TIMEOUT_MS, HermesConfig.DEFAULT_TTS_INIT_TIMEOUT_MS, HermesConfig.DEFAULT_VOICE_MODEL_RELEASE_TIMEOUT_MS, HermesConfig.DEFAULT_HTTP_MAX_REDIRECTS);
             });
             for (int i = 0; i < 100; i++) {
                 HermesConfig hit = HermesConfig.loadCached(appA, () -> {
@@ -175,7 +182,7 @@ public final class HermesConfigTest {
 
             HermesConfig second = HermesConfig.loadCached(appB, () -> {
                 loads.incrementAndGet();
-                return new HermesConfig(6000, 12000, 2048, 2048, 5000, 1000, 4096, 8192, 50, 20, 3);
+                return new HermesConfig(6000, 12000, 2048, 2048, 5000, 1000, 4096, 8192, 50, 20, 3, HermesConfig.DEFAULT_UPDATE_REPO, HermesConfig.DEFAULT_UPDATE_API_BASE, HermesConfig.DEFAULT_UPDATE_MAX_APK_BYTES, HermesConfig.DEFAULT_UPDATE_CHECK_INTERVAL_MS, HermesConfig.DEFAULT_GITHUB_WEB_BASE_URL, HermesConfig.DEFAULT_OSM_BASE_URL, HermesConfig.DEFAULT_DOCTOR_CHECK_TIMEOUT_MS, HermesConfig.DEFAULT_SLOW_LATENCY_THRESHOLD_MS, HermesConfig.DEFAULT_EXPECTED_FORK_CAPABILITIES, HermesConfig.DEFAULT_PROBE_TIMEOUT_MS, HermesConfig.DEFAULT_VOICE_SERVICE_TIMEOUT_MS, HermesConfig.DEFAULT_TTS_INIT_TIMEOUT_MS, HermesConfig.DEFAULT_VOICE_MODEL_RELEASE_TIMEOUT_MS, HermesConfig.DEFAULT_HTTP_MAX_REDIRECTS);
             });
             assertNotSame(first, second);
             assertEquals(2, loads.get());
@@ -183,7 +190,7 @@ public final class HermesConfigTest {
             HermesConfig.clearCacheForTest();
             HermesConfig reloaded = HermesConfig.loadCached(appA, () -> {
                 loads.incrementAndGet();
-                return new HermesConfig(7000, 14000, 2048, 2048, 5000, 1000, 4096, 8192, 50, 20, 3);
+                return new HermesConfig(7000, 14000, 2048, 2048, 5000, 1000, 4096, 8192, 50, 20, 3, HermesConfig.DEFAULT_UPDATE_REPO, HermesConfig.DEFAULT_UPDATE_API_BASE, HermesConfig.DEFAULT_UPDATE_MAX_APK_BYTES, HermesConfig.DEFAULT_UPDATE_CHECK_INTERVAL_MS, HermesConfig.DEFAULT_GITHUB_WEB_BASE_URL, HermesConfig.DEFAULT_OSM_BASE_URL, HermesConfig.DEFAULT_DOCTOR_CHECK_TIMEOUT_MS, HermesConfig.DEFAULT_SLOW_LATENCY_THRESHOLD_MS, HermesConfig.DEFAULT_EXPECTED_FORK_CAPABILITIES, HermesConfig.DEFAULT_PROBE_TIMEOUT_MS, HermesConfig.DEFAULT_VOICE_SERVICE_TIMEOUT_MS, HermesConfig.DEFAULT_TTS_INIT_TIMEOUT_MS, HermesConfig.DEFAULT_VOICE_MODEL_RELEASE_TIMEOUT_MS, HermesConfig.DEFAULT_HTTP_MAX_REDIRECTS);
             });
             assertEquals(3, loads.get());
             assertEquals(7000, reloaded.httpConnectTimeoutMs);

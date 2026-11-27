@@ -132,8 +132,8 @@ public final class ScheduledJobModel {
             Map<String, Object> row = (Map<String, Object>) m;
             String id = PlainTextSanitizer.collapseBounded(str(row.get("id")), 96);
             String status = normalizeRunStatus(str(row.get("status")), bool(row.get("is_active")));
-            long started = parseEpochSeconds(row.get("started_at"));
-            long ended = parseEpochSeconds(row.get("ended_at"));
+            long started = org.llm4people.hermes.EpochTimestamps.parseEpochSeconds(row.get("started_at"));
+            long ended = org.llm4people.hermes.EpochTimestamps.parseEpochSeconds(row.get("ended_at"));
             String title = PlainTextSanitizer.collapseBounded(str(row.get("title")), 120);
             String preview = PlainTextSanitizer.collapseBounded(str(row.get("preview")), 240);
             boolean active = bool(row.get("is_active")) || "running".equals(status);
@@ -171,11 +171,6 @@ public final class ScheduledJobModel {
         int sep = trimmed.indexOf(':');
         String head = (sep > 0 ? trimmed.substring(0, sep) : trimmed).trim().toLowerCase(Locale.ROOT);
         return PlainTextSanitizer.collapseBounded(head, 32);
-    }
-
-    /** Parses either numeric epoch seconds/millis or ISO-8601 timestamps into epoch seconds (or 0). */
-    public static long parseEpochSeconds(Object value) {
-        return org.llm4people.hermes.EpochTimestamps.parseEpochSeconds(value);
     }
 
     private static String normalizeRunStatus(String raw, boolean isActive) {

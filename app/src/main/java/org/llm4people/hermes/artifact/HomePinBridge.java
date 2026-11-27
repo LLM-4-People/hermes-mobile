@@ -49,11 +49,6 @@ public final class HomePinBridge {
         return surfaceId != null && WorkspaceLayout.custom(surfaceId);
     }
 
-    /** Converts a validated Live UI WidgetSpec into an OS-level HermesWidgetSpec (fail-closed if unsafe). */
-    public static HermesWidgetSpec toOsWidgetSpec(LiveUiPatch.WidgetSpec spec) {
-        return toOsWidgetSpec(spec, null);
-    }
-
     /** Converts a validated Live UI WidgetSpec into an OS-level HermesWidgetSpec bound to an owner profile. */
     public static HermesWidgetSpec toOsWidgetSpec(LiveUiPatch.WidgetSpec spec, String ownerProfileId) {
         if (spec == null || !spec.homeScreenSafe) return null;
@@ -118,10 +113,21 @@ public final class HomePinBridge {
                         pinShortcutAsync(activity, "widget-" + spec.widgetId, spec.title, null, spec.widgetId)));
     }
 
+    static String safeSurfaceTitle(String title) {
+        return HermesWidgetSpec.sanitizeHomeText(title, 40);
+    }
+
+    static String safeShortShortcutLabel(String label) {
+        String safeLabel = HermesWidgetSpec.sanitizeHomeText(label, 50);
+        if (safeLabel.isEmpty()) return "";
+        return org.llm4people.hermes.PlainTextSanitizer.collapseBounded(safeLabel, 25);
+    }
+
     /** Offers 1-tap pinning to the Android Home Screen for any Hermes-created surface/tool/dashboard. */
     public static void offerPinSurface(Activity activity, String surfaceId, String title) {
-        if (activity == null || !WorkspaceLayout.custom(surfaceId) || title == null || title.isEmpty()) return;
-        String safeTitle = title.length() > 40 ? title.substring(0, 40) : title;
+        if (activity == null || !WorkspaceLayout.custom(surfaceId)) return;
+        String safeTitle = safeSurfaceTitle(title);
+        if (safeTitle.isEmpty()) return;
         DeskDialogs.open(activity, new AlertDialog.Builder(activity)
                 .setTitle(R.string.home_pin_dialog_title)
                 .setMessage(activity.getString(R.string.home_pin_surface_body, safeTitle))
@@ -172,8 +178,10 @@ public final class HomePinBridge {
         }
         String safeLabel = HermesWidgetSpec.sanitizeHomeText(label, 50);
         if (safeLabel.isEmpty()) return false;
+        String shortLabel = safeShortShortcutLabel(safeLabel);
+        if (shortLabel.isEmpty()) return false;
         ShortcutInfo info = new ShortcutInfo.Builder(activity, shortcutId)
-                .setShortLabel(safeLabel.length() > 25 ? safeLabel.substring(0, 25) : safeLabel)
+                .setShortLabel(shortLabel)
                 .setLongLabel(safeLabel)
                 .setIcon(Icon.createWithResource(activity, R.mipmap.ic_launcher))
                 .setIntent(launch)

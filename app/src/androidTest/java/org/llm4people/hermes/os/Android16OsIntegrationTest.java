@@ -79,7 +79,7 @@ public final class Android16OsIntegrationTest extends InstrumentationTestCase {
 
         HermesWidgetSpec unsafe = new HermesWidgetSpec(
                 "unsafe_test", "Private Secret", "Do not leak",
-                HermesWidgetSpec.Template.STATUS, List.of(), null, false);
+                HermesWidgetSpec.Template.STATUS, List.of(), null, false, null);
         assertEquals(HermesWidgetPinning.PinResult.INVALID_SPEC,
                 HermesWidgetPinning.requestPinWidget(context, unsafe));
 
@@ -93,7 +93,7 @@ public final class Android16OsIntegrationTest extends InstrumentationTestCase {
                     id, "Tableau Hermes", "Prêt",
                     HermesWidgetSpec.Template.QUICK_ACTIONS,
                     List.of(new HermesWidgetSpec.Item("Nouvelle note", "", "Crée une note")),
-                    "#225C50", true);
+                    "#225C50", true, null);
             RemoteViews colored = HermesWidgetProvider.buildDynamicViews(context, safe);
             assertNotNull(colored);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {

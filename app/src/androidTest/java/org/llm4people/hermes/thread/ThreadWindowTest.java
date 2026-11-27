@@ -22,7 +22,7 @@ public final class ThreadWindowTest extends TestCase {
         ThreadWindow loaded = ThreadWindow.read(path -> {
             reads.add(path);
             return ThreadData.put(new JSONObject(), "data", reads.size() == 1 ? latest : old);
-        }, "/messages?limit=", 0, 40, -1, ThreadData.rowId(old.getJSONObject(0)), () -> true);
+        }, "/messages?limit=", 0, 40, -1, ThreadData.rowId(old.getJSONObject(0)), () -> true, ThreadData.PAGE);
         assertEquals(List.of("/messages?limit=40&offset=0", "/messages?limit=40&offset=40"), reads);
         assertEquals(80, loaded.rawCount());
         JSONArray history = ThreadData.join(loaded.rows(), new JSONArray());
@@ -39,7 +39,7 @@ public final class ThreadWindowTest extends TestCase {
             ThreadWindow.read(path -> {
                 reads.add(path);
                 return ThreadData.put(new JSONObject(), "data", rows);
-            }, "/messages?limit=", 0, 80, -1, ThreadData.rowId(row("older", 1)), reads::isEmpty);
+            }, "/messages?limit=", 0, 80, -1, ThreadData.rowId(row("older", 1)), reads::isEmpty, ThreadData.PAGE);
             fail("Read after departure");
         } catch (IOException expected) { assertEquals(1, reads.size()); }
     }

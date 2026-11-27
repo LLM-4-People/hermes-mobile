@@ -24,10 +24,6 @@ final class ToolResult {
         return row.isNull("content") ? "" : row.opt("content").toString();
     }
 
-    static String label(JSONObject row) {
-        return label(null, row);
-    }
-
     static String label(Context context, JSONObject row) {
         String name = name(row);
         boolean skill = name.equals("skill_view");

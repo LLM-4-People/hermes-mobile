@@ -305,10 +305,6 @@ final class BrainJson {
         return Collections.unmodifiableList(out);
     }
 
-    static ModelCapabilityBadges.ModelInfo parseModelObject(String id, JSONObject obj) {
-        return parseModelObject(id, obj, null, null);
-    }
-
     static ModelCapabilityBadges.ModelInfo parseModelObject(
             String id, JSONObject obj, JSONObject fallbackCaps, JSONObject fallbackPricing) {
         if (obj == null && fallbackCaps == null && fallbackPricing == null) {

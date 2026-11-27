@@ -355,7 +355,7 @@ public final class ConnectionDoctorTest {
                 1000, 2000, 1024, 2048, 3000, 500, 4096, 8192, 10, 20, 2,
                 "LLM-4-People/hermes-mobile", "https://api.github.com", 1024, 60_000L,
                 "https://github.com", "https://www.openstreetmap.org",
-                120, 200, 12, 1000, 1000, 1000);
+                120, 200, 12, 1000, 1000, 1000, HermesConfig.DEFAULT_VOICE_MODEL_RELEASE_TIMEOUT_MS, HermesConfig.DEFAULT_HTTP_MAX_REDIRECTS);
 
         Map<String, Boolean> twelveFlags = new LinkedHashMap<>();
         for (int i = 0; i < 11; i++) twelveFlags.put("f_" + i, Boolean.TRUE);

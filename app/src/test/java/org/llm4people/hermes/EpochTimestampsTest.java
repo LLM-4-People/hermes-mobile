@@ -1,7 +1,6 @@
 package org.llm4people.hermes;
 
 import org.junit.Test;
-import org.llm4people.hermes.panel.ScheduledJobModel;
 
 import static org.junit.Assert.assertEquals;
 
@@ -16,8 +15,6 @@ public final class EpochTimestampsTest {
         long expectedIso = java.time.Instant.parse("2026-11-23T10:00:00Z").getEpochSecond();
         assertEquals(expectedIso, EpochTimestamps.parseEpochSeconds("2026-11-23T10:00:00Z"));
         assertEquals(expectedIso, EpochTimestamps.parseEpochSeconds("2026-11-23T12:00:00+02:00"));
-        assertEquals(EpochTimestamps.parseEpochSeconds("2026-11-23T12:00:00+02:00"),
-                ScheduledJobModel.parseEpochSeconds("2026-11-23T12:00:00+02:00"));
     }
 
     @Test

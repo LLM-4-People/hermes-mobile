@@ -118,21 +118,6 @@ public final class ApkUpdateInstaller {
             String finalFileName,
             long expectedSizeBytes,
             long maxApkBytes,
-            ProgressListener progress,
-            AtomicBoolean cancelled) throws IOException {
-        return downloadAndVerifyChecksum(
-                source, downloadUrl, expectedSha256, targetDir, finalFileName,
-                expectedSizeBytes, maxApkBytes, HermesConfig.DEFAULT_HTTP_MAX_REDIRECTS, progress, cancelled);
-    }
-
-    public static File downloadAndVerifyChecksum(
-            StreamSource source,
-            String downloadUrl,
-            String expectedSha256,
-            File targetDir,
-            String finalFileName,
-            long expectedSizeBytes,
-            long maxApkBytes,
             int maxRedirects,
             ProgressListener progress,
             AtomicBoolean cancelled) throws IOException {

@@ -155,11 +155,6 @@ public final class ConnectionDoctor implements AutoCloseable {
         pool.shutdownNow();
     }
 
-    /** Parse {@code /v1/capabilities} JSON into a structured fork-detection result. */
-    public static CapabilitiesProbe parseCapabilitiesJson(JSONObject response) {
-        return parseCapabilitiesJson(response, HermesConfig.DEFAULT_EXPECTED_FORK_CAPABILITIES);
-    }
-
     /** Parse {@code /v1/capabilities} JSON using a configured expected-capability baseline. */
     public static CapabilitiesProbe parseCapabilitiesJson(JSONObject response, int expectedForkCapabilities) {
         if (response == null) {

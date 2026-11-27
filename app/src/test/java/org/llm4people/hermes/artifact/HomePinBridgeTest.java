@@ -35,7 +35,7 @@ public final class HomePinBridgeTest {
                 "#1E5B78",
                 true);
 
-        HermesWidgetSpec osSpec = HomePinBridge.toOsWidgetSpec(live);
+        HermesWidgetSpec osSpec = HomePinBridge.toOsWidgetSpec(live, "profile-a");
         assertNotNull(osSpec);
         assertEquals("morning_plan", osSpec.widgetId);
         assertEquals("Ma journée", osSpec.title);
@@ -62,13 +62,28 @@ public final class HomePinBridgeTest {
 
     @Test
     public void rejectsNullLiveUiWidgetSpecAndValidatesSurfaceShortcutIds() {
-        assertNull(HomePinBridge.toOsWidgetSpec(null));
+        assertNull(HomePinBridge.toOsWidgetSpec(null, "profile-a"));
         assertNull(HomePinBridge.parseDeliveryWidgetSpec(null));
         assertTrue(HomePinBridge.isValidSurfaceId("page/tableau-budget"));
         assertFalse(HomePinBridge.isValidSurfaceId(null));
         assertFalse(HomePinBridge.isValidSurfaceId(""));
         assertFalse(HomePinBridge.isValidSurfaceId("home"));
         assertFalse(HomePinBridge.isValidSurfaceId("page/../secrets"));
+    }
+
+    @Test
+    public void surfaceTitleRejectsSecretPrefixAndShortShortcutLabelNeverSplitsSurrogatePair() {
+        String secretTitle = "Daily ops status summary - sk-1234567890abcdef";
+        assertEquals("", HomePinBridge.safeSurfaceTitle(secretTitle));
+        assertEquals("", HomePinBridge.safeShortShortcutLabel(secretTitle));
+        assertEquals("Daily ops status", HomePinBridge.safeSurfaceTitle("  Daily ops status  "));
+
+        // 26 UTF-16 code units with 📊 (surrogate pair) spanning indices 24..25 must not split the surrogate pair.
+        String emojiAtBoundary = "a".repeat(24) + "\uD83D\uDCCA";
+        assertEquals(26, emojiAtBoundary.length());
+        String shortLabel = HomePinBridge.safeShortShortcutLabel(emojiAtBoundary);
+        assertEquals("a".repeat(24), shortLabel);
+        assertFalse(Character.isHighSurrogate(shortLabel.charAt(shortLabel.length() - 1)));
     }
 
     @Test

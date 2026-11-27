@@ -279,7 +279,7 @@ public final class BrainJsonAndApiContractTest extends InstrumentationTestCase {
 
         ModelCapabilityBadges.ModelInfo model = BrainJson.parseModelObject("m1", new JSONObject()
                 .put("context_length", 4_294_967_296L)
-                .put("max_output_tokens", 3.6d));
+                .put("max_output_tokens", 3.6d), null, null);
         assertEquals(Integer.MAX_VALUE, model.contextLength());
         assertEquals(4, model.maxOutputTokens());
 

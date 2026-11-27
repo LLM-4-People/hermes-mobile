@@ -344,7 +344,7 @@ public final class ReminderPanel {
         try {
             return OffsetDateTime.parse(raw.trim()).atZoneSameInstant(zone).format(fmt);
         } catch (java.time.DateTimeException ignored) {
-            long epoch = ScheduledJobModel.parseEpochSeconds(raw);
+            long epoch = org.llm4people.hermes.EpochTimestamps.parseEpochSeconds(raw);
             if (epoch > 0L) {
                 return Instant.ofEpochSecond(epoch).atZone(zone).format(fmt);
             }
