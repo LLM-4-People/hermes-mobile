@@ -4,6 +4,7 @@ import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 
+import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.MainActivity;
 
 /** Single source of truth for privacy-safe OS entry intents (QS Tile, Shortcuts, Widget, Live Run). */
@@ -72,16 +73,21 @@ public final class OsEntryIntent {
 
     public static Request parseRequest(Intent intent) {
         if (intent == null || !ACTION_ENTRY.equals(intent.getAction())) return null;
-        Target target = Target.parse(intent.getStringExtra(EXTRA_TARGET));
-        if (target == null) return null;
-        if (target == Target.WIDGET_ACTION) {
-            String widgetId = intent.getStringExtra(EXTRA_WIDGET_ID);
-            int index = intent.getIntExtra(EXTRA_ITEM_INDEX, -1);
-            if (!HermesWidgetSpec.validWidgetId(widgetId) || index < -1 || index >= HermesWidgetSpec.MAX_ITEMS) {
-                return null;
+        try {
+            Target target = Target.parse(intent.getStringExtra(EXTRA_TARGET));
+            if (target == null) return null;
+            if (target == Target.WIDGET_ACTION) {
+                String widgetId = intent.getStringExtra(EXTRA_WIDGET_ID);
+                int index = intent.getIntExtra(EXTRA_ITEM_INDEX, -1);
+                if (!HermesWidgetSpec.validWidgetId(widgetId) || index < -1 || index >= HermesWidgetSpec.MAX_ITEMS) {
+                    return null;
+                }
+                return new Request(target, widgetId, index);
             }
-            return new Request(target, widgetId, index);
+            return new Request(target, null, -1);
+        } catch (RuntimeException malformed) {
+            Diagnostics.warning("os", "entry_intent_rejected");
+            return null;
         }
-        return new Request(target, null, -1);
     }
 }

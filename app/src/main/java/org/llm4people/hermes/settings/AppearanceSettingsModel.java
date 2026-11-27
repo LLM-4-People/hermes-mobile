@@ -1,6 +1,7 @@
 package org.llm4people.hermes.settings;
 
 import org.llm4people.hermes.R;
+import org.llm4people.hermes.artifact.ThemePalette;
 import org.llm4people.hermes.customization.AppCustomization;
 
 import java.text.NumberFormat;
@@ -10,7 +11,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-import java.util.regex.Pattern;
 
 /**
  * Pure-JVM Single Source of Truth for {@link AppearanceSettingsPanel}: WCAG AA hex contrast
@@ -24,7 +24,6 @@ public final class AppearanceSettingsModel {
     public static final String THEME_SYSTEM = "system";
     public static final String THEME_LIGHT = "light";
     public static final String THEME_DARK = "dark";
-    private static final Pattern HEX_PATTERN = Pattern.compile("^#?[0-9A-Fa-f]{6}$");
 
     public static final AppCustomization.PalettePreset[] CURATED_PRESETS = {
             AppCustomization.PalettePreset.FOREST,
@@ -47,14 +46,15 @@ public final class AppearanceSettingsModel {
 
     private AppearanceSettingsModel() {}
 
-    /** Evaluate a user-typed custom hex color against WCAG 2.1 AA (4.5:1 on light surface). */
+    /** Evaluate a user-typed custom hex color against WCAG 2.1 AA (4.5:1 on light paper, surface, and label). */
     public static HexEvaluation evaluateCustomHex(String raw) {
         if (raw == null || raw.trim().isEmpty()) return HexEvaluation.invalidSyntax();
         String trimmed = raw.trim();
-        if (!HEX_PATTERN.matcher(trimmed).matches()) return HexEvaluation.invalidSyntax();
-        String normalized = (trimmed.startsWith("#") ? trimmed : "#" + trimmed).toUpperCase(Locale.ROOT);
+        String candidate = trimmed.startsWith("#") ? trimmed : "#" + trimmed;
+        if (!ThemePalette.isValidHexColor(candidate)) return HexEvaluation.invalidSyntax();
+        String normalized = candidate.toUpperCase(Locale.ROOT);
         int rgb = AppCustomization.parseRgb(normalized);
-        double ratio = AppCustomization.contrastRatio(rgb, AppCustomization.LIGHT_SURFACE_RGB);
+        double ratio = ThemePalette.minLightAccentContrast(0xFF000000 | rgb);
         boolean ok = ratio >= AppCustomization.WCAG_AA_MIN_CONTRAST;
         return new HexEvaluation(true, ok, normalized, ratio, ok ? 0 : R.string.appearance_hex_low_contrast);
     }

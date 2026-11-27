@@ -214,11 +214,15 @@ public final class PresenceSettingsPanel {
         return scroll;
     }
 
+    private boolean notificationsReady() {
+        return PermissionCenter.state(context, PermissionCenter.Key.NOTIFICATIONS) == PermissionCenter.State.GRANTED
+                && DeepAndroidActions.isNudgeChannelEnabled(context);
+    }
+
     public void refresh() {
         boolean hasCoarse = ContinuousLocationTracker.hasCoarsePermission(context);
         boolean hasFine = ContinuousLocationTracker.hasFinePermission(context);
-        boolean hasNotifications = PermissionCenter.state(context, PermissionCenter.Key.NOTIFICATIONS)
-                == PermissionCenter.State.GRANTED;
+        boolean hasNotifications = notificationsReady();
         PresencePolicy reconciled = reconcilePermissions(policy, hasCoarse, hasFine, hasNotifications);
         if (!reconciled.equals(policy)) {
             policy = reconciled;
@@ -228,9 +232,13 @@ public final class PresenceSettingsPanel {
             }
             listener.onPolicyChanged(policy);
         }
-        if (pendingDenialKey != null
-                && PermissionCenter.state(context, pendingDenialKey) == PermissionCenter.State.GRANTED) {
-            clearFeedback();
+        if (pendingDenialKey != null) {
+            boolean resolved = pendingDenialKey == PermissionCenter.Key.NOTIFICATIONS
+                    ? hasNotifications
+                    : PermissionCenter.state(context, pendingDenialKey) == PermissionCenter.State.GRANTED;
+            if (resolved) {
+                clearFeedback();
+            }
         }
         binding = true;
         try {
@@ -420,37 +428,50 @@ public final class PresenceSettingsPanel {
     /** Called by host Activity with the outcome of a notification permission prompt for proactive nudges. */
     public void onNotificationPermissionResult(boolean granted) {
         PermissionCenter.State state = PermissionCenter.state(context, PermissionCenter.Key.NOTIFICATIONS);
-        if (granted || state == PermissionCenter.State.GRANTED) {
+        boolean channelEnabled = DeepAndroidActions.isNudgeChannelEnabled(context);
+        if (state == PermissionCenter.State.GRANTED && channelEnabled) {
             applyPolicy(policy.withProactiveNudges(true), context.getString(R.string.presence_feedback_saved));
             return;
         }
+        PermissionCenter.State effectiveState = (state == PermissionCenter.State.GRANTED && !channelEnabled)
+                ? PermissionCenter.State.PERMANENTLY_DENIED
+                : state;
         applyPolicy(policy.withProactiveNudges(false), context.getString(
-                state == PermissionCenter.State.PERMANENTLY_DENIED
+                effectiveState == PermissionCenter.State.PERMANENTLY_DENIED
                         ? R.string.perm_banner_notifications_blocked_body
                         : R.string.perm_banner_notifications_body));
-        showNotificationRecovery(state);
+        showNotificationRecovery(effectiveState);
     }
 
     private void handleLocationToggle(boolean enabled) {
         if (enabled && !ContinuousLocationTracker.hasCoarsePermission(context)) {
             PermissionCenter.State state = PermissionCenter.state(context, PermissionCenter.Key.LOCATION);
-            if (decidePermissionToggle(true, state) == ToggleDecision.OPEN_SETTINGS) {
-                applyPolicy(policy.withContinuousLocation(false),
-                        context.getString(R.string.perm_location_blocked));
-                showFeedbackWithAction(PermissionCenter.Key.LOCATION,
-                        context.getString(R.string.perm_location_blocked),
-                        context.getString(R.string.perm_action_open_settings),
-                        () -> {
-                            if (!PermissionCenter.openAppSettings(context)) {
-                                showFeedback(context.getString(R.string.perm_settings_unavailable));
-                            }
-                        });
-                return;
+            switch (decidePermissionToggle(true, state)) {
+                case UNAVAILABLE -> {
+                    applyPolicy(policy.withContinuousLocation(false),
+                            context.getString(R.string.perm_settings_unavailable));
+                    return;
+                }
+                case OPEN_SETTINGS -> {
+                    applyPolicy(policy.withContinuousLocation(false),
+                            context.getString(R.string.perm_location_blocked));
+                    showFeedbackWithAction(PermissionCenter.Key.LOCATION,
+                            context.getString(R.string.perm_location_blocked),
+                            context.getString(R.string.perm_action_open_settings),
+                            () -> {
+                                if (!PermissionCenter.openAppSettings(context)) {
+                                    showFeedback(context.getString(R.string.perm_settings_unavailable));
+                                }
+                            });
+                    return;
+                }
+                case REQUEST_PERMISSION, APPLY -> {
+                    applyPolicy(policy.withContinuousLocation(false),
+                            context.getString(R.string.presence_feedback_location_permission));
+                    listener.onRequestLocationPermission();
+                    return;
+                }
             }
-            applyPolicy(policy.withContinuousLocation(false),
-                    context.getString(R.string.presence_feedback_location_permission));
-            listener.onRequestLocationPermission();
-            return;
         }
         applyPolicy(policy.withContinuousLocation(enabled), context.getString(R.string.presence_feedback_saved));
     }
@@ -491,6 +512,9 @@ public final class PresenceSettingsPanel {
             return;
         }
         PermissionCenter.State state = PermissionCenter.state(context, PermissionCenter.Key.NOTIFICATIONS);
+        if (state == PermissionCenter.State.GRANTED && !DeepAndroidActions.isNudgeChannelEnabled(context)) {
+            state = PermissionCenter.State.PERMANENTLY_DENIED;
+        }
         switch (decidePermissionToggle(true, state)) {
             case APPLY -> applyPolicy(policy.withProactiveNudges(true),
                     context.getString(R.string.presence_feedback_saved));

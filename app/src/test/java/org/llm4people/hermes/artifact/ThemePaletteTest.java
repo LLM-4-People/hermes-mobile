@@ -364,6 +364,41 @@ public final class ThemePaletteTest {
                 ThemePalette.contrastRatio(p.positive, p.accentSurface) >= ThemePalette.WCAG_AA_NORMAL);
     }
 
+    @Test public void hexValidationSsotAndLightAccentDayPaperContrastGuard() throws Exception {
+        // R36.2.1 / R36.4.1: strict ASCII #RRGGBB SSoT rejects non-ASCII Unicode digits and signed hex.
+        assertTrue(ThemePalette.isValidHexColor("#1b5E50"));
+        assertEquals(0xFF1B5E50, ThemePalette.parseHexColor("#1b5E50"));
+        String[] invalidHexes = {
+                null, "", "#123", "#1234567", "123456", "#+12345", "#-12345",
+                "#\u0660\u0660\u0660\u0660\u0660\u0660", "#12345g", " #1B5E50 "
+        };
+        for (String bad : invalidHexes) {
+            assertFalse("Expected isValidHexColor=false for " + bad, ThemePalette.isValidHexColor(bad));
+            assertFalse("Expected validAccentHex=false for " + bad,
+                    org.llm4people.hermes.os.HermesWidgetSpec.validAccentHex(bad));
+            assertInvalid(() -> ThemePalette.parseHexColor(bad));
+            try {
+                org.llm4people.hermes.customization.AppCustomization.parseRgb(bad);
+                fail("Expected IllegalArgumentException in AppCustomization.parseRgb for " + bad);
+            } catch (IllegalArgumentException expected) {
+                // expected
+            }
+        }
+        assertEquals("", org.llm4people.hermes.onboarding.OnboardingModels.safeHexColor("#\u0660\u0660\u0660\u0660\u0660\u0660"));
+        assertEquals("", org.llm4people.hermes.onboarding.OnboardingModels.safeHexColor("#+12345"));
+        assertEquals("#1B5E50", org.llm4people.hermes.onboarding.OnboardingModels.safeHexColor(" #1b5e50 "));
+
+        // R36.5.4: #727272 clears DAY_SURFACE (4.77:1) but fails DAY_PAPER (4.39:1) -> minLightAccentContrast < 4.5.
+        assertTrue(ThemePalette.minLightAccentContrast(0xFF727272) < ThemePalette.WCAG_AA_NORMAL);
+        assertTrue(ThemePalette.minLightAccentContrast(ThemePalette.DAY_ACCENT) >= ThemePalette.WCAG_AA_NORMAL);
+        try {
+            org.llm4people.hermes.customization.AppCustomization.validateCustomAccentHex("#727272");
+            fail("Expected AppCustomization.validateCustomAccentHex to reject #727272 against DAY_PAPER");
+        } catch (IllegalArgumentException expected) {
+            // expected
+        }
+    }
+
     private static void assertContrastRejected(Action action) {
         try {
             action.run();

@@ -183,4 +183,31 @@ public final class Android16OsIntegrationTest extends InstrumentationTestCase {
             assertTrue("Widget button must have vertical padding", button.getPaddingTop() > 0 && button.getPaddingBottom() > 0);
         }
     }
+
+    public void testMalformedExportedIntentsAndNullNudgeChannelFailClosed() {
+        Context context = getInstrumentation().getTargetContext();
+        // R36.3.1: Poisoned Intent throwing RuntimeException on extra reads must return null / no-op cleanly.
+        android.content.Intent poisonedEntry = new android.content.Intent(OsEntryIntent.ACTION_ENTRY) {
+            @Override public String getStringExtra(String name) {
+                throw new android.os.BadParcelableException("poisoned parcel");
+            }
+        };
+        assertNull(OsEntryIntent.parseRequest(poisonedEntry));
+
+        HermesWidgetProvider provider = new HermesWidgetProvider();
+        provider.onReceive(null, null);
+        android.content.Intent poisonedWidget = new android.content.Intent(HermesWidgetProvider.ACTION_REFRESH_WIDGETS) {
+            @Override public String getStringExtra(String name) {
+                throw new android.os.BadParcelableException("poisoned widget parcel");
+            }
+        };
+        provider.onReceive(context, poisonedWidget);
+
+        org.llm4people.hermes.push.DistributorReceiver receiver = new org.llm4people.hermes.push.DistributorReceiver();
+        receiver.onReceive(null, null);
+
+        // R36.3.2: DeepAndroidActions.isNudgeChannelEnabled fail-closed on null context.
+        assertFalse(org.llm4people.hermes.presence.DeepAndroidActions.isNudgeChannelEnabled(null));
+        assertTrue(org.llm4people.hermes.presence.DeepAndroidActions.isNudgeChannelEnabled(context));
+    }
 }

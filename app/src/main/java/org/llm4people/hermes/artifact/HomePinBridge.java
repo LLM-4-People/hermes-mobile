@@ -110,7 +110,14 @@ public final class HomePinBridge {
                 .setPositiveButton(R.string.home_pin_widget_action, (d, w) ->
                         launchWidgetPin(activity, spec, ownerProfileId))
                 .setNeutralButton(R.string.home_pin_shortcut_action, (d, w) ->
-                        pinShortcutAsync(activity, "widget-" + spec.widgetId, spec.title, null, spec.widgetId)));
+                        pinWidgetShortcut(activity, spec, ownerProfileId)));
+    }
+
+    private static void pinWidgetShortcut(Activity activity, LiveUiPatch.WidgetSpec spec, String ownerProfileId) {
+        HermesWidgetSpec osSpec = toOsWidgetSpec(spec, ownerProfileId);
+        if (osSpec == null) return;
+        if (!new HermesWidgetStore(activity.getApplicationContext()).upsertSpec(osSpec, ownerProfileId)) return;
+        pinShortcutAsync(activity, "widget-" + osSpec.widgetId, osSpec.title, null, osSpec.widgetId);
     }
 
     static String safeSurfaceTitle(String title) {
@@ -217,7 +224,7 @@ public final class HomePinBridge {
                 .setMessage(R.string.home_pin_widget_fallback_body)
                 .setNegativeButton(R.string.home_pin_close, null)
                 .setPositiveButton(R.string.home_pin_shortcut_action, (d, w) ->
-                        pinShortcutAsync(activity, "widget-" + spec.widgetId, spec.title, null, spec.widgetId)));
+                        pinWidgetShortcut(activity, spec, ownerProfileId)));
     }
 
     /** Upserts a validated Live UI widget bound to an owner profile into HermesWidgetStore. */

@@ -8,6 +8,7 @@ import org.llm4people.hermes.Base64Url;
 import org.llm4people.hermes.PlainTextSanitizer;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.SecretPatterns;
+import org.llm4people.hermes.artifact.ThemePalette;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -29,7 +30,6 @@ public final class HermesWidgetSpec {
     public static final int MAX_DRAFT_CHARS = 240;
 
     private static final Pattern ID_PATTERN = Pattern.compile("[a-zA-Z0-9._-]{1,64}");
-    private static final Pattern HEX_COLOR = Pattern.compile("#[0-9A-Fa-f]{6}");
 
     public enum Template {
         METRIC("metric"),
@@ -104,7 +104,7 @@ public final class HermesWidgetSpec {
     }
 
     public static boolean validAccentHex(String hex) {
-        return hex != null && HEX_COLOR.matcher(hex).matches();
+        return ThemePalette.isValidHexColor(hex);
     }
 
     /** Strips control/format/surrogate/invisible code points, redacts secret-like patterns, and bounds length for home-screen safety. */

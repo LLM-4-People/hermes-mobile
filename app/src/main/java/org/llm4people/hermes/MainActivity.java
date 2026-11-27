@@ -943,21 +943,26 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
 
     private boolean capturePinnedShortcutIntent(Intent intent) {
         if (intent == null || !Intent.ACTION_VIEW.equals(intent.getAction())) return false;
-        String surfaceId = intent.getStringExtra(HomePinBridge.EXTRA_SURFACE_ID);
-        if (HomePinBridge.isValidSurfaceId(surfaceId)) {
-            pendingPinnedSurface = surfaceId;
-            pendingPinnedWidget = null;
-            pendingOsEntry = null;
-            return true;
+        try {
+            String surfaceId = intent.getStringExtra(HomePinBridge.EXTRA_SURFACE_ID);
+            if (HomePinBridge.isValidSurfaceId(surfaceId)) {
+                pendingPinnedSurface = surfaceId;
+                pendingPinnedWidget = null;
+                pendingOsEntry = null;
+                return true;
+            }
+            String widgetId = intent.getStringExtra(HomePinBridge.EXTRA_WIDGET_ID);
+            if (HermesWidgetSpec.validWidgetId(widgetId)) {
+                pendingPinnedWidget = widgetId;
+                pendingPinnedSurface = null;
+                pendingOsEntry = null;
+                return true;
+            }
+            return false;
+        } catch (RuntimeException malformed) {
+            Diagnostics.warning("os", "shortcut_intent_rejected");
+            return false;
         }
-        String widgetId = intent.getStringExtra(HomePinBridge.EXTRA_WIDGET_ID);
-        if (HermesWidgetSpec.validWidgetId(widgetId)) {
-            pendingPinnedWidget = widgetId;
-            pendingPinnedSurface = null;
-            pendingOsEntry = null;
-            return true;
-        }
-        return false;
     }
 
     private void dispatchPendingOsEntry() {
@@ -2204,7 +2209,8 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             if (account != null) {
                 if (activePresencePanel != null) {
                     activePresencePanel.onNotificationPermissionResult(granted);
-                } else if (granted) {
+                } else if (PermissionCenter.state(this, PermissionCenter.Key.NOTIFICATIONS) == PermissionCenter.State.GRANTED
+                        && DeepAndroidActions.isNudgeChannelEnabled(this)) {
                     PresencePolicy current = PresencePolicy.load(account);
                     PresencePolicy updated = current.withProactiveNudges(true);
                     if (!updated.equals(current)) PresencePolicy.save(account, updated);

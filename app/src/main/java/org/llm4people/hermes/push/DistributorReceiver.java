@@ -19,10 +19,13 @@ public final class DistributorReceiver extends MessagingReceiver {
     private static final ExecutorService MESSAGES = Executors.newSingleThreadExecutor();
 
     @Override public void onReceive(Context context, Intent intent) {
+        if (context == null || intent == null) return;
         PendingResult result = goAsync();
         MESSAGES.execute(() -> {
             try {
                 process(context, intent);
+            } catch (RuntimeException malformed) {
+                Diagnostics.warning("push", "distributor_intent_rejected");
             } finally { result.finish(); }
         });
     }

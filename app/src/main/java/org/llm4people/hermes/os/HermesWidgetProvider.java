@@ -46,26 +46,31 @@ public final class HermesWidgetProvider extends AppWidgetProvider {
     }
 
     @Override public void onReceive(Context context, Intent intent) {
-        super.onReceive(context, intent);
-        if (context == null || intent == null || intent.getAction() == null) return;
-        String action = intent.getAction();
-        if (ACTION_WIDGET_PINNED.equals(action)) {
-            int appWidgetId = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID,
-                    AppWidgetManager.INVALID_APPWIDGET_ID);
-            String token = intent.getStringExtra(EXTRA_PIN_TOKEN);
-            HermesWidgetStore store = new HermesWidgetStore(context);
-            String widgetId = store.consumePendingPin(token);
-            if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID && widgetId != null) {
-                store.bindInstance(appWidgetId, widgetId);
-                updateOne(context, AppWidgetManager.getInstance(context), store, appWidgetId);
+        if (context == null || intent == null) return;
+        try {
+            super.onReceive(context, intent);
+            String action = intent.getAction();
+            if (action == null) return;
+            if (ACTION_WIDGET_PINNED.equals(action)) {
+                int appWidgetId = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID,
+                        AppWidgetManager.INVALID_APPWIDGET_ID);
+                String token = intent.getStringExtra(EXTRA_PIN_TOKEN);
+                HermesWidgetStore store = new HermesWidgetStore(context);
+                String widgetId = store.consumePendingPin(token);
+                if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID && widgetId != null) {
+                    store.bindInstance(appWidgetId, widgetId);
+                    updateOne(context, AppWidgetManager.getInstance(context), store, appWidgetId);
+                }
+            } else if (ACTION_REFRESH_WIDGETS.equals(action)) {
+                String widgetId = intent.getStringExtra(EXTRA_REFRESH_WIDGET_ID);
+                if (HermesWidgetSpec.validWidgetId(widgetId)) {
+                    refreshWidget(context, widgetId);
+                } else {
+                    refresh(context);
+                }
             }
-        } else if (ACTION_REFRESH_WIDGETS.equals(action)) {
-            String widgetId = intent.getStringExtra(EXTRA_REFRESH_WIDGET_ID);
-            if (HermesWidgetSpec.validWidgetId(widgetId)) {
-                refreshWidget(context, widgetId);
-            } else {
-                refresh(context);
-            }
+        } catch (RuntimeException malformed) {
+            Diagnostics.warning("os", "widget_broadcast_rejected");
         }
     }
 
