@@ -20,7 +20,7 @@ public final class PageRecoveryTest extends InstrumentationTestCase {
     private static final String ID = "page/revue";
 
     private static PageLayouts.Damaged damage(Account account) {
-        try { PageLayouts.titles(account, true); }
+        try { PageLayouts.titles(null, account, true); }
         catch (PageLayouts.Damaged error) { return error; }
         throw new AssertionError("Expected an unreadable catalog");
     }
@@ -121,7 +121,7 @@ public final class PageRecoveryTest extends InstrumentationTestCase {
                 });
                 getInstrumentation().waitForIdleSync();
                 assertTrue(changed[0]);
-                assertTrue(PageLayouts.titles(fixture.account, true).isEmpty());
+                assertTrue(PageLayouts.titles(null, fixture.account, true).isEmpty());
             } finally {
                 try { runTestOnUiThread(() -> ArtifactDesk.dismiss(activity)); }
                 finally { ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity); }

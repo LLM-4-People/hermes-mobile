@@ -31,7 +31,7 @@ public class WorkspaceLibraryTest extends InstrumentationTestCase {
                 }
                 start.countDown();
                 for (Future<?> write : writes) write.get();
-                assertEquals(8, PageLayouts.titles(fixture.account,false).size());
+                assertEquals(8, PageLayouts.titles(null, fixture.account,false).size());
             } finally { workers.shutdownNow(); }
         }
     }
@@ -48,19 +48,19 @@ public class WorkspaceLibraryTest extends InstrumentationTestCase {
             String second = first.replace("\"Revue\"","\"Revue finale\"");
             writer.replace(first);
             writer.replace(second);
-            assertEquals("Revue finale", PageLayouts.titles(one.account,false).get(id));
-            assertTrue(PageLayouts.titles(two.account,false).isEmpty());
+            assertEquals("Revue finale", PageLayouts.titles(null, one.account,false).get(id));
+            assertTrue(PageLayouts.titles(null, two.account,false).isEmpty());
             assertEquals("",other.current());
             reopened.undo();
             assertEquals(first,writer.current());
             writer.replace("");
-            assertTrue(PageLayouts.titles(one.account,false).isEmpty());
-            assertTrue(PageLayouts.titles(one.account,true).containsKey(id));
+            assertTrue(PageLayouts.titles(null, one.account,false).isEmpty());
+            assertTrue(PageLayouts.titles(null, one.account,true).containsKey(id));
             reopened.undo();
             assertEquals(first,writer.current());
             reopened.replace("");
             writer.forgetRemoved();
-            assertTrue(PageLayouts.titles(one.account,true).isEmpty());
+            assertTrue(PageLayouts.titles(null, one.account,true).isEmpty());
             assertFalse(reopened.canUndo());
             one.account.close();
             try { writer.current(); fail("Read after profile lock"); } catch (IllegalStateException expected) { }

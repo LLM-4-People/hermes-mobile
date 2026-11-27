@@ -146,7 +146,7 @@ public class LivePageJourneyTest extends InstrumentationTestCase {
                             .toString().contains(fieldChanged)).size());
                     View invalid = InstrumentPreview.render(activity, "{}", host, null, "thread");
                     assertTrue(views(invalid, v -> v instanceof Button).isEmpty());
-                    assertTrue(PageLayouts.titles(account.account, true).isEmpty());
+                    assertTrue(PageLayouts.titles(null, account.account, true).isEmpty());
                 });
             } finally {
                 try { runTestOnUiThread(() -> ArtifactDesk.dismiss(activity)); }

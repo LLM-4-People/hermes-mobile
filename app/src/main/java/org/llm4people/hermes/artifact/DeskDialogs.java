@@ -21,12 +21,7 @@ final class DeskDialogs {
     }
 
     static AlertDialog open(Activity activity, ArtifactDesk.Host owner, AlertDialog.Builder builder) {
-        return open(activity, owner, builder, null, null);
-    }
-
-    static AlertDialog open(Activity activity, ArtifactDesk.Host owner, AlertDialog.Builder builder,
-                            View source, BooleanSupplier current) {
-        return open(activity, owner, builder, source, current, null);
+        return open(activity, owner, builder, null, null, null);
     }
 
     static AlertDialog open(Activity activity, ArtifactDesk.Host owner, AlertDialog.Builder builder,

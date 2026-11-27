@@ -122,10 +122,6 @@ final class PageLayouts {
         return result;
     }
 
-    static Map<String,String> titles(Account account, boolean includeRemoved) {
-        return titles(null, account, includeRemoved);
-    }
-
     static final class Full extends IllegalStateException {
         Full() { super("Saved page limit reached"); }
     }
