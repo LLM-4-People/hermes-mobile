@@ -435,14 +435,19 @@ public final class ShareWithUserSheet {
                 BrainUi.liveNote(panel, body, invalid.resolve(panel.activity));
                 return;
             }
+            int seq = ++loadSeq;
             panel.request(body, () -> panel.api.get("/api/shares/incoming/" + HermesApi.segment(safeId) + "/content"),
                     reply -> {
+                        if (seq != loadSeq) return;
                         Diagnostics.event("sharing", "content_opened");
                         String text = extractReadableContent(panel.activity, reply);
                         AlertDialog.Builder reader = CodeReader.dialog(panel.activity,
                                 grant.displayLabel(), "markdown", text);
                         if (stageDraft != null && !text.isEmpty()) {
+                            boolean[] handled = {false};
                             reader.setPositiveButton(R.string.brain_skills_use_in_thread, (d, w) -> {
+                                if (handled[0]) return;
+                                handled[0] = true;
                                 panel.close();
                                 stageDraft.accept(panel.t(R.string.ws_share_draft_prompt,
                                         grant.displayLabel(), text));
@@ -450,6 +455,7 @@ public final class ShareWithUserSheet {
                         }
                         panel.present(reader.create());
                     }, error -> {
+                        if (seq != loadSeq) return;
                         if (error instanceof HermesApi.HttpError http) {
                             Diagnostics.warning("sharing", "content_http_error", "http_" + http.status);
                             BrainUi.liveNote(panel, body,

@@ -652,7 +652,7 @@ final class ProfileDefaultsPanel {
         PanelData.put(payload, "reasoning_effort",
                 submitted.reasoningEffort().isEmpty() ? JSONObject.NULL : submitted.reasoningEffort());
 
-        panel.request(saveFeedback, () -> panel.api.patch("/api/profile/defaults", payload),
+        if (!panel.request(saveFeedback, () -> panel.api.patch("/api/profile/defaults", payload),
                 updated -> {
                     saving = false;
                     model.markSaved(submitted);
@@ -664,7 +664,10 @@ final class ProfileDefaultsPanel {
                     syncSaveBar();
                     Diagnostics.warning("profile_defaults", "save_failed", error);
                     panel.failure(saveFeedback, error, this::saveDefaults);
-                });
+                })) {
+            saving = false;
+            syncSaveBar();
+        }
     }
 
     private void editSoul() {
@@ -718,7 +721,7 @@ final class ProfileDefaultsPanel {
                         soulSaving[0] = true;
                         if (saveBtnRef[0] != null) saveBtnRef[0].setEnabled(false);
                         feedback.removeAllViews();
-                        panel.request(feedback, () -> panel.api.put("/api/profile/soul",
+                        if (!panel.request(feedback, () -> panel.api.put("/api/profile/soul",
                                         PanelData.put(new JSONObject(), "content", text)),
                                 ok -> {
                                     soulSaving[0] = false;
@@ -734,7 +737,10 @@ final class ProfileDefaultsPanel {
                                     }
                                     Diagnostics.warning("profile_defaults", "soul_save_failed", err);
                                     panel.failure(feedback, err, null);
-                                });
+                                })) {
+                            soulSaving[0] = false;
+                            if (saveBtnRef[0] != null) saveBtnRef[0].setEnabled(true);
+                        }
                     });
                     saveBtnRef[0] = saveSoulBtn;
                     saveSoulBtn.setEnabled(false);

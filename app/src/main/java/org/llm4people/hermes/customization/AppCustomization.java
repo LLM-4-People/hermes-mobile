@@ -23,7 +23,6 @@ import java.util.regex.Pattern;
  */
 public final class AppCustomization {
     public static final double WCAG_AA_MIN_CONTRAST = ThemePalette.WCAG_AA_NORMAL;
-    public static final int LIGHT_SURFACE_RGB = ThemePalette.DAY_SURFACE & 0xFFFFFF;
 
     public static final float MIN_FONT_SCALE_DELTA = -0.15f;
     public static final float MAX_FONT_SCALE_DELTA = 0.30f;
@@ -198,7 +197,7 @@ public final class AppCustomization {
                 startupTab, companionGreeting, shortcuts);
     }
 
-    /** Effective light-mode ARGB accent color guaranteed WCAG AA (&gt;= 4.5:1) against {@link #LIGHT_SURFACE_RGB}. */
+    /** Effective light-mode ARGB accent color guaranteed WCAG AA (&gt;= 4.5:1) against {@link ThemePalette#DAY_SURFACE}. */
     public int lightAccentArgb() {
         String hex = palette == PalettePreset.CUSTOM ? customAccentHex : palette.lightAccentHex;
         return 0xFF000000 | parseRgb(hex);
@@ -298,15 +297,6 @@ public final class AppCustomization {
             throw new IllegalArgumentException("Invalid hex color");
         }
         return Digests.parseUnsignedHex(hex, 1, 6) & 0xFFFFFF;
-    }
-
-    /** WCAG 2.1 contrast ratio in {@code [1.0, 21.0]}. */
-    public static double contrastRatio(int rgb1, int rgb2) {
-        return ThemePalette.contrastRatio(0xFF000000 | (rgb1 & 0xFFFFFF), 0xFF000000 | (rgb2 & 0xFFFFFF));
-    }
-
-    public static boolean meetsWcagAa(int fgRgb, int bgRgb) {
-        return contrastRatio(fgRgb, bgRgb) >= WCAG_AA_MIN_CONTRAST;
     }
 
     /**

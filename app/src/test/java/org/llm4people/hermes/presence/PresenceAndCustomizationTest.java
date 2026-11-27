@@ -154,12 +154,16 @@ public final class PresenceAndCustomizationTest {
         // Every curated preset meets WCAG AA >= 4.5:1 on both light and dark surfaces.
         for (AppCustomization.PalettePreset preset : AppCustomization.PalettePreset.values()) {
             if (preset == AppCustomization.PalettePreset.CUSTOM) continue;
-            int lightRgb = AppCustomization.parseRgb(preset.lightAccentHex);
-            int darkRgb = AppCustomization.parseRgb(preset.darkAccentHex);
+            int lightArgb = 0xFF000000 | AppCustomization.parseRgb(preset.lightAccentHex);
+            int darkArgb = 0xFF000000 | AppCustomization.parseRgb(preset.darkAccentHex);
             assertTrue("Preset " + preset + " light contrast < 4.5",
-                    AppCustomization.meetsWcagAa(lightRgb, AppCustomization.LIGHT_SURFACE_RGB));
+                    org.llm4people.hermes.artifact.ThemePalette.contrastRatio(
+                            lightArgb, org.llm4people.hermes.artifact.ThemePalette.DAY_SURFACE)
+                            >= org.llm4people.hermes.artifact.ThemePalette.WCAG_AA_NORMAL);
             assertTrue("Preset " + preset + " dark contrast < 4.5",
-                    AppCustomization.meetsWcagAa(darkRgb, org.llm4people.hermes.artifact.ThemePalette.NIGHT_SURFACE & 0xFFFFFF));
+                    org.llm4people.hermes.artifact.ThemePalette.contrastRatio(
+                            darkArgb, org.llm4people.hermes.artifact.ThemePalette.NIGHT_SURFACE)
+                            >= org.llm4people.hermes.artifact.ThemePalette.WCAG_AA_NORMAL);
         }
 
         // High-contrast custom hex accepted; low-contrast / yellow / malformed rejected.
@@ -180,8 +184,9 @@ public final class PresenceAndCustomizationTest {
                 .withCompanionGreeting("Bonjour Jacob")
                 .withComposerShortcuts(List.of(
                         new AppCustomization.ComposerShortcut("plan", "Plan du jour", "Aide-moi à planifier ma journée")));
-        assertTrue(AppCustomization.meetsWcagAa(
-                custom.darkAccentArgb() & 0xFFFFFF, org.llm4people.hermes.artifact.ThemePalette.NIGHT_SURFACE & 0xFFFFFF));
+        assertTrue(org.llm4people.hermes.artifact.ThemePalette.contrastRatio(
+                custom.darkAccentArgb(), org.llm4people.hermes.artifact.ThemePalette.NIGHT_SURFACE)
+                >= org.llm4people.hermes.artifact.ThemePalette.WCAG_AA_NORMAL);
 
         // Secret-like content rejected in greeting & shortcuts.
         try {

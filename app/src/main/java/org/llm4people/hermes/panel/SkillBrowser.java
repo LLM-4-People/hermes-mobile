@@ -133,7 +133,7 @@ final class SkillBrowser {
         adapter.clear();
         empty.setVisibility(View.GONE);
         status.removeAllViews();
-        panel.request(status, () -> SkillInventory.parse(panel.api.get("/v1/skills")), rows -> {
+        if (!panel.request(status, () -> SkillInventory.parse(panel.api.get("/v1/skills")), rows -> {
             if (!current()) return;
             enableRefresh();
             inventory = rows;
@@ -149,7 +149,9 @@ final class SkillBrowser {
             };
             if (message == 0) panel.failure(status, error, null);
             else panel.note(status, panel.t(message)).setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
-        });
+        })) {
+            enableRefresh();
+        }
     }
 
     private void enableRefresh() {

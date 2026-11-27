@@ -75,10 +75,13 @@ final class GlobalSearchPanel {
     }
 
     private void checkCapability() {
+        int seq = ++requestSeq;
         resultsBox.removeAllViews();
         panel.request(resultsBox, () -> BrainJson.parseCapabilities(panel.api.capabilities()).sessionSearch(),
                 available -> {
                     supported = available;
+                    if (seq != requestSeq) return;
+                    resultsBox.removeAllViews();
                     if (!available) {
                         Diagnostics.event("search", "capability_absent");
                         BrainUi.showUnavailable(panel, resultsBox, R.string.brain_search_unavailable, this::checkCapability);
@@ -86,7 +89,9 @@ final class GlobalSearchPanel {
                         panel.note(resultsBox, panel.t(R.string.brain_search_prompt));
                     }
                 }, error -> {
+                    if (seq != requestSeq) return;
                     Diagnostics.warning("search", "capability_check_failed", error);
+                    resultsBox.removeAllViews();
                     panel.failure(resultsBox, error, this::checkCapability);
                 });
     }
@@ -113,6 +118,7 @@ final class GlobalSearchPanel {
 
     private void submitSearch() {
         if (Boolean.FALSE.equals(supported)) {
+            resultsBox.removeAllViews();
             BrainUi.showUnavailable(panel, resultsBox, R.string.brain_search_unavailable, this::checkCapability);
             return;
         }
@@ -150,7 +156,7 @@ final class GlobalSearchPanel {
         if (!roleFilter.isEmpty()) {
             path.append("&role=").append(HermesApi.queryValue(roleFilter));
         }
-        panel.request(resultsBox, () -> BrainJson.parseSearchPage(panel.api.get(path.toString())),
+        if (!panel.request(resultsBox, () -> BrainJson.parseSearchPage(panel.api.get(path.toString())),
                 result -> {
                     if (seq != requestSeq) return;
                     loadingMore = false;
@@ -170,7 +176,9 @@ final class GlobalSearchPanel {
                         Diagnostics.warning("search", "query_failed", error);
                         panel.failure(resultsBox, error, () -> executeSearch(query, offset, append));
                     }
-                });
+                })) {
+            loadingMore = false;
+        }
     }
 
     private void renderResults() {

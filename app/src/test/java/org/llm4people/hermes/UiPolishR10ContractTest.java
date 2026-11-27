@@ -285,8 +285,8 @@ public final class UiPolishR10ContractTest {
         assertTrue(voiceDrafts.contains("if (handled[0] || recovery != this || paused || !target.visible()) return;"));
         assertTrue(pairingShare.contains("R.string.admin_settings_revoke_failed"));
 
-        // R38.8.3 / R39.8.2: Widget refresh callers must preserve runActive instead of hardcoding false.
-        Pattern refreshFalse = Pattern.compile("HermesWidgetProvider\\.refresh\\([^,]+,\\s*false\\s*\\)");
+        // R38.8.3 / R39.8.2 / R40.8.3: Widget refresh callers must preserve runActive instead of hardcoding false.
+        Pattern refreshFalse = Pattern.compile("HermesWidgetProvider\\.refresh\\([^,)]+,\\s*false\\s*\\)");
         Pattern refreshSingleArg = Pattern.compile("HermesWidgetProvider\\.refresh\\([^,)]+\\)");
         for (String rel : new String[]{
                 "src/main/java/org/llm4people/hermes/artifact/HomePinBridge.java",
@@ -332,5 +332,19 @@ public final class UiPolishR10ContractTest {
         assertTrue(searchSheet.contains("inFlightEpoch == epoch"));
         assertTrue(adminConsole.contains("if (!saveBtn.isEnabled()) return;"));
         assertTrue(pairingShare.contains("if (!revokeBtn.isEnabled() || closed || io.isShutdown()) return;"));
+
+        // R40 PR B contracts: reader/thread dialog guards, request() rejection recovery, AppearanceSettingsPanel eval.errorRes().
+        assertTrue(read("src/main/java/org/llm4people/hermes/settings/AppearanceSettingsPanel.java")
+                .contains("showHexError(eval.errorRes(), showInvalidSyntax);"));
+        assertTrue(read("src/main/java/org/llm4people/hermes/panel/ThreadActions.java")
+                .contains("catch (ActivityNotFoundException | SecurityException unavailable)"));
+        assertTrue(read("src/main/java/org/llm4people/hermes/panel/GlobalSearchPanel.java")
+                .contains("if (!panel.request(resultsBox, () -> BrainJson.parseSearchPage("));
+        assertTrue(read("src/main/java/org/llm4people/hermes/panel/SkillBrowser.java")
+                .contains("if (!panel.request(status, () -> SkillInventory.parse("));
+        assertTrue(read("src/main/java/org/llm4people/hermes/thread/ThreadWorkspace.java")
+                .contains("if (handled[0] || closed) return;"));
+        assertTrue(read("src/main/java/org/llm4people/hermes/thread/ThreadRun.java")
+                .contains("if (owner.current()) offerDismiss(owner);"));
     }
 }

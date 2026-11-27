@@ -284,7 +284,7 @@ public final class ThreadActions implements Closeable {
         pendingExport = new PendingExport(ownerProfileId, sessionId, spec);
         try {
             activity.startActivityForResult(create, EXPORT_REQUEST_CODE);
-        } catch (ActivityNotFoundException unavailable) {
+        } catch (ActivityNotFoundException | SecurityException unavailable) {
             Diagnostics.warning("thread_actions", "export_picker_unavailable");
             pendingExport = null;
             toast(activity.getString(R.string.brain_thread_export_no_picker));
