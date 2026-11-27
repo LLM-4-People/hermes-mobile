@@ -32,8 +32,7 @@ public final class HomePinBridgeTest {
                         new LiveUiPatch.WidgetItem("Course 4", "", null, ""),
                         new LiveUiPatch.WidgetItem("Course 5", "", null, "")
                 ),
-                "#1E5B78",
-                true);
+                "#1E5B78", null, true);
 
         HermesWidgetSpec osSpec = HomePinBridge.toOsWidgetSpec(live, "profile-a");
         assertNotNull(osSpec);
@@ -84,6 +83,34 @@ public final class HomePinBridgeTest {
         String shortLabel = HomePinBridge.safeShortShortcutLabel(emojiAtBoundary);
         assertEquals("a".repeat(24), shortLabel);
         assertFalse(Character.isHighSurrogate(shortLabel.charAt(shortLabel.length() - 1)));
+    }
+
+    @Test
+    public void widgetRefreshGuardSparklineContrastAndSyntaxGutterScaleWithSp() {
+        HermesWidgetSpec aliceWidget = new HermesWidgetSpec(
+                "w_alice", "Alice", "", HermesWidgetSpec.Template.STATUS, List.of(), null, true, "alice");
+        HermesWidgetSpec unownedWidget = new HermesWidgetSpec(
+                "w_shared", "Shared", "", HermesWidgetSpec.Template.STATUS, List.of(), null, true, null);
+        assertTrue(HomePinBridge.canRefreshWidget(aliceWidget, "alice"));
+        assertFalse(HomePinBridge.canRefreshWidget(aliceWidget, "bob"));
+        assertFalse(HomePinBridge.canRefreshWidget(aliceWidget, null));
+        assertFalse(HomePinBridge.canRefreshWidget(null, "alice"));
+        assertTrue(HomePinBridge.canRefreshWidget(unownedWidget, "bob"));
+
+        for (boolean night : new boolean[]{false, true}) {
+            ThemePalette palette = ThemePalette.resolve(ThemePalette.OverrideSpec.defaults(), night);
+            int muted = SparklineView.resolveMutedBarColor(palette);
+            assertTrue("Sparkline muted bar contrast must be >= 3.0:1 (night=" + night + ")",
+                    ThemePalette.contrastRatio(muted, palette.surface) >= 3.0);
+        }
+
+        int normalGutter = SyntaxHighlighter.computeGutterWidthPx(3, 2.0f, 2.0f);
+        int largeFontGutter = SyntaxHighlighter.computeGutterWidthPx(3, 4.0f, 2.0f);
+        assertTrue("Gutter width must grow when fontScale/sp increases", largeFontGutter > normalGutter);
+
+        // DeviceAction rejects strippable invisibles (e.g. Hangul filler U+3164) in displayable fields.
+        assertFalse(org.llm4people.hermes.PlainTextSanitizer.hasVisibleText("\u3164"));
+        assertTrue(org.llm4people.hermes.PlainTextSanitizer.isStrippableInvisible(0x3164));
     }
 
     @Test

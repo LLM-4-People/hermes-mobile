@@ -71,7 +71,7 @@ public final class MultiRunAndProfileSecurityTest extends InstrumentationTestCas
                 }
             });
 
-            HermesApi api = new HermesApi("http://127.0.0.1:" + server.getLocalPort(), "test-bearer-key");
+            HermesApi api = new HermesApi("http://127.0.0.1:" + server.getLocalPort(), "test-bearer-key", org.llm4people.hermes.net.HermesApi.Limits.defaults());
             ExecutorService clients = Executors.newFixedThreadPool(concurrency);
             try {
                 List<Future<JSONObject>> futures = new ArrayList<>();

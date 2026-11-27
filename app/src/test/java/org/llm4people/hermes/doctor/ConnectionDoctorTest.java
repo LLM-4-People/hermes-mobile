@@ -148,7 +148,7 @@ public final class ConnectionDoctorTest {
     @Test
     public void closeRevokesAndroidProbesApiAndCapsExpectedCountAboveBaseline() {
         org.llm4people.hermes.net.HermesApi api = new org.llm4people.hermes.net.HermesApi(
-                "https://home.example.com", "secret-token");
+                "https://home.example.com", "secret-token", org.llm4people.hermes.net.HermesApi.Limits.from(org.llm4people.hermes.HermesConfig.defaults()));
         assertFalse(api.isRevoked());
         ConnectionDoctor.AndroidProbes androidProbes = new ConnectionDoctor.AndroidProbes(null, null, api);
         try (ConnectionDoctor doctor = new ConnectionDoctor(androidProbes)) {

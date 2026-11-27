@@ -16,7 +16,7 @@ public final class CommandRegistryTest {
         assertEquals("securite verrouillage", CommandRegistry.normalize("Sécurité & verrouillage"));
         assertEquals("", CommandRegistry.normalize("   \t\n  "));
 
-        CommandRegistry registry = new CommandRegistry();
+        CommandRegistry registry = new CommandRegistry(java.util.Collections.emptyList());
         registry.add(new CommandItem("act:memory", CommandItem.Category.ACTION,
                 "Mémoire de Hermes", "Voir et modifier ce que Hermes retient", "memory brain", null));
         registry.add(new CommandItem("act:notes", CommandItem.Category.ACTION,
@@ -45,7 +45,7 @@ public final class CommandRegistryTest {
     }
 
     @Test public void emptyQueryOrdersByCategoryAndCapsResults() {
-        CommandRegistry registry = new CommandRegistry();
+        CommandRegistry registry = new CommandRegistry(java.util.Collections.emptyList());
         for (int i = 0; i < 60; i++) {
             CommandItem.Category cat = i % 2 == 0 ? CommandItem.Category.THREAD : CommandItem.Category.ACTION;
             registry.add(new CommandItem("id:" + i, cat, "Item " + i, "Subtitle " + i, "", null));
@@ -89,7 +89,7 @@ public final class CommandRegistryTest {
             } catch (IllegalArgumentException expected) {}
         }
 
-        CommandRegistry registry = new CommandRegistry();
+        CommandRegistry registry = new CommandRegistry(java.util.Collections.emptyList());
         registry.add(new CommandItem("dup", CommandItem.Category.ACTION, "First", "", "", null));
         registry.add(new CommandItem("dup", CommandItem.Category.ACTION, "Updated", "", "", null));
         assertEquals(1, registry.size());

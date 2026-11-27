@@ -69,10 +69,6 @@ public final class HermesApi {
     private final Set<HttpURLConnection> activeConnections = ConcurrentHashMap.newKeySet();
     private volatile boolean revoked;
 
-    public HermesApi(String endpoint, String bearer) {
-        this(endpoint, bearer, Limits.defaults());
-    }
-
     public HermesApi(String endpoint, String bearer, Limits limits) {
         this.endpoint = new Endpoint(endpoint);
         if (!visibleAscii(bearer)) throw new IllegalArgumentException("Invalid bearer credential");
@@ -534,9 +530,6 @@ public final class HermesApi {
             }
             return new SseReader(stream.getInputStream(), limits.eventBytes);
         }
-
-        /** Returns one JSON event, or null after the stream closes. Reconnect using the last committed seq. */
-        public JSONObject next() throws IOException { return next(false); }
 
         /** Include empty objects for SSE comment heartbeats so an idle follower can reconcile status. */
         public synchronized JSONObject next(boolean includeHeartbeats) throws IOException {

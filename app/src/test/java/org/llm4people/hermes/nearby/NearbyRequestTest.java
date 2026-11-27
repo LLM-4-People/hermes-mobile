@@ -17,7 +17,7 @@ public final class NearbyRequestTest {
         final List<String> providers = new ArrayList<>();
         final List<CoarseArea> deliveries = new ArrayList<>();
         final Map<Long, Runnable> timers = new HashMap<>();
-        final NearbyRequest request = new NearbyRequest(this, deliveries::add);
+        final NearbyRequest request = new NearbyRequest(this, deliveries::add, org.llm4people.hermes.HermesConfig.DEFAULT_NEARBY_TIMEOUT_MS, org.llm4people.hermes.HermesConfig.DEFAULT_NEARBY_FUSED_GRACE_MS);
         boolean available = true;
         long time;
         int closes;

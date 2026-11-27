@@ -102,8 +102,6 @@ public final class ThreadViews {
     ThreadInstrumentPanel instruments;
     private InstrumentViewport instrumentSlot;
 
-    ThreadViews(Activity activity) { this(activity, new VoiceDrafts(activity)); }
-
     ThreadViews(Activity activity, VoiceDrafts voice) {
         this.voice = voice;
         reader = voice.reader();

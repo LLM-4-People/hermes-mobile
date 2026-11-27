@@ -89,7 +89,7 @@ public final class SkillBrowserJourneyTest extends InstrumentationTestCase {
                     JourneyUi ui = new JourneyUi(getInstrumentation(), activity, app.getCacheDir());
                     for (boolean landscape : new boolean[]{false, true}) {
                         try (Exchange gateway = new Exchange("200 OK", JSON, CAPS, EMPTY, CATALOG)) {
-                            SessionPanel panel = new SessionPanel(activity, new HermesApi(gateway.endpoint(), "test"), profile.account);
+                            SessionPanel panel = new SessionPanel(activity, new HermesApi(gateway.endpoint(), "test", org.llm4people.hermes.net.HermesApi.Limits.defaults()), profile.account);
                             try {
                                 runTestOnUiThread(() -> PickerWindow.open(panel, landscape, draft -> fail("Unexpected draft")));
                                 ui.tap(activity.getString(R.string.skills_title));
@@ -140,8 +140,8 @@ public final class SkillBrowserJourneyTest extends InstrumentationTestCase {
                 SessionPanel second = null;
                 try {
                     JourneyUi ui = new JourneyUi(getInstrumentation(), activity, app.getCacheDir());
-                    first = new SessionPanel(activity, new HermesApi(gateway.endpoint(), "test"), profile.account);
-                    second = new SessionPanel(activity, new HermesApi(missing.endpoint(), "test"), profile.account);
+                    first = new SessionPanel(activity, new HermesApi(gateway.endpoint(), "test", org.llm4people.hermes.net.HermesApi.Limits.defaults()), profile.account);
+                    second = new SessionPanel(activity, new HermesApi(missing.endpoint(), "test", org.llm4people.hermes.net.HermesApi.Limits.defaults()), profile.account);
                     SessionPanel firstPanel = first;
                     SessionPanel secondPanel = second;
                     runTestOnUiThread(() -> firstPanel.show("one", "one", active::get, staged::set));

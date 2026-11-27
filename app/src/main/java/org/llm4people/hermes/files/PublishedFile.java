@@ -13,10 +13,6 @@ final class PublishedFile {
     final String name, mime, path, hash;
     final long size;
 
-    PublishedFile(String threadPath, JSONObject row) throws JSONException, IOException {
-        this(threadPath, row, CapturedMedia.effectiveByteLimit(0L));
-    }
-
     PublishedFile(String threadPath, JSONObject row, long maxBytes) throws JSONException, IOException {
         long bound = CapturedMedia.effectiveByteLimit(maxBytes);
         String id = row.getString("id");

@@ -53,7 +53,7 @@ public final class SessionSettingsStorageTest extends InstrumentationTestCase {
             assertTrue(backup.mkdir());
             Intent launch = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
             Activity activity = getInstrumentation().startActivitySync(launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
-            SessionPanel panel = new SessionPanel(activity, new HermesApi(server.endpoint(), "test"), account);
+            SessionPanel panel = new SessionPanel(activity, new HermesApi(server.endpoint(), "test", org.llm4people.hermes.net.HermesApi.Limits.defaults()), account);
             try {
                 runTestOnUiThread(() -> panel.show("thread", "thread"));
                 server.observed();
@@ -125,7 +125,7 @@ public final class SessionSettingsStorageTest extends InstrumentationTestCase {
                      new byte[Account.KEY_BYTES])) {
             Intent launch = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
             Activity activity = getInstrumentation().startActivitySync(launch);
-            SessionPanel panel = new SessionPanel(activity, new HermesApi(server.endpoint(), "test"), owner);
+            SessionPanel panel = new SessionPanel(activity, new HermesApi(server.endpoint(), "test", org.llm4people.hermes.net.HermesApi.Limits.defaults()), owner);
             try {
                 runTestOnUiThread(() -> {
                     panel.show("thread", "thread");
@@ -168,7 +168,7 @@ public final class SessionSettingsStorageTest extends InstrumentationTestCase {
             owner.write("panel/options/thread", "{\"provider\":\"vendor\",\"model\":\"Alpha\"}");
             Intent launch = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
             Activity activity = getInstrumentation().startActivitySync(launch);
-            SessionPanel panel = new SessionPanel(activity, new HermesApi(server.endpoint(), "test"), owner);
+            SessionPanel panel = new SessionPanel(activity, new HermesApi(server.endpoint(), "test", org.llm4people.hermes.net.HermesApi.Limits.defaults()), owner);
             try {
                 runTestOnUiThread(() -> {
                     if (landscape == null) panel.show("thread", "thread");

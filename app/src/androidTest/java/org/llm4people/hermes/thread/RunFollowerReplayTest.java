@@ -30,7 +30,7 @@ public class RunFollowerReplayTest extends InstrumentationTestCase {
                 new Exchange.Reply("Content-Type: text/event-stream\r\n", events),
                 status("running", current), status("running", current),
                 status("waiting_for_input", current, fresh), status("completed"))) {
-            RunFollower follower = new RunFollower(new HermesApi(gateway.endpoint(), "test"),
+            RunFollower follower = new RunFollower(new HermesApi(gateway.endpoint(), "test", org.llm4people.hermes.net.HermesApi.Limits.defaults()),
                     "run", new JSONObject().put("seq", 2), -1, new RunFollower.Listener() {
                 public void update(RunFollower.Frame frame) {
                     for (JSONObject prompt : frame.prompts)
@@ -69,7 +69,7 @@ public class RunFollowerReplayTest extends InstrumentationTestCase {
                 standalone("running", new JSONArray().put(first).put(second), second), noWaiters,
                 standalone("completed", new JSONArray(), null))) {
             List<List<String>> snapshots = new ArrayList<>();
-            new RunFollower(new HermesApi(gateway.endpoint(), "test"), "run", new JSONObject(), -1,
+            new RunFollower(new HermesApi(gateway.endpoint(), "test", org.llm4people.hermes.net.HermesApi.Limits.defaults()), "run", new JSONObject(), -1,
                     new RunFollower.Listener() {
                         public void update(RunFollower.Frame frame) {
                             List<String> ids = new ArrayList<>();
@@ -101,7 +101,7 @@ public class RunFollowerReplayTest extends InstrumentationTestCase {
                 new Exchange.Reply("Content-Type: text/event-stream\r\n", events), one, none, status("completed"))) {
             long[] time = {0};
             List<Integer> counts = new ArrayList<>();
-            new RunFollower(new HermesApi(gateway.endpoint(), "test"), "run", new JSONObject(), -1,
+            new RunFollower(new HermesApi(gateway.endpoint(), "test", org.llm4people.hermes.net.HermesApi.Limits.defaults()), "run", new JSONObject(), -1,
                     new RunFollower.Listener() {
                         public void update(RunFollower.Frame frame) {
                             counts.add(frame.prompts.size());
@@ -138,7 +138,7 @@ public class RunFollowerReplayTest extends InstrumentationTestCase {
             };
             // Let B be buffered, then reach the check deadline while handling C.
             int[] reads = {0};
-            HermesApi api = new HermesApi(gateway.endpoint(), "test");
+            HermesApi api = new HermesApi(gateway.endpoint(), "test", org.llm4people.hermes.net.HermesApi.Limits.defaults());
             new RunFollower(api, "run", new JSONObject(), -1, listener,
                     () -> ++reads[0] >= 6 ? 20_000 : 0).follow();
             RunFollower.Frame checkpoint = frames.get(frames.size() - 1);

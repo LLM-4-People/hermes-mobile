@@ -17,7 +17,7 @@ public class InstrumentViewportTest extends InstrumentationTestCase {
         Activity activity = getInstrumentation().startActivitySync(launch);
         try {
             runTestOnUiThread(() -> {
-                ThreadViews view = new ThreadViews(activity);
+                ThreadViews view = new ThreadViews(activity, new org.llm4people.hermes.voice.VoiceDrafts(activity));
                 view.chat("garder ce brouillon", text -> {}, () -> fail("Unexpected send"), () -> {}, () -> {});
                 InstrumentViewport viewport = view.attachInstrumentViewport();
                 activity.setContentView(view.root);

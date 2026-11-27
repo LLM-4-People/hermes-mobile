@@ -208,7 +208,7 @@ public class PromptCardTest extends InstrumentationTestCase {
                 .put("execution_generation", 3).put("question", "Comment préparer la réunion ?")
                 .put("choices", new JSONArray().put(choice));
         runTestOnUiThread(() -> {
-            ThreadViews ui = new ThreadViews(activity);
+            ThreadViews ui = new ThreadViews(activity, new org.llm4people.hermes.voice.VoiceDrafts(activity));
             ui.chat("Brouillon", ignored -> {}, () -> {}, () -> {}, () -> {});
             FrameLayout window = new FrameLayout(activity);
             int width = Ui.dp(activity, 320);
@@ -243,7 +243,7 @@ public class PromptCardTest extends InstrumentationTestCase {
     }
 
     private PromptCard mount(JSONObject prompt) {
-        PromptCard card = new PromptCard(new ThreadViews(activity), prompt, answers::add, () -> {});
+        PromptCard card = new PromptCard(new ThreadViews(activity, new org.llm4people.hermes.voice.VoiceDrafts(activity)), prompt, answers::add, () -> {});
         activity.setContentView(card);
         return card;
     }

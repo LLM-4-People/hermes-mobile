@@ -83,7 +83,7 @@ public final class AppLanguageResourcesTest extends InstrumentationTestCase {
             try (Exchange gateway = new Exchange("200 OK", "Content-Type: application/json\r\n",
                     "{\"features\":{\"profile_defaults\":true}}",
                     "{\"preferred_language\":\"fr\"}")) {
-                HermesApi api = new HermesApi(gateway.endpoint(), "bearer-token");
+                HermesApi api = new HermesApi(gateway.endpoint(), "bearer-token", org.llm4people.hermes.net.HermesApi.Limits.defaults());
                 assertTrue(AppLanguage.syncToServer(api, AppLanguage.Mode.FRENCH));
                 String wire = gateway.observed();
                 assertTrue("Expected French Accept-Language header", wire.contains("Accept-Language: fr"));
@@ -99,7 +99,7 @@ public final class AppLanguageResourcesTest extends InstrumentationTestCase {
             try (Exchange asyncGateway = new Exchange("200 OK", "Content-Type: application/json\r\n",
                     "{\"features\":{\"profile_defaults\":true}}",
                     "{\"preferred_language\":\"en\"}")) {
-                HermesApi api = new HermesApi(asyncGateway.endpoint(), "bearer-token");
+                HermesApi api = new HermesApi(asyncGateway.endpoint(), "bearer-token", org.llm4people.hermes.net.HermesApi.Limits.defaults());
                 assertTrue(AppLanguage.syncToServerAsync(api, AppLanguage.Mode.ENGLISH)
                         .get(5, java.util.concurrent.TimeUnit.SECONDS));
                 String wire = asyncGateway.observed();
@@ -109,7 +109,7 @@ public final class AppLanguageResourcesTest extends InstrumentationTestCase {
 
             try (Exchange unsupported = new Exchange("200 OK", "Content-Type: application/json\r\n",
                     "{\"features\":{\"profile_defaults\":false}}")) {
-                HermesApi api = new HermesApi(unsupported.endpoint(), "bearer-token");
+                HermesApi api = new HermesApi(unsupported.endpoint(), "bearer-token", org.llm4people.hermes.net.HermesApi.Limits.defaults());
                 assertFalse(AppLanguage.syncToServer(api, AppLanguage.Mode.ENGLISH));
                 String wire = unsupported.observed();
                 assertTrue("Expected English Accept-Language header", wire.contains("Accept-Language: en"));

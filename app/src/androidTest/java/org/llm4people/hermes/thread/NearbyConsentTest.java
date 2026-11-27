@@ -20,7 +20,7 @@ public final class NearbyConsentTest extends InstrumentationTestCase {
                 runTestOnUiThread(() -> {
                     ThreadWorkspace workspace = new ThreadWorkspace(activity, null, fixture.account, null, new VoiceDrafts(activity));
                     try {
-                        workspace.journal = new ThreadJournal(fixture.account, "first");
+                        workspace.journal = new ThreadJournal(fixture.account, "first", org.llm4people.hermes.HermesConfig.DEFAULT_MAX_RECONNECTS);
                         workspace.journal.draft("Un déjeuner ?");
                         workspace.journal.nearbyDraft("manual", "Rosemont");
                         workspace.nearby.restore();

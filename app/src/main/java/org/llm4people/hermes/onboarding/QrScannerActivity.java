@@ -81,7 +81,6 @@ public final class QrScannerActivity extends Activity {
     private static final int REQ_CAMERA_PERMISSION = 4211;
     private static final int REQ_PICK_IMAGE = 4212;
     private static final int MAX_PREVIEW_EDGE = 1920;
-    private static final int MAX_ANALYSIS_EDGE = 960;
     private static final int MAX_PICKED_IMAGE_EDGE = 1280;
     private static final long MIN_FRAME_INTERVAL_MS = 120L;
     private static final long HINT_THROTTLE_MS = 2000L;
@@ -1106,7 +1105,7 @@ public final class QrScannerActivity extends Activity {
         if (map == null) return null;
         return pickMatchingSize(
                 map.getOutputSizes(android.graphics.ImageFormat.YUV_420_888),
-                MAX_ANALYSIS_EDGE, targetOrientedAspect, swapAxes);
+                QrCodeDecoder.MAX_ANALYSIS_DIM, targetOrientedAspect, swapAxes);
     }
 
     private static Size pickMatchingSize(

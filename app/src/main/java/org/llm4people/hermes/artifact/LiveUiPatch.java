@@ -92,10 +92,6 @@ public final class LiveUiPatch {
         public final String destination; // nullable (discussions | atelier | cerveau | activite)
         public final String icon;        // nullable
 
-        public QuickAction(String id, String label, String draft, String page) throws IOException {
-            this(id, label, draft, page, null, null);
-        }
-
         public QuickAction(String id, String label, String draft, String page,
                            String destination, String icon) throws IOException {
             if (!validSafeId(id)) throw new IOException("Invalid quick action id");
@@ -148,12 +144,6 @@ public final class LiveUiPatch {
         public final String action;   // nullable (allowlisted WorkspaceLayout.ACTIONS key)
         public final String widgetId; // nullable
 
-        public SuggestedAction(String label, String draft, String page, String action) throws IOException {
-            this("", label,
-                    page != null && !page.isEmpty() ? "open_surface" : "prompt",
-                    draft, page, action, null);
-        }
-
         public SuggestedAction(String id, String label, String kind, String draft,
                                String page, String action, String widgetId) throws IOException {
             if (id != null && !id.isEmpty() && !validSafeId(id)) throw new IOException("Invalid suggested action id");
@@ -195,10 +185,6 @@ public final class LiveUiPatch {
         public final Boolean checked;     // nullable
         public final String actionDraft;  // nullable
 
-        public WidgetItem(String label, String value, String actionDraft) throws IOException {
-            this(label, value, null, actionDraft);
-        }
-
         public WidgetItem(String label, String value, Boolean checked, String actionDraft) throws IOException {
             if (!validText(label, 80)) throw new IOException("Invalid widget item label");
             String safeVal = value == null ? "" : value;
@@ -235,11 +221,6 @@ public final class LiveUiPatch {
         public final String accentHex;    // nullable, WCAG-AA verified
         public final String accentInkHex; // nullable, WCAG-AA verified
         public final boolean homeScreenSafe;
-
-        public WidgetSpec(String widgetId, String title, String subtitle, String template,
-                          List<WidgetItem> items, String accentHex, boolean homeScreenSafe) throws IOException {
-            this(widgetId, title, subtitle, template, items, accentHex, null, homeScreenSafe);
-        }
 
         public WidgetSpec(String widgetId, String title, String subtitle, String template,
                           List<WidgetItem> items, String accentHex, String accentInkHex,
@@ -381,12 +362,6 @@ public final class LiveUiPatch {
     public final List<SuggestedAction> suggestedActions;
     public final List<InteractiveCardView.Spec> interactiveCards;
     public final boolean requiresApply;
-
-    public LiveUiPatch(String revisionId, String parentRevisionId, String scope, String summary,
-                       List<Op> ops, boolean requiresApply) throws IOException {
-        this(revisionId, parentRevisionId, scope, summary, ops, Collections.emptyList(),
-                Collections.emptyList(), requiresApply, MAX_OPS);
-    }
 
     LiveUiPatch(String revisionId, String parentRevisionId, String scope, String summary,
                 List<Op> ops, List<SuggestedAction> suggestedActions,
@@ -578,7 +553,9 @@ public final class LiveUiPatch {
                     default -> throw new IOException("Unsupported suggested action kind");
                 }
             } else {
-                out.add(new SuggestedAction(label, prompt, page, action));
+                out.add(new SuggestedAction("", label,
+                        page != null && !page.isEmpty() ? "open_surface" : "prompt",
+                        prompt, page, action, null));
             }
         }
         return out;
@@ -1107,16 +1084,6 @@ public final class LiveUiPatch {
             persist();
         }
 
-        /** 1-tap atomic rollback of the most recent applied patch. */
-        public synchronized AppliedRevision rollbackLast() throws IOException {
-            if (corrupted) throw new IOException("Live UI state is corrupted; explicit reset required");
-            if (history.isEmpty()) return null;
-            AppliedRevision last = history.remove(history.size() - 1);
-            restoreSnapshot(last);
-            persist();
-            return last;
-        }
-
         /** Atomic rollback to the state right before the specified revisionId, returning all popped revisions newest-first. */
         public synchronized List<AppliedRevision> rollbackAllTo(String revisionId) throws IOException {
             if (corrupted) throw new IOException("Live UI state is corrupted; explicit reset required");
@@ -1133,12 +1100,6 @@ public final class LiveUiPatch {
             }
             persist();
             return Collections.unmodifiableList(popped);
-        }
-
-        /** Atomic rollback to the state right before the specified revisionId (reverting it and any later patches). */
-        public synchronized AppliedRevision rollbackTo(String revisionId) throws IOException {
-            List<AppliedRevision> popped = rollbackAllTo(revisionId);
-            return popped.isEmpty() ? null : popped.get(popped.size() - 1);
         }
 
         /** Collects every widget ID present in current state (helper for broadcasting HomePinBridge refreshes). */

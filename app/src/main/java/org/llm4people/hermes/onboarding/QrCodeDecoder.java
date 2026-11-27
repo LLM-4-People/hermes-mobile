@@ -16,7 +16,7 @@ import java.util.List;
  * homography. Fail-closed: returns {@code null} on invalid or unreadable frames.
  */
 public final class QrCodeDecoder {
-    private static final int MAX_ANALYSIS_DIM = 960;
+    static final int MAX_ANALYSIS_DIM = 960;
     private static final int MAX_INPUT_DIM = 16384;
     private static final int MAX_FINDER_CANDIDATES = 10;
     private static final String ALPHANUMERIC_TABLE = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ $%*+-./:";

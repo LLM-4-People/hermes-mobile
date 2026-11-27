@@ -54,7 +54,7 @@ public final class VisualDiffPromptCardTest extends InstrumentationTestCase {
                 .put("choices", new JSONArray().put("once").put("deny"));
 
         runTestOnUiThread(() -> {
-            PromptCard card = new PromptCard(new ThreadViews(activity), prompt, ignored -> {}, () -> {});
+            PromptCard card = new PromptCard(new ThreadViews(activity, new org.llm4people.hermes.voice.VoiceDrafts(activity)), prompt, ignored -> {}, () -> {});
             activity.setContentView(card);
             assertTrue(containsVisible(card, "src/App.java"));
             assertTrue(containsVisible(card, "+2 / -1"));
@@ -89,7 +89,7 @@ public final class VisualDiffPromptCardTest extends InstrumentationTestCase {
                 .put("choices", new JSONArray().put("once").put("deny"));
 
         runTestOnUiThread(() -> {
-            PromptCard legacyCard = new PromptCard(new ThreadViews(activity), legacy, ignored -> {}, () -> {});
+            PromptCard legacyCard = new PromptCard(new ThreadViews(activity, new org.llm4people.hermes.voice.VoiceDrafts(activity)), legacy, ignored -> {}, () -> {});
             activity.setContentView(legacyCard);
             assertTrue(containsVisible(legacyCard, "README.md"));
             assertTrue(containsVisible(legacyCard, "+1 / -1"));
@@ -98,7 +98,7 @@ public final class VisualDiffPromptCardTest extends InstrumentationTestCase {
             assertTrue(containsVisible(legacyCard, "+Après"));
             assertFalse(containsVisible(legacyCard, "\"old_text\""));
 
-            PromptCard malformedCard = new PromptCard(new ThreadViews(activity), malformed, ignored -> {}, () -> {});
+            PromptCard malformedCard = new PromptCard(new ThreadViews(activity, new org.llm4people.hermes.voice.VoiceDrafts(activity)), malformed, ignored -> {}, () -> {});
             activity.setContentView(malformedCard);
             assertTrue(containsVisible(malformedCard, "Action personnalisée"));
         });

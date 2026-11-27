@@ -232,7 +232,7 @@ public class HermesOsPrivacyAndWidgetTest {
                         Arrays.asList(
                                 new org.llm4people.hermes.artifact.LiveUiPatch.WidgetItem("Lait", "", Boolean.TRUE, ""),
                                 new org.llm4people.hermes.artifact.LiveUiPatch.WidgetItem("Pain", "", Boolean.FALSE, "")),
-                        "#1B5E50", true);
+                        "#1B5E50", null, true);
         HermesWidgetSpec converted = org.llm4people.hermes.artifact.HomePinBridge.toOsWidgetSpec(liveSpec, "profile-a");
         assertNotNull(converted);
         assertEquals("Lait", converted.items.get(0).label());

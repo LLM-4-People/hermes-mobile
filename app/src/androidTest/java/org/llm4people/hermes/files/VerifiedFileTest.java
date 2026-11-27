@@ -16,12 +16,12 @@ public class VerifiedFileTest extends AndroidTestCase {
     private PublishedFile item(String digest) throws Exception {
         JSONObject row = new JSONObject().put("id", "cc7706cdc48a49328bbadb5ce68c6b7e")
                 .put("name", "a.txt").put("mime", "text/plain").put("size", 3).put("sha256", digest);
-        return new PublishedFile("/api/mobile/files/s1", row);
+        return new PublishedFile("/api/mobile/files/s1", row, org.llm4people.hermes.camera.CapturedMedia.effectiveByteLimit(0L));
     }
 
     private void transfer(String digest, boolean success) throws Exception {
         try (Exchange server = new Exchange("200 OK", "Content-Type: application/octet-stream\r\n", "abc")) {
-            HermesApi api = new HermesApi(server.endpoint(), "fixture");
+            HermesApi api = new HermesApi(server.endpoint(), "fixture", org.llm4people.hermes.net.HermesApi.Limits.defaults());
             try (VerifiedFile file = VerifiedFile.fetch(getContext().getCacheDir(), api, item(digest))) {
                 assertTrue("Corrupt content was accepted", success);
                 ByteArrayOutputStream out = new ByteArrayOutputStream();

@@ -20,8 +20,6 @@ final class SseReader {
         this.limit = limit;
     }
 
-    JSONObject next() throws IOException { return next(false); }
-
     JSONObject next(boolean includeHeartbeats) throws IOException {
         StringBuilder data = new StringBuilder();
         int frameBytes = 0;

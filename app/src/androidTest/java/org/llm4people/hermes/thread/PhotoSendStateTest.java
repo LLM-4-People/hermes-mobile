@@ -19,7 +19,7 @@ public final class PhotoSendStateTest extends InstrumentationTestCase {
         Activity activity = getInstrumentation().startActivitySync(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
         try {
             runTestOnUiThread(() -> {
-                ThreadViews screen = new ThreadViews(activity);
+                ThreadViews screen = new ThreadViews(activity, new org.llm4people.hermes.voice.VoiceDrafts(activity));
                 AtomicInteger sends = new AtomicInteger();
                 screen.chat("", text -> {}, sends::incrementAndGet, () -> {}, () -> {});
                 Button send = findSend(screen.root, activity.getString(R.string.thread_send));

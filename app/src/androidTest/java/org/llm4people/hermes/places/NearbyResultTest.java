@@ -102,7 +102,7 @@ public final class NearbyResultTest extends InstrumentationTestCase {
                 .put(venue("node",4,"  \uFE0F",20))
                 .put(venue("way",4,"Deux voisins 👩‍🍳",0)
                         .put("address", new JSONArray().put(42)).put("cuisine","texte\ncontaminé"));
-        NearbyResult result = NearbyResult.parse(response(rows));
+        NearbyResult result = NearbyResult.parse(response(rows), null, org.llm4people.hermes.HermesConfig.DEFAULT_OSM_BASE_URL);
         assertEquals(1,result.places.size());
         assertEquals("Deux voisins 👩‍🍳", result.places.get(0).name);
         assertEquals("", result.places.get(0).address);
@@ -112,12 +112,12 @@ public final class NearbyResultTest extends InstrumentationTestCase {
     }
 
     public void testAttributedEmptyDataDiffersFromAChangedOrDamagedEnvelope() throws Exception {
-        assertTrue(NearbyResult.parse(response(new JSONArray())).places.isEmpty());
+        assertTrue(NearbyResult.parse(response(new JSONArray()), null, org.llm4people.hermes.HermesConfig.DEFAULT_OSM_BASE_URL).places.isEmpty());
         JSONArray many = new JSONArray();
         for (int i = 0; i < 13; i++) many.put(venue("node", i + 1, "X", i));
         invalid(response(many));
         // Higher configured limit up to 24 is accepted, above 24 rejected.
-        NearbyResult twenty = NearbyResult.parse(response(many).put("limit", 20).put("radius_m", 3000).put("category", "cafe"));
+        NearbyResult twenty = NearbyResult.parse(response(many).put("limit", 20).put("radius_m", 3000).put("category", "cafe"), null, org.llm4people.hermes.HermesConfig.DEFAULT_OSM_BASE_URL);
         assertEquals(NearbyCategory.CAFE, twenty.category);
         assertEquals(3000, twenty.radiusMeters);
         assertEquals(20, twenty.limit);
@@ -137,7 +137,7 @@ public final class NearbyResultTest extends InstrumentationTestCase {
     }
 
     private void invalid(JSONObject response) {
-        try { NearbyResult.parse(response); fail("Expected an unusable reply"); }
+        try { NearbyResult.parse(response, null, org.llm4people.hermes.HermesConfig.DEFAULT_OSM_BASE_URL); fail("Expected an unusable reply"); }
         catch (JSONException expected) {}
     }
 }

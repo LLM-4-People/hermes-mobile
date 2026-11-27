@@ -232,7 +232,7 @@ public final class LiveUiAndSurfacesV2Test extends InstrumentationTestCase {
                     .getBoolean("atelier", "suivi_hebdo", "tests_ok", false));
 
             // 1-tap rollback restores Profile A completely.
-            mgrA.rollbackTo("rev-101");
+            mgrA.rollbackAllTo("rev-101");
             assertTrue(mgrA.tabs().isEmpty());
             assertTrue(mgrA.quickActions().isEmpty());
             assertTrue(mgrA.widgets().isEmpty());
@@ -248,8 +248,8 @@ public final class LiveUiAndSurfacesV2Test extends InstrumentationTestCase {
         View strip = LiveUiPatchBar.quickActionStrip(
                 context,
                 Arrays.asList(
-                        new LiveUiPatch.QuickAction("qa_draft", "Résumer", "Résume les points clés.", null),
-                        new LiveUiPatch.QuickAction("qa_open", "Suivi", null, "page/tableau-suivi")),
+                        new LiveUiPatch.QuickAction("qa_draft", "Résumer", "Résume les points clés.", null, null, null),
+                        new LiveUiPatch.QuickAction("qa_open", "Suivi", null, "page/tableau-suivi", null, null)),
                 null,
                 text -> staged[0] = text,
                 page -> opened[0] = page,
@@ -268,8 +268,8 @@ public final class LiveUiAndSurfacesV2Test extends InstrumentationTestCase {
         View suggestions = LiveUiPatchBar.suggestedActionsStrip(
                 context,
                 Arrays.asList(
-                        new LiveUiPatch.SuggestedAction("Enregistrer", "Retiens cette préférence.", null, null),
-                        new LiveUiPatch.SuggestedAction("Voir les rappels", null, null, "reminders")),
+                        new LiveUiPatch.SuggestedAction("", "Enregistrer", "prompt", "Retiens cette préférence.", null, null, null),
+                        new LiveUiPatch.SuggestedAction("", "Voir les rappels", "prompt", null, null, "reminders", null)),
                 null,
                 text -> staged[0] = text,
                 page -> opened[0] = page,
@@ -392,7 +392,7 @@ public final class LiveUiAndSurfacesV2Test extends InstrumentationTestCase {
             // Damaged native layout record must NOT be silently overwritten by apply().
             fixture.account.write("workspace.v1.home", "{corrupt");
             LiveUiPatch touchHome = new LiveUiPatch("rev-home", "", "atelier", "Modifier accueil",
-                    Collections.singletonList(new LiveUiPatch.Op.RemoveSurface("home")), true);
+                    Collections.singletonList(new LiveUiPatch.Op.RemoveSurface("home")), java.util.Collections.emptyList(), java.util.Collections.emptyList(), true, LiveUiPatch.MAX_OPS);
             try {
                 manager.apply(touchHome);
                 fail("Expected damaged LayoutHistory to fail closed");
@@ -583,8 +583,8 @@ public final class LiveUiAndSurfacesV2Test extends InstrumentationTestCase {
 
         LiveUiPatch.WidgetSpec widget = new LiveUiPatch.WidgetSpec(
                 "w_daily", "Daily Focus", "2 items", "checklist",
-                Collections.singletonList(new LiveUiPatch.WidgetItem("Check build", "09:00", null)),
-                null, true);
+                Collections.singletonList(new LiveUiPatch.WidgetItem("Check build", "09:00", null, null)),
+                null, null, true);
         ThemePalette.OverrideSpec themeOverride = ThemePalette.OverrideSpec.validated(
                 "light", "#1B4D89", "compact", 1, "outlined", false);
         List<LiveUiPatch.Op> ops = Arrays.asList(
@@ -593,7 +593,7 @@ public final class LiveUiAndSurfacesV2Test extends InstrumentationTestCase {
                 new LiveUiPatch.Op.UpsertTab(new LiveUiPatch.CustomTab("tab_focus", "Focus", "page/focus")),
                 new LiveUiPatch.Op.RemoveTab("tab_old"),
                 new LiveUiPatch.Op.UpsertQuickAction(
-                        new LiveUiPatch.QuickAction("qa_focus", "Summarize", "Summarize this.", null)),
+                        new LiveUiPatch.QuickAction("qa_focus", "Summarize", "Summarize this.", null, null, null)),
                 new LiveUiPatch.Op.RemoveQuickAction("qa_old"),
                 new LiveUiPatch.Op.SetThemeOverride(themeOverride),
                 new LiveUiPatch.Op.ResetTheme(),

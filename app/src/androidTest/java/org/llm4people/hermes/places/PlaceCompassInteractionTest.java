@@ -30,7 +30,7 @@ public final class PlaceCompassInteractionTest extends InstrumentationTestCase {
                   {"name":"Yamu Yamu Sushi","osm_type":"node","osm_id":11280151110,"latitude":45.5105406,"longitude":-73.5725473,"distance_m":207},
                   {"name":"Mae Sri Thai","osm_type":"node","osm_id":6732094290,"latitude":45.5104122,"longitude":-73.5726866,"distance_m":214},
                   {"name":"Tiamo","osm_type":"node","osm_id":12194959181,"latitude":45.5083743,"longitude":-73.5716569,"distance_m":222}]}
-                """));
+                """), null, org.llm4people.hermes.HermesConfig.DEFAULT_OSM_BASE_URL);
         getInstrumentation().setInTouchMode(false);
         Context target = getInstrumentation().getTargetContext();
         Intent launch = target.getPackageManager().getLaunchIntentForPackage(target.getPackageName());

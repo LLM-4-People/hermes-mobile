@@ -145,7 +145,6 @@
 
     <string name="places_guide_choose_area">Choisissez la zone où chercher avec OpenStreetMap.</string>
     <string name="places_guide_cat_desc">Catégorie %1$s</string>
-    <string name="places_guide_cat_selected_desc">Catégorie %1$s, sélectionnée</string>
     <string name="places_guide_radius_chip">Rayon · %1$s</string>
     <string name="places_guide_radius_desc">Rayon de recherche actuel : %1$s. Appuyer pour changer.</string>
     <string name="places_guide_radius_from_center">Rayon de %1$s depuis le centre de la zone</string>

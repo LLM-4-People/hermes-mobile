@@ -505,8 +505,7 @@ public final class UiPolishR10RegressionTest extends InstrumentationTestCase {
                     // 11. LiveUiPatchBar.suggestedActionsStrip heading keeps WCAG AA contrast under opposite-polarity palette (R12.5.1)
                     ThemePalette oppositePalette = ThemePalette.resolve(
                             ThemePalette.OverrideSpec.defaults(), !ThemePalette.isNight(activity));
-                    LiveUiPatch.SuggestedAction suggestion = new LiveUiPatch.SuggestedAction(
-                            "Summarize", "Summarize this.", null, null);
+                    LiveUiPatch.SuggestedAction suggestion = new LiveUiPatch.SuggestedAction("", "Summarize", "prompt", "Summarize this.", null, null, null);
                     ViewGroup strip = (ViewGroup) LiveUiPatchBar.suggestedActionsStrip(
                             activity, Collections.singletonList(suggestion), oppositePalette,
                             s -> {}, s -> {}, s -> {}, null);

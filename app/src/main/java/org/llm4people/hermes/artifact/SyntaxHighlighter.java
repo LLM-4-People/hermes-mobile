@@ -600,19 +600,27 @@ public final class SyntaxHighlighter {
             int totalLines = lineCount(pageText);
             int lastLine = firstLineNumber + totalLines - 1;
             int digits = Math.max(2, Integer.toString(lastLine).length());
-            int gutterWidth = Math.round(context.getResources().getDisplayMetrics().density * (digits * 9 + 14));
+            android.util.DisplayMetrics dm = context.getResources().getDisplayMetrics();
+            float spPx = android.util.TypedValue.applyDimension(android.util.TypedValue.COMPLEX_UNIT_SP, 1f, dm);
+            int gutterWidth = computeGutterWidthPx(digits, spPx, dm.density);
+            int ruleInset = Math.max(1, Math.round(8f * dm.density));
+            int labelInset = Math.max(1, Math.round(6f * dm.density));
             int ruleColor = context.getColor(R.color.line);
             int lineNo = firstLineNumber;
             int pos = 0;
             while (pos < pageText.length()) {
                 int nl = pageText.indexOf('\n', pos);
                 int lineEnd = nl < 0 ? pageText.length() : nl + 1;
-                spanned.setSpan(new LineNumberSpan(lineNo++, gutterWidth, mutedColor, ruleColor),
+                spanned.setSpan(new LineNumberSpan(lineNo++, gutterWidth, ruleInset, labelInset, mutedColor, ruleColor),
                         pos, lineEnd, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
                 pos = lineEnd;
             }
         }
         return spanned;
+    }
+
+    static int computeGutterWidthPx(int digits, float spPx, float density) {
+        return Math.round(Math.max(2, digits) * 9f * spPx + 14f * density);
     }
 
     private static LineBackgroundSpan lineTint(int color) {
@@ -624,16 +632,20 @@ public final class SyntaxHighlighter {
         };
     }
 
-    /** Draws right-aligned line numbers in the left margin without polluting copied text. */
+    /** Draws right-aligned line numbers in the leading margin without polluting copied text. */
     private static final class LineNumberSpan implements LeadingMarginSpan {
         private final String label;
         private final int width;
+        private final int ruleInset;
+        private final int labelInset;
         private final int inkColor;
         private final int ruleColor;
 
-        LineNumberSpan(int lineNumber, int width, int inkColor, int ruleColor) {
+        LineNumberSpan(int lineNumber, int width, int ruleInset, int labelInset, int inkColor, int ruleColor) {
             this.label = Integer.toString(lineNumber);
             this.width = width;
+            this.ruleInset = ruleInset;
+            this.labelInset = labelInset;
             this.inkColor = inkColor;
             this.ruleColor = ruleColor;
         }
@@ -647,14 +659,14 @@ public final class SyntaxHighlighter {
             int oldColor = p.getColor();
             Paint.Align oldAlign = p.getTextAlign();
             float oldSize = p.getTextSize();
-            int ruleX = x + dir * (width - 8);
+            int ruleX = x + dir * (width - ruleInset);
             p.setColor(ruleColor);
             c.drawLine(ruleX, top, ruleX, bottom, p);
             if (first) {
                 p.setColor(inkColor);
-                p.setTextAlign(Paint.Align.RIGHT);
+                p.setTextAlign(dir >= 0 ? Paint.Align.RIGHT : Paint.Align.LEFT);
                 p.setTextSize(oldSize * 0.85f);
-                c.drawText(label, ruleX - 6, baseline, p);
+                c.drawText(label, ruleX - dir * labelInset, baseline, p);
             }
             p.setTextSize(oldSize);
             p.setTextAlign(oldAlign);

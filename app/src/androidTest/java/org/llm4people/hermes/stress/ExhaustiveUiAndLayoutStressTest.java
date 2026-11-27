@@ -179,7 +179,7 @@ public final class ExhaustiveUiAndLayoutStressTest extends InstrumentationTestCa
              WorkspaceAccountFixture profile = new WorkspaceAccountFixture(app, gateway.endpoint())) {
             Activity activity = launchMain();
             try {
-                SessionPanel panel = new SessionPanel(activity, new HermesApi(gateway.endpoint(), "test"), profile.account);
+                SessionPanel panel = new SessionPanel(activity, new HermesApi(gateway.endpoint(), "test", org.llm4people.hermes.net.HermesApi.Limits.defaults()), profile.account);
                 try {
                     exercisePanel("Memory", () -> panel.showMemory(null), activity,
                             activity.getString(R.string.brain_memory_title));
@@ -235,7 +235,7 @@ public final class ExhaustiveUiAndLayoutStressTest extends InstrumentationTestCa
              WorkspaceAccountFixture profile = new WorkspaceAccountFixture(app, failing.endpoint())) {
             Activity activity = launchMain();
             try {
-                SessionPanel panel = new SessionPanel(activity, new HermesApi(failing.endpoint(), "test"), profile.account);
+                SessionPanel panel = new SessionPanel(activity, new HermesApi(failing.endpoint(), "test", org.llm4people.hermes.net.HermesApi.Limits.defaults()), profile.account);
                 try {
                     runTestOnUiThread(() -> {
                         panel.showMemory(null);

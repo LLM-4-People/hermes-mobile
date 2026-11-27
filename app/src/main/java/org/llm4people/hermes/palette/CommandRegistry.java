@@ -37,8 +37,6 @@ public final class CommandRegistry {
 
     private final List<CommandItem> items = new ArrayList<>();
 
-    public CommandRegistry() {}
-
     public CommandRegistry(List<CommandItem> initial) {
         addAll(initial);
     }

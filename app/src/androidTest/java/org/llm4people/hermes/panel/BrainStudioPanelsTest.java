@@ -52,7 +52,7 @@ public final class BrainStudioPanelsTest extends InstrumentationTestCase {
             Activity activity = getInstrumentation().startActivitySync(
                     app.getPackageManager().getLaunchIntentForPackage(app.getPackageName()));
             try {
-                SessionPanel panel = new SessionPanel(activity, new HermesApi(legacy.endpoint(), "test"), profile.account);
+                SessionPanel panel = new SessionPanel(activity, new HermesApi(legacy.endpoint(), "test", org.llm4people.hermes.net.HermesApi.Limits.defaults()), profile.account);
                 // Regression guard: brain_* surfaces are not in WorkspaceLayout.SURFACES and must mount
                 // cleanly even when MainActivity attaches a non-null ArtifactDesk.Host.
                 panel.setLayoutHost(new ArtifactDesk.Host() {
@@ -93,7 +93,7 @@ public final class BrainStudioPanelsTest extends InstrumentationTestCase {
             Activity activity = getInstrumentation().startActivitySync(
                     app.getPackageManager().getLaunchIntentForPackage(app.getPackageName()));
             try {
-                SessionPanel panel = new SessionPanel(activity, new HermesApi(gateway.endpoint(), "test"), profile.account);
+                SessionPanel panel = new SessionPanel(activity, new HermesApi(gateway.endpoint(), "test", org.llm4people.hermes.net.HermesApi.Limits.defaults()), profile.account);
                 try {
                     runTestOnUiThread(() -> panel.showSkillStudio(() -> true, draft -> {}, null));
                     assertTextVisible("travail/revue");
@@ -191,7 +191,7 @@ public final class BrainStudioPanelsTest extends InstrumentationTestCase {
             Activity activity = getInstrumentation().startActivitySync(
                     app.getPackageManager().getLaunchIntentForPackage(app.getPackageName()));
             try {
-                SessionPanel panel = new SessionPanel(activity, new HermesApi(gateway.endpoint(), "test"), profile.account);
+                SessionPanel panel = new SessionPanel(activity, new HermesApi(gateway.endpoint(), "test", org.llm4people.hermes.net.HermesApi.Limits.defaults()), profile.account);
                 try {
                     runTestOnUiThread(() -> panel.showStats("s1", "s1"));
                     assertTextVisible(activity.getString(R.string.brain_usage_response_time));
@@ -218,7 +218,7 @@ public final class BrainStudioPanelsTest extends InstrumentationTestCase {
             Activity activity = getInstrumentation().startActivitySync(
                     app.getPackageManager().getLaunchIntentForPackage(app.getPackageName()));
             try {
-                SessionPanel panel = new SessionPanel(activity, new HermesApi(gateway.endpoint(), "test"), profile.account);
+                SessionPanel panel = new SessionPanel(activity, new HermesApi(gateway.endpoint(), "test", org.llm4people.hermes.net.HermesApi.Limits.defaults()), profile.account);
                 try {
                     runTestOnUiThread(() -> panel.showStats(null, null));
                     assertTextVisible(activity.getString(R.string.brain_usage_profile_analytics));
@@ -270,7 +270,7 @@ public final class BrainStudioPanelsTest extends InstrumentationTestCase {
             Activity activity = getInstrumentation().startActivitySync(
                     app.getPackageManager().getLaunchIntentForPackage(app.getPackageName()));
             try {
-                SessionPanel panel = new SessionPanel(activity, new HermesApi(gateway.endpoint(), "test"), profile.account);
+                SessionPanel panel = new SessionPanel(activity, new HermesApi(gateway.endpoint(), "test", org.llm4people.hermes.net.HermesApi.Limits.defaults()), profile.account);
                 String readerMarker = activity.getString(R.string.code_copy_content);
                 try {
                     // Positive + one-shot: initialNoteId opens target note CodeReader dialog directly;

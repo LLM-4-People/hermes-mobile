@@ -95,7 +95,7 @@ public final class InfiniteChatStressAndroidTest extends InstrumentationTestCase
                     @Override public boolean isLoadingNewer() { return false; }
                     @Override public void loadOlder() { olderCalls.incrementAndGet(); }
                     @Override public void loadNewer() {}
-                });
+                }, InfiniteScrollController.DEFAULT_TOP_THRESHOLD, InfiniteScrollController.DEFAULT_BOTTOM_THRESHOLD, 0, 0);
                 Button pill = controller.createJumpPill(activity, () -> snapped.set(true));
                 assertEquals(View.GONE, pill.getVisibility());
                 assertTrue("Jump pill must be >= 48dp tall", pill.getMinimumHeight() >= minTouchPx);

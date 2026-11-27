@@ -51,10 +51,6 @@ public final class InfiniteScrollController implements AbsListView.OnScrollListe
     private boolean desiredPillVisible;
     private final Runnable applyPendingPill = this::applyPillUiNow;
 
-    public InfiniteScrollController(Callbacks callbacks) {
-        this(callbacks, DEFAULT_TOP_THRESHOLD, DEFAULT_BOTTOM_THRESHOLD, 0, 0);
-    }
-
     public InfiniteScrollController(Callbacks callbacks, int topThreshold, int bottomThreshold,
                                     int headerCount, int footerCount) {
         this.callbacks = Objects.requireNonNull(callbacks, "callbacks");

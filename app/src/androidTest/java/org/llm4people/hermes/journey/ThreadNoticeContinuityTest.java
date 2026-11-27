@@ -65,7 +65,7 @@ public final class ThreadNoticeContinuityTest extends InstrumentationTestCase {
                         public void timing(String session, long first, long elapsed, long tokens) {}
                     };
                     runTestOnUiThread(() -> {
-                        ThreadWorkspace page = new ThreadWorkspace(activity,new HermesApi(gateway.endpoint(),fixture.account.bearer),
+                        ThreadWorkspace page = new ThreadWorkspace(activity,new HermesApi(gateway.endpoint(),fixture.account.bearer, org.llm4people.hermes.net.HermesApi.Limits.defaults()),
                                 fixture.account,host,new VoiceDrafts(activity));
                         workspace[0] = page;
                         page.setInstrumentHost((ArtifactDesk.Host)activity);

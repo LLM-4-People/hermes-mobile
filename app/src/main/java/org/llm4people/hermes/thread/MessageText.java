@@ -11,6 +11,7 @@ import android.graphics.Paint;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
+import android.os.PersistableBundle;
 import android.text.Layout;
 import android.text.SpannableStringBuilder;
 import android.text.Spanned;
@@ -24,7 +25,6 @@ import android.text.style.StyleSpan;
 import android.text.style.TypefaceSpan;
 import android.view.Gravity;
 import android.view.View;
-import android.view.accessibility.AccessibilityEvent;
 import android.widget.Button;
 import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
@@ -351,7 +351,11 @@ final class MessageText {
         ClipboardManager clipboard = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
         if (clipboard == null) return;
         try {
-            clipboard.setPrimaryClip(ClipData.newPlainText(context.getString(R.string.thread_link_fallback), url));
+            ClipData clip = ClipData.newPlainText(context.getString(R.string.thread_link_fallback), url);
+            PersistableBundle extras = new PersistableBundle();
+            extras.putBoolean("android.content.extra.IS_SENSITIVE", true);
+            clip.getDescription().setExtras(extras);
+            clipboard.setPrimaryClip(clip);
             if (android.os.Build.VERSION.SDK_INT < 33) {
                 Toast.makeText(context, R.string.markdown_link_copied, Toast.LENGTH_SHORT).show();
             }
@@ -496,10 +500,10 @@ final class MessageText {
                 previous.setOnClickListener(v -> show(index - 1));
                 next.setOnClickListener(v -> show(index + 1));
                 scroll.scrollTo(0, 0);
-                position.sendAccessibilityEvent(AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED);
             }
         }
         new Pages().show(0);
+        position.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
         return root;
     }
 

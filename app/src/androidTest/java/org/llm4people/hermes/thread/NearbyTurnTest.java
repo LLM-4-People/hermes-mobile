@@ -67,7 +67,7 @@ public final class NearbyTurnTest extends TestCase {
     }
 
     public void testOldSendIntentCannotSubmitAnEditedRestoredOrRetiredComposer() throws Exception {
-        ThreadJournal draft = new ThreadJournal("thread", "owner", null, value -> {});
+        ThreadJournal draft = new ThreadJournal("thread", "owner", null, value -> {}, null, org.llm4people.hermes.HermesConfig.DEFAULT_MAX_RECONNECTS);
         draft.draft("Bonjour");
         java.util.function.BooleanSupplier same = draft.unchangedDraft("Bonjour");
         draft.nearbyDraft("confirm", null);
@@ -82,14 +82,14 @@ public final class NearbyTurnTest extends TestCase {
 
     public void testFrozenAdmissionSurvivesRestartAndObservedRunsCannotBorrowPermission() throws Exception {
         AtomicReference<String> saved = new AtomicReference<>();
-        ThreadJournal source = new ThreadJournal("thread", "owner", null, saved::set);
+        ThreadJournal source = new ThreadJournal("thread", "owner", null, saved::set, null, org.llm4people.hermes.HermesConfig.DEFAULT_MAX_RECONNECTS);
         JSONObject frozen = NearbyTurn.fresh(area(), 100, 1100);
         JSONObject body = ThreadData.body("thread", "  près de moi  ", null);
         NearbyTurn.attach(body, frozen);
         source.draft(body.getString("input"));
         JSONObject receipt = source.stage(body, 5000L, 3, 600L, true, frozen);
         String key = receipt.getString("key");
-        ThreadJournal reopened = new ThreadJournal("thread", "owner", saved.get(), saved::set);
+        ThreadJournal reopened = new ThreadJournal("thread", "owner", saved.get(), saved::set, null, org.llm4people.hermes.HermesConfig.DEFAULT_MAX_RECONNECTS);
         assertEquals(body.toString(), reopened.pending().getJSONObject("body").toString());
         assertEquals(15, reopened.pending().getJSONObject("nearby_guide").getInt("age_s"));
         assertEquals(key, reopened.pending().getString("key"));
@@ -109,11 +109,11 @@ public final class NearbyTurnTest extends TestCase {
         ThreadJournal draft = new ThreadJournal("thread", "owner", null, value -> {
             if (fail.get()) throw new IllegalStateException();
             disk.set(value);
-        });
+        }, null, org.llm4people.hermes.HermesConfig.DEFAULT_MAX_RECONNECTS);
         draft.draft("Bonjour");
         draft.nearbyDraft("manual", "Rosemont");
-        assertEquals("Rosemont", new ThreadJournal("thread", "owner", disk.get(), disk::set).nearbyDraft().getString("area"));
-        assertNull(new ThreadJournal("thread", "other", disk.get(), disk::set).nearbyDraft());
+        assertEquals("Rosemont", new ThreadJournal("thread", "owner", disk.get(), disk::set, null, org.llm4people.hermes.HermesConfig.DEFAULT_MAX_RECONNECTS).nearbyDraft().getString("area"));
+        assertNull(new ThreadJournal("thread", "other", disk.get(), disk::set, null, org.llm4people.hermes.HermesConfig.DEFAULT_MAX_RECONNECTS).nearbyDraft());
         String saved = disk.get();
         fail.set(true);
         try { draft.nearbyDraft("omit", null); fail(); } catch (IllegalStateException expected) {}
