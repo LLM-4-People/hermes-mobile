@@ -14,6 +14,7 @@ import android.view.ViewGroup;
 import android.view.inputmethod.EditorInfo;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
+import android.widget.CheckedTextView;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.Spinner;
@@ -81,6 +82,10 @@ final class WorkspaceForms {
                         if (v instanceof TextView tv) {
                             tv.setTextColor(colors.ink);
                             tv.setTextSize(colors.scaledSp(16));
+                        }
+                        if (v instanceof CheckedTextView ctv) {
+                            ctv.setCheckMarkTintList(Ui.checkedUncheckedTint(
+                                    colors.accent, editorUnfocusedStrokeColor(colors)));
                         }
                         return v;
                     }

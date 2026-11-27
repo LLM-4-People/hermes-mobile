@@ -596,9 +596,10 @@ public final class ReminderPanel {
     private void edit(JSONObject job) { new ReminderEditor(panel, this, job).show(); }
 
     void submit(JSONObject job, JSONObject changes, LinearLayout status, android.widget.Button save) {
+        if (save == null || !save.isEnabled()) return;
         save.setEnabled(false);
         status.removeAllViews();
-        panel.request(status, () -> job == null ? panel.api.post(JOBS, changes) : panel.api.patch(path(job), changes),
+        if (!panel.request(status, () -> job == null ? panel.api.post(JOBS, changes) : panel.api.patch(path(job), changes),
                 ignored -> show(), error -> {
                     panel.failure(status, error, null);
                     if (error instanceof HermesApi.HttpError && ((HermesApi.HttpError) error).status == 400) {
@@ -608,7 +609,9 @@ public final class ReminderPanel {
                         panel.note(status, panel.t(R.string.panel_check_mutation));
                         panel.action(status, R.string.panel_view_reminders, this::show);
                     }
-                });
+                })) {
+            save.setEnabled(true);
+        }
     }
 
     private void mutate(Callable<JSONObject> operation) {

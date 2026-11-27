@@ -179,7 +179,7 @@ public final class PairingShareSheet implements AutoCloseable {
             revokeBtn.setMinimumHeight(touchMin);
             revokeBtn.setTextColor(Ui.dangerInk(activity));
             revokeBtn.setOnClickListener(v -> {
-                if (closed || io.isShutdown()) return;
+                if (!revokeBtn.isEnabled() || closed || io.isShutdown()) return;
                 revokeBtn.setEnabled(false);
                 if (!submitRevoke(closed, io, () -> {
                     boolean ok = false;
