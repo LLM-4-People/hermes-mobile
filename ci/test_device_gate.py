@@ -578,3 +578,51 @@ class DeviceGateTest(unittest.TestCase):
         self.assertEqual(exhausted.returncode, 1)
         self.assertIn("failed after 3 attempts", exhausted.stderr)
         self.assertEqual(counter.read_text(), "3")
+
+    def test_offline_helper_survives_transient_adb_errors_under_errexit_pipefail(self):
+        counter = self.root / "offline-transient-count.txt"
+        fake_adb_dir = self.root / "transient-bin"
+        fake_adb_dir.mkdir()
+        fake_adb = fake_adb_dir / "adb"
+        fake_adb.write_text(
+            "#!/usr/bin/env python3\n"
+            "import os, sys\n"
+            "from pathlib import Path\n"
+            "args = sys.argv[3:]\n"
+            "if args == ['shell', 'settings', 'get', 'global', 'airplane_mode_on']:\n"
+            "    c = Path(os.environ['OFFLINE_COUNTER'])\n"
+            "    n = int(c.read_text()) + 1 if c.exists() else 1\n"
+            "    c.write_text(str(n))\n"
+            "    if n == 2:\n"
+            "        print('error: device offline', file=sys.stderr)\n"
+            "        sys.exit(1)\n"
+            "    print('1\\r')\n"
+            "elif args == ['shell', 'settings', 'get', 'global', 'wifi_on']:\n"
+            "    c = Path(os.environ['OFFLINE_COUNTER'])\n"
+            "    if int(c.read_text()) == 3:\n"
+            "        sys.exit(1)\n"
+            "    print('0\\r')\n"
+            "elif args == ['shell', 'dumpsys', 'connectivity']:\n"
+            "    c = Path(os.environ['OFFLINE_COUNTER'])\n"
+            "    if int(c.read_text()) == 4:\n"
+            "        sys.exit(1)\n"
+            "    print('Active default network: none')\n"
+        )
+        fake_adb.chmod(0o755)
+        env = {
+            **os.environ,
+            "PATH": str(fake_adb_dir) + os.pathsep + os.environ["PATH"],
+            "OFFLINE_COUNTER": str(counter),
+            "EMULATOR_OFFLINE_POLL_SECONDS": "0",
+            "EMULATOR_OFFLINE_REQUIRED_HITS": "2",
+            "EMULATOR_OFFLINE_MAX_ATTEMPTS": "10",
+        }
+        offline_sh = GATE.with_name("emulator-offline.sh")
+        result = subprocess.run(
+            ["bash", "-c", f'set -euo pipefail; source "{offline_sh}"; wait_emulator_offline emulator-transient'],
+            env=env, text=True, capture_output=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        # Attempt 1 succeeds (hit=1); attempts 2, 3, 4 fail on airplane/wifi/connectivity (resetting hit=0);
+        # attempts 5 and 6 succeed consecutively (hit=2).
+        self.assertEqual(int(counter.read_text()), 6)

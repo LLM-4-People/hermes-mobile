@@ -19,8 +19,6 @@ from .config import (
 )
 
 
-RADIUS_M = DEFAULT_RADIUS_M
-LIMIT = DEFAULT_LIMIT
 ALLOWED_REQUEST_KEYS = frozenset({"latitude", "longitude", "category", "radius_m", "limit"})
 OSM_CREDIT = "© OpenStreetMap contributors"
 OVERPASS_CREDIT = "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL."
@@ -36,11 +34,6 @@ class InvalidDataset(ValueError):
 
 def coordinate(value, bound):
     return type(value) in (int, float) and math.isfinite(value) and -bound <= value <= bound
-
-
-def accepted_center(data):
-    lat, lon, _, _, _ = accepted_request(data)
-    return lat, lon
 
 
 def accepted_request(data):
@@ -162,10 +155,6 @@ def place(element, lat, lon, category=DEFAULT_CATEGORY, radius_m=DEFAULT_RADIUS_
     return distance, row
 
 
-def restaurant(element, lat, lon):
-    return place(element, lat, lon, category=DEFAULT_CATEGORY, radius_m=DEFAULT_RADIUS_M)
-
-
 def places(data, lat, lon, category=DEFAULT_CATEGORY, radius_m=DEFAULT_RADIUS_M, limit=DEFAULT_LIMIT):
     category = validate_category(category)
     radius_m = validate_radius(radius_m)
@@ -221,12 +210,8 @@ def places(data, lat, lon, category=DEFAULT_CATEGORY, radius_m=DEFAULT_RADIUS_M,
 __all__ = [
     "InvalidCategory",
     "InvalidDataset",
-    "LIMIT",
     "OSM_CREDIT",
-    "RADIUS_M",
-    "accepted_center",
     "accepted_request",
     "place",
     "places",
-    "restaurant",
 ]

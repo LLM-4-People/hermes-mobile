@@ -55,14 +55,20 @@ class Screen:
         return ElementTree.fromstring(tree) if tree else None
 
     def hierarchy(self):
+        last_aerr_tap = None
+
         def capture():
+            nonlocal last_aerr_tap
             root = self.snapshot()
             if root is None:
                 return None
             # First-boot SystemUI can cover the freshly launched distributor.
             waiting = self.node("android:id/aerr_wait", root)
             if waiting is not None and any("System UI" in node.get("text", "") for node in root.iter("node")):
-                self.tap_node(waiting)
+                now = monotonic()
+                if last_aerr_tap is None or now - last_aerr_tap >= TAP_RETRY_COOLDOWN_SECONDS:
+                    self.tap_node(waiting)
+                    last_aerr_tap = now
                 return None
             return (root,)
 
@@ -81,11 +87,18 @@ class Screen:
         return None
 
     def wait(self, label, *, scroll=False, notification_permission=False):
+        last_permission_tap = None
+
         def find():
+            nonlocal last_permission_tap
             root = self.hierarchy()
             node = self.node(label, root)
-            if node is None and notification_permission:
-                self.allow_if_prompted(root)
+            if node is None and notification_permission and self.permission_allow_node(root) is not None:
+                now = monotonic()
+                if last_permission_tap is None or now - last_permission_tap >= TAP_RETRY_COOLDOWN_SECONDS:
+                    self.allow_if_prompted(root)
+                    last_permission_tap = now
+                return None
             if node is None and scroll:
                 self.scroll(root)
             return node if node is None else (node,)
@@ -200,8 +213,24 @@ class Screen:
 
         eventually("editor for " + label, find)
         self.type(label, value)
-        if self.device.ime_shown():
-            self.device.shell("input", "keyevent", "BACK")
+        self.dismiss_ime()
+
+    def dismiss_ime(self, timeout=15):
+        if not self.device.ime_shown():
+            return
+        last_back = None
+
+        def hide():
+            nonlocal last_back
+            if not self.device.ime_shown():
+                return True
+            now = monotonic()
+            if last_back is None or now - last_back >= TAP_RETRY_COOLDOWN_SECONDS:
+                self.device.shell("input", "keyevent", "BACK")
+                last_back = now
+            return not self.device.ime_shown()
+
+        eventually("soft keyboard to hide", hide, timeout=timeout)
 
     def set_text(self, label, value, *, description=None):
         """Type Unicode text into a named Android editor, retrying transient b'retry' responses."""
@@ -289,16 +318,27 @@ def distributor(ui, apk, endpoint):
 
         eventually("ntfy default server editor", open_editor)
         ui.type(url_field, endpoint)
-        if d.ime_shown():
-            d.shell("input", "keyevent", "BACK")
+        ui.dismiss_ime()
 
         ui.tap_until(
             "Save",
             lambda root: ui.node(url_field, root) is None and ui.node(endpoint, root) is not None,
             description="ntfy settings showing the saved loopback server",
         )
-        d.shell("input", "keyevent", "BACK")
-        ui.wait("Subscribed topics")
+        last_back = None
+
+        def back_to_topics():
+            nonlocal last_back
+            root = ui.hierarchy()
+            if ui.node("Subscribed topics", root) is not None:
+                return True
+            now = monotonic()
+            if last_back is None or now - last_back >= TAP_RETRY_COOLDOWN_SECONDS:
+                d.shell("input", "keyevent", "BACK")
+                last_back = now
+            return False
+
+        eventually("ntfy Subscribed topics screen", back_to_topics)
         yield
     finally:
         d.run("uninstall", NTFY)

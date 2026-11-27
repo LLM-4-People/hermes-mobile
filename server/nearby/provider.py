@@ -33,9 +33,6 @@ except ImportError:
 log = get_logger("nearby")
 
 
-MAX_BYTES = MAX_RESPONSE_BYTES
-
-
 class Unavailable(Exception):
     def __init__(self, retry_after=None):
         self.retry_after = retry_after
@@ -116,7 +113,7 @@ class Overpass:
                             self.resume_at = time.monotonic() + delay
                             log.warning("nearby_upstream_status status=%d retry_after=%d", response.status, delay)
                             raise Unavailable(delay or None)
-                        raw = await bounded_bytes(response.content, MAX_BYTES)
+                        raw = await bounded_bytes(response.content, MAX_RESPONSE_BYTES)
                 return places(json.loads(raw), lat, lon, category=category, radius_m=radius_m, limit=limit)
             except (ClientError, TimeoutError, ValueError, RecursionError) as exc:
                 log.warning("nearby_upstream_failed reason=%s", safe_reason(exc))

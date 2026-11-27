@@ -377,14 +377,23 @@ def _split_call_args(tokens: list[Token], open_paren_idx: int) -> list[list[Toke
     return args
 
 
+TEXT_WRAPPER_CALLS = frozenset({
+    "format",
+    "SpannableString",
+    "SpannableStringBuilder",
+    "concat",
+    "fromHtml",
+})
+
+
 def _direct_string_literals_in_expr(expr_tokens: list[Token]) -> list[Token]:
     """Collect string literals contributing directly to an expression's display text.
 
     Walks top-level tokens of an argument expression (including `+` concatenations and ternary
     `cond ? a : b` branches) while skipping arguments nested inside helper calls that take keys
-    or tags (e.g., ``obj.optString("name", "")``, ``String.format(Locale.ROOT, ...)`` is checked
-    separately, ``context.getString(R.string.x, "literal")`` args).
-    Wait: for ``String.format(..., "literal %s", x)``, the format template itself IS visible text!
+    or tags (e.g., ``obj.optString("name", "")``, ``context.getString(R.string.x, "literal")``)
+    except for direct text wrapper calls (``TEXT_WRAPPER_CALLS``) whose arguments contribute
+    directly to visible text.
     """
     literals: list[Token] = []
     n = len(expr_tokens)
@@ -395,17 +404,15 @@ def _direct_string_literals_in_expr(expr_tokens: list[Token]) -> list[Token]:
             literals.append(tok)
             i += 1
             continue
-        # Skip nested call argument lists UNLESS it is String.format(...) where the format pattern
-        # is a direct UI template, or a nested parenthesized expression `(cond ? "A" : "B")`.
+        # Skip nested call argument lists UNLESS it is a direct text wrapper call whose arguments
+        # contribute directly to visible UI text.
         if tok.kind == "IDENT" and i + 1 < n and expr_tokens[i + 1].kind == "PUNCT" and expr_tokens[i + 1].value == "(":
             call_name = tok.value
             close_idx = _find_matching_paren(expr_tokens, i + 1)
-            if call_name == "format":
+            if call_name in TEXT_WRAPPER_CALLS:
                 nested_args = _split_call_args(expr_tokens, i + 1)
-                for na in nested_args[:2]:
-                    for nt in na:
-                        if nt.kind == "STRING":
-                            literals.append(nt)
+                for na in nested_args:
+                    literals.extend(_direct_string_literals_in_expr(na))
             i = close_idx + 1
             continue
         i += 1
@@ -712,15 +719,20 @@ XML_UI_ATTRS = ("text", "hint", "contentDescription", "title", "label", "descrip
 
 
 def check_layout_and_manifest_xml(root: Path) -> list[str]:
-    """Scan AndroidManifest.xml and res/layout/*.xml for hardcoded human-readable UI attributes."""
+    """Scan AndroidManifest.xml and res/{layout,xml,menu}*/*.xml for hardcoded UI attributes."""
     issues: list[str] = []
     candidates: list[Path] = []
     manifest = root / "app/src/main/AndroidManifest.xml"
     if manifest.is_file():
         candidates.append(manifest)
-    layout_dir = root / "app/src/main/res/layout"
-    if layout_dir.is_dir():
-        candidates.extend(sorted(layout_dir.glob("*.xml")))
+    res_dir = root / "app/src/main/res"
+    if res_dir.is_dir():
+        for sub in sorted(res_dir.iterdir()):
+            if sub.is_dir() and (
+                sub.name in ("layout", "xml", "menu")
+                or sub.name.startswith(("layout-", "xml-", "menu-"))
+            ):
+                candidates.extend(sorted(sub.glob("*.xml")))
 
     for xml_path in candidates:
         rel = xml_path.relative_to(root).as_posix()

@@ -11,6 +11,7 @@ import secrets
 import shutil
 import sys
 import tempfile
+from time import monotonic
 
 from verification.device.installed import installed_apk_sha256
 from verification.device.run import Emulator
@@ -25,7 +26,7 @@ from verification.nearby_location import (COARSE, PERMISSION_CONTROLLERS, answer
 from verification.phone_actions import MAPS, admissions, assert_offline, focused, send_composer_message, visible
 from verification.unifiedpush.editor import editor
 from verification.unifiedpush.stack import eventually
-from verification.unifiedpush.ui import APP, Screen, launch, start_account
+from verification.unifiedpush.ui import APP, TAP_RETRY_COOLDOWN_SECONDS, Screen, launch, start_account
 
 
 SECOND = "Quel jour vient après lundi ?"
@@ -258,6 +259,16 @@ def map_selected(ui, title, point):
     )
     deny_ids = {controller + ":id/permission_deny_button" for controller in PERMISSION_CONTROLLERS}
 
+    last_overlay_tap = None
+
+    def tap_overlay(node):
+        nonlocal last_overlay_tap
+        now = monotonic()
+        if last_overlay_tap is not None and now - last_overlay_tap < TAP_RETRY_COOLDOWN_SECONDS:
+            return
+        ui.tap_node(node)
+        last_overlay_tap = now
+
     def received():
         component = focused(ui.device)
         tree = ui.hierarchy()
@@ -270,12 +281,12 @@ def map_selected(ui, title, point):
                             return component
         for node in tree.iter("node"):
             if node.get("package") in PERMISSION_CONTROLLERS and node.get("resource-id") in deny_ids:
-                ui.tap_node(node)
+                tap_overlay(node)
                 return None
         for label in ("Skip", "Continue without an account", "No thanks", "Not now", "Dismiss", "Got it"):
             option = ui.node(label, tree)
             if option is not None and option.get("package") != APP:
-                ui.tap_node(option)
+                tap_overlay(option)
                 break
         return None
 

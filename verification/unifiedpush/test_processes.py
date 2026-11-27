@@ -263,7 +263,11 @@ class OwnedChildTest(unittest.TestCase):
                 spawned.append(second_proc)
                 return second_proc
 
+            class FakePsutilError(Exception):
+                pass
+
             fake_psutil = SimpleNamespace(
+                Error=FakePsutilError,
                 CONN_LISTEN="LISTEN",
                 Process=lambda pid: SimpleNamespace(
                     net_connections=lambda kind="tcp": [
@@ -282,3 +286,89 @@ class OwnedChildTest(unittest.TestCase):
             self.assertEqual(gw.endpoint, "http://127.0.0.1:22000")
             self.assertIn("API_SERVER_PORT=22000", env_file.read_text(encoding="utf-8"))
             self.assertIs(gw.process, second_proc)
+
+    def test_gateway_start_handles_psutil_no_such_process_and_zombie_on_port_collision(self):
+        from types import SimpleNamespace
+        from verification import gateway_fixture
+
+        class FakePsutilError(Exception):
+            pass
+
+        class FakeNoSuchProcess(FakePsutilError):
+            pass
+
+        class FakeZombieProcess(FakePsutilError):
+            pass
+
+        for failure_mode in ("no_such_process", "zombie_process"):
+            with self.subTest(failure_mode=failure_mode), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                hermes_home = root / "home" / ".hermes"
+                hermes_home.mkdir(parents=True)
+                env_file = hermes_home / ".env"
+                env_file.write_text("API_SERVER_ENABLED=true\nAPI_SERVER_PORT=21000\n", encoding="utf-8")
+
+                gw = object.__new__(gateway_fixture.Gateway)
+                gw.python = sys.executable
+                gw.root = root
+                gw.port = 21000
+                gw.endpoint = "http://127.0.0.1:21000"
+                gw.env = {"HERMES_HOME": str(hermes_home)}
+                gw.process = None
+
+                # First process returns poll()=None on first check (unreaped), then exits with status 1
+                # after logging port-in-use so psutil raises NoSuchProcess/ZombieProcess on the race window.
+                log_path = root / "gateway.log"
+                polls = iter([None, 1])
+
+                class RacingProc:
+                    pid = 99999
+
+                    def poll(self):
+                        val = next(polls, 1)
+                        if val is not None:
+                            with log_path.open("ab") as fh:
+                                fh.write(b"api_server: Port 21000 already in use\n")
+                        return val
+
+                second_proc = SimpleNamespace(pid=88888, poll=lambda: None)
+                spawned = []
+
+                def fake_popen(cmd, **kwargs):
+                    if not spawned:
+                        proc = RacingProc()
+                        spawned.append(proc)
+                        return proc
+                    spawned.append(second_proc)
+                    return second_proc
+
+                def fake_process(pid):
+                    if pid == 99999:
+                        if failure_mode == "no_such_process":
+                            raise FakeNoSuchProcess(pid)
+                        return SimpleNamespace(
+                            net_connections=lambda kind="tcp": (_ for _ in ()).throw(FakeZombieProcess(pid))
+                        )
+                    return SimpleNamespace(
+                        net_connections=lambda kind="tcp": [
+                            SimpleNamespace(status="LISTEN", laddr=(gateway_fixture.LOOPBACK, gw.port))
+                        ]
+                    )
+
+                fake_psutil = SimpleNamespace(
+                    Error=FakePsutilError,
+                    NoSuchProcess=FakeNoSuchProcess,
+                    ZombieProcess=FakeZombieProcess,
+                    CONN_LISTEN="LISTEN",
+                    Process=fake_process,
+                )
+                with (
+                    patch.dict(sys.modules, {"psutil": fake_psutil}),
+                    patch("verification.gateway_fixture.subprocess.Popen", side_effect=fake_popen),
+                    patch("verification.gateway_fixture.unused_loopback_port", return_value=22000),
+                    patch("verification.gateway_fixture.time.sleep"),
+                    patch.object(gw, "_capabilities_ready", return_value=True),
+                ):
+                    gw.start()
+                self.assertEqual(gw.port, 22000)
+                self.assertIs(gw.process, second_proc)

@@ -408,6 +408,67 @@ class PhoneActionsTransitionTest(unittest.TestCase):
             phone_actions.leave_receiver(ui, "com.android.intentresolver", "share_text")
         self.assertEqual(len(backs), 2)
 
+    def test_review_map_search_debounces_maps_onboarding_taps(self):
+        maps_act = "topResumedActivity: ActivityRecord{4 u0 com.google.android.apps.maps/.MapsActivity t1}"
+        skip_tree = node_tree("Skip", package=phone_actions.MAPS, window_id="11")
+        ready_tree = node_tree("Maison des arts de Laval", package=phone_actions.MAPS, window_id="11")
+
+        # Inside ready(): 3 rapid Skip polls (0.1s apart -> 1 tap), 4th Skip poll after cooldown (-> 2nd tap), then ready!
+        hierarchies = iter([
+            node_tree("Review place", window_id="10"),  # page_root #1
+            node_tree("Review place", window_id="10"),  # page_root #2
+            skip_tree,    # ready() poll 1: visible()
+            skip_tree,    # ready() poll 1: hierarchy() -> Skip tap #1 (t=10.0)
+            skip_tree,    # ready() poll 2: visible()
+            skip_tree,    # ready() poll 2: hierarchy() -> cooldown skip (t=10.1)
+            skip_tree,    # ready() poll 3: visible()
+            skip_tree,    # ready() poll 3: hierarchy() -> cooldown skip (t=10.2)
+            skip_tree,    # ready() poll 4: visible()
+            skip_tree,    # ready() poll 4: hierarchy() -> Skip tap #2 (t=10.0 + step)
+            ready_tree,   # ready() poll 5: visible() -> True!
+        ])
+        activities = iter([
+            MAIN_ACTIVITY,  # in-app review focus check
+            maps_act,       # receiving activity wait
+            maps_act,       # ready poll 1
+            maps_act,       # ready poll 2
+            maps_act,       # ready poll 3
+            maps_act,       # ready poll 4
+            maps_act,       # ready poll 5
+        ])
+        device = Mock()
+        device.ime_shown.return_value = False
+        device.shell.side_effect = lambda *args: (
+            next(activities) if args == ("dumpsys", "activity", "activities") else ""
+        )
+        ui = Screen(device, Mock(), lang="en")
+        ui.wait = Mock()
+        ui.hierarchy = Mock(side_effect=lambda: next(hierarchies))
+        tapped = []
+        ui.tap_node = Mock(side_effect=lambda node: tapped.append(node.get("text")))
+        step = TAP_RETRY_COOLDOWN_SECONDS + 0.5
+        request = {"kind": "map_search", "query": "Maison des arts de Laval"}
+        with (
+            patch("verification.unifiedpush.stack.time.sleep"),
+            patch.object(phone_actions, "focused_window", return_value="w1"),
+            patch.object(phone_actions, "open_review", return_value=("11", "w2")),
+            patch.object(phone_actions, "close_review"),
+            patch.object(phone_actions, "confirm_review"),
+            patch.object(phone_actions, "visible", side_effect=[True, False, False, False, False, True]),
+            patch.object(phone_actions, "monotonic", side_effect=[10.0, 10.1, 10.2, 10.0 + step]),
+            patch.object(phone_actions, "capture_fields", return_value=(["Maison des arts de Laval"], "deadbeef")),
+            patch.object(phone_actions, "leave_receiver"),
+        ):
+            proof = phone_actions.review(
+                ui,
+                "map_search",
+                request,
+                Path("/tmp/phone-actions.json"),
+                full_screen=False,
+            )
+        self.assertEqual(proof["kind"], "map_search")
+        self.assertEqual(tapped, ["Skip", "Skip"])
+
 
 if __name__ == "__main__":
     unittest.main()
