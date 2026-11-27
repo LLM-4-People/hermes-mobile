@@ -44,7 +44,6 @@ public final class PermissionGateRegressionTest {
     public void presenceReconcileDisablesRevokedLocationAndProactiveNudges() {
         PresencePolicy allOn = PresencePolicy.defaults()
                 .withAppPresence(true)
-                .withReadWithoutReply(true)
                 .withContinuousLocation(true)
                 .withPreciseLocation(true)
                 .withProactiveNudges(true);

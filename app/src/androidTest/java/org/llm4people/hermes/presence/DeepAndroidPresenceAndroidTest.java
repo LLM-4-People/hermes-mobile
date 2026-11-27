@@ -132,16 +132,13 @@ public final class DeepAndroidPresenceAndroidTest extends InstrumentationTestCas
         assertEquals(ctx.getString(R.string.presence_status_all_off), banner.getText().toString());
 
         Switch screenSwitch = root.findViewWithTag("presence:toggle_screen");
-        Switch readSwitch = root.findViewWithTag("presence:toggle_read");
         assertNotNull(screenSwitch);
-        assertNotNull(readSwitch);
+        assertNull("Inert presence:toggle_read switch must not be rendered",
+                root.findViewWithTag("presence:toggle_read"));
         assertFalse(screenSwitch.isChecked());
-        assertFalse(readSwitch.isChecked());
 
         screenSwitch.setChecked(true);
-        readSwitch.setChecked(true);
         assertTrue(saved.get().shareAppPresence);
-        assertTrue(saved.get().shareReadWithoutReply);
 
         // 1-tap Turn Everything Off resets all switches and policy cleanly!
         Button allOff = root.findViewWithTag("presence:turn_all_off");
@@ -149,7 +146,6 @@ public final class DeepAndroidPresenceAndroidTest extends InstrumentationTestCas
         allOff.performClick();
         assertFalse(saved.get().anySharingEnabled());
         assertFalse(screenSwitch.isChecked());
-        assertFalse(readSwitch.isChecked());
         assertEquals(ctx.getString(R.string.presence_status_all_off), banner.getText().toString());
 
         // Appearance preset -> Undo -> Reset works live.
@@ -168,22 +164,15 @@ public final class DeepAndroidPresenceAndroidTest extends InstrumentationTestCas
         long epoch = tracker.bindProfile("p1", 7L);
         tracker.updateScreen(epoch, "atelier", "sess-77");
         tracker.updateActiveRunCount(epoch, 1);
-        tracker.recordAssistantMessageDelivered(epoch, "sess-77", "m1");
-        tracker.markAssistantMessageRead(epoch, "sess-77", "m1", 10_000L);
 
-        PresencePolicy policy = PresencePolicy.defaults()
-                .withAppPresence(true)
-                .withReadWithoutReply(true)
-                .withReadGraceSec(10);
+        PresencePolicy policy = PresencePolicy.defaults().withAppPresence(true);
         JSONObject obj = tracker.toWireContext(policy, null, 25_000L);
         assertNotNull(obj);
         assertEquals(1, obj.optInt("schema_version"));
         assertEquals("atelier", obj.optString("current_screen"));
         assertEquals("sess-77", obj.optString("active_session_id"));
         assertEquals(1, obj.optInt("active_run_count"));
-        JSONObject rwr = obj.optJSONObject("read_without_reply");
-        assertNotNull(rwr);
-        assertTrue(rwr.optBoolean("in_app_unread_reply"));
+        assertNull(obj.optJSONObject("read_without_reply"));
     }
 
     public void testLiveUiPatchParsesCanonicalTrack9aInteractiveCards() throws Exception {

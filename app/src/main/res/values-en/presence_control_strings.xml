@@ -9,7 +9,6 @@
     <string name="presence_status_all_off">Everything is off</string>
     <string name="presence_status_active">Active sharing: %1$s</string>
     <string name="presence_status_tag_screen">open screen</string>
-    <string name="presence_status_tag_read">read messages</string>
     <string name="presence_status_tag_location_coarse">approximate location</string>
     <string name="presence_status_tag_location_precise">precise location</string>
     <string name="presence_status_tag_location_paused">location paused</string>
@@ -24,9 +23,7 @@
     <!-- Privacy opt-in toggles -->
     <string name="presence_section_sharing">What your assistant may see</string>
     <string name="presence_toggle_screen_title">Open screen &amp; conversation</string>
-    <string name="presence_toggle_screen_summary">Shares the current tab, active tasks, and draft length (without sending draft text).</string>
-    <string name="presence_toggle_read_title">Read without reply</string>
-    <string name="presence_toggle_read_summary">Lets your assistant notice when a message or allowed notification was read without a reply after a short pause.</string>
+    <string name="presence_toggle_screen_summary">Shares the current tab and active tasks.</string>
     <string name="presence_toggle_location_title">Continuous location (optional)</string>
     <string name="presence_toggle_location_summary">Follows movement with low battery impact. Nothing is kept after lock or sign-out.</string>
     <string name="presence_toggle_precise_title">Precise location accuracy</string>

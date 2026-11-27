@@ -57,9 +57,7 @@ public final class PresenceSecurityPrivacyFixTest {
         long epoch = tracker.bindProfile("profile-wire", 5L);
         long t0 = 3_000_000L;
         tracker.updateScreen(epoch, "thread", "sess-7");
-        tracker.recordAssistantMessageDelivered(epoch, "sess-7", "msg-9");
-        tracker.markAssistantMessageRead(epoch, "sess-7", "msg-9", t0);
-        tracker.recordNotificationReadWithoutReply(epoch, "n-1", "Signal", t0);
+        tracker.updateActiveRunCount(epoch, 1);
 
         ContinuousLocationTracker locTracker = new ContinuousLocationTracker();
         ContinuousLocationTracker.Snapshot coarseFix = locTracker.recordFix(
@@ -67,20 +65,19 @@ public final class PresenceSecurityPrivacyFixTest {
 
         PresencePolicy policy = PresencePolicy.defaults()
                 .withAppPresence(true)
-                .withReadWithoutReply(true)
-                .withReadGraceSec(10)
                 .withContinuousLocation(true);
 
         String wire = tracker.toWireContextJson(policy, coarseFix, t0 + 25_000L);
         assertNotNull(wire);
-        assertTrue(wire.contains("\"in_app_unread_reply\":true"));
-        assertTrue(wire.contains("\"in_app_seconds_since_read\":25"));
-        assertTrue(wire.contains("\"notifications\":[{\"source\":\"Signal\",\"age_s\":25}]"));
+        assertTrue(wire.contains("\"current_screen\":\"thread\""));
+        assertTrue(wire.contains("\"active_session_id\":\"sess-7\""));
+        assertTrue(wire.contains("\"active_run_count\":1"));
         assertTrue(wire.contains("\"mode\":\"coarse\""));
         assertTrue(wire.contains("\"lat\":45.50"));
         assertTrue(wire.contains("\"lon\":-73.57"));
 
-        // Verify legacy mismatched keys are gone.
+        // Verify removed/legacy keys are absent.
+        assertFalse(wire.contains("\"read_without_reply\""));
         assertFalse(wire.contains("\"read_age_s\""));
         assertFalse(wire.contains("\"dismissed_notifications\""));
         assertFalse(wire.contains("\"precision\""));

@@ -9,7 +9,6 @@
     <string name="presence_status_all_off">Tout est désactivé</string>
     <string name="presence_status_active">Partage actif : %1$s</string>
     <string name="presence_status_tag_screen">écran ouvert</string>
-    <string name="presence_status_tag_read">messages lus</string>
     <string name="presence_status_tag_location_coarse">position approximative</string>
     <string name="presence_status_tag_location_precise">position précise</string>
     <string name="presence_status_tag_location_paused">position en pause</string>
@@ -24,9 +23,7 @@
     <!-- Privacy opt-in toggles -->
     <string name="presence_section_sharing">Ce que votre assistant peut voir</string>
     <string name="presence_toggle_screen_title">Écran et discussion ouverts</string>
-    <string name="presence_toggle_screen_summary">Indique l’onglet ouvert, les tâches en cours et la longueur du brouillon (sans envoyer le texte).</string>
-    <string name="presence_toggle_read_title">Messages lus sans réponse</string>
-    <string name="presence_toggle_read_summary">Signale quand un message ou une notification autorisée a été lu sans réponse après un court délai.</string>
+    <string name="presence_toggle_screen_summary">Indique l’onglet ouvert et les tâches en cours.</string>
     <string name="presence_toggle_location_title">Position continue (optionnelle)</string>
     <string name="presence_toggle_location_summary">Suit vos déplacements avec faible consommation de batterie. Rien n’est conservé au verrouillage.</string>
     <string name="presence_toggle_precise_title">Précision fine de la position</string>
