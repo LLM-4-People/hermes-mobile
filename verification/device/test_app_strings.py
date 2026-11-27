@@ -117,23 +117,44 @@ class AppStringsTest(unittest.TestCase):
         self.assertEqual(detect_device_lang(fake_device({})), "en")
 
     def test_thread_instruments_matches_localized_create_request_in_en_and_fr(self):
+        import importlib
         import sys
         from pathlib import Path
-        verif_dir = str(Path(__file__).resolve().parents[1])
-        if verif_dir not in sys.path:
-            sys.path.insert(0, verif_dir)
-        import thread_instruments
+        from types import SimpleNamespace
+        from unittest.mock import patch
 
-        for lang in ("en", "fr"):
-            with self.subTest(lang=lang):
-                create = AppStrings.for_lang(lang)["instrument_create_request"]
-                expected_prompt = create + "\n\n" + thread_instruments.GOAL
-                self.assertEqual(
-                    thread_instruments.last_user_message({"messages": [{"role": "user", "content": expected_prompt}]}),
-                    expected_prompt,
-                )
-                self.assertNotEqual(AppStrings.for_lang("en")["instrument_create_request"],
-                                    AppStrings.for_lang("fr")["instrument_create_request"])
+        verif_dir = str(Path(__file__).resolve().parents[1])
+        fake_provider = SimpleNamespace(Text=lambda content: content)
+        fake_fakes = SimpleNamespace(fake_llm_provider=fake_provider)
+        fake_tests = SimpleNamespace(fakes=fake_fakes)
+
+        with (
+            patch.object(sys, "path", [verif_dir, *sys.path]),
+            patch.dict(sys.modules, {
+                "tests": fake_tests,
+                "tests.fakes": fake_fakes,
+                "tests.fakes.fake_llm_provider": fake_provider,
+            }),
+        ):
+            thread_instruments = importlib.import_module("thread_instruments")
+            en_create = AppStrings.for_lang("en")["instrument_create_request"]
+            fr_create = AppStrings.for_lang("fr")["instrument_create_request"]
+            self.assertNotEqual(en_create, fr_create)
+
+            for lang, create, other_create in (("en", en_create, fr_create), ("fr", fr_create, en_create)):
+                with self.subTest(lang=lang):
+                    expected_prompt = create + "\n\n" + thread_instruments.GOAL
+                    matched = thread_instruments.response(
+                        {"body": {"messages": [{"role": "user", "content": expected_prompt}]}},
+                        create_request=create,
+                    )
+                    self.assertEqual(matched, thread_instruments.proposal(False))
+
+                    mismatched = thread_instruments.response(
+                        {"body": {"messages": [{"role": "user", "content": other_create + "\n\n" + thread_instruments.GOAL}]}},
+                        create_request=create,
+                    )
+                    self.assertEqual(mismatched, "Aucune proposition demandée.")
 
 
 if __name__ == "__main__":

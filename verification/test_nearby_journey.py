@@ -201,6 +201,54 @@ class NearbyJourneyConsentTest(unittest.TestCase):
             nearby_journey.open_consent(ui)
         self.assertEqual(device.shell.call_count, 1)
 
+    def test_map_selected_debounces_permission_and_overlay_taps(self):
+        import verification.nearby_restaurants as nearby_restaurants
+        from verification.unifiedpush.ui import TAP_RETRY_COOLDOWN_SECONDS
+
+        app_act = "topResumedActivity: ActivityRecord{1 u0 org.llm4people.hermes/.MainActivity t1}"
+        maps_act = "topResumedActivity: ActivityRecord{5 u0 com.google.android.apps.maps/.MapsActivity t1}"
+        activities = iter([app_act, *[maps_act] * 10])
+        device = Mock()
+        device.shell.side_effect = lambda *args: next(activities)
+        ui = Screen(device, Mock(), lang="en")
+        s = ui.strings
+        open_map = s["ws_dev_map_open"]
+
+        perm_tree = Element("hierarchy")
+        SubElement(perm_tree, "node", {
+            "package": "com.android.permissioncontroller",
+            "resource-id": "com.android.permissioncontroller:id/permission_deny_button",
+            "text": "Don't allow",
+            "bounds": "[20,400][280,460]",
+        })
+        skip_tree = node_tree((nearby_restaurants.MAPS, "Skip"))
+        coord_tree = node_tree((nearby_restaurants.MAPS, "45.50884, -73.58781"))
+
+        # received(): 3 rapid perm polls (t=10.0, 10.1, 10.2 -> 1 tap), 1 perm poll after cooldown (t=10+step -> 2nd tap),
+        # 2 rapid Skip polls (t=10+step+0.1 -> skipped, t=10+2*step -> Skip tap), then coord_tree!
+        ui.hierarchy = Mock(side_effect=[
+            perm_tree, perm_tree, perm_tree, perm_tree,
+            skip_tree, skip_tree, coord_tree,
+        ])
+        ui.tap_until = Mock()
+        tapped = []
+        ui.tap_node = Mock(side_effect=lambda node: tapped.append(node.get("text")))
+        step = TAP_RETRY_COOLDOWN_SECONDS + 0.5
+        point = {"name": "Bistro Test", "lat": 45.50884, "lon": -73.58781}
+        with (
+            patch("verification.unifiedpush.stack.time.sleep"),
+            patch.object(nearby_restaurants, "visible", return_value=True),
+            patch.object(nearby_restaurants, "tap_visible_app_until"),
+            patch.object(
+                nearby_restaurants,
+                "monotonic",
+                side_effect=[10.0, 10.1, 10.2, 10.0 + step, 10.0 + step + 0.1, 10.0 + 2 * step],
+            ),
+        ):
+            result = nearby_restaurants.map_selected(ui, "Bistro Test", point)
+        self.assertTrue(result["receiver"].startswith(nearby_restaurants.MAPS + "/"))
+        self.assertEqual(tapped, ["Don't allow", "Don't allow", "Skip"])
+
 
 if __name__ == "__main__":
     unittest.main()

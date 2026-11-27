@@ -398,11 +398,58 @@ class HardcodedUiStringsGuardTest(unittest.TestCase):
                 '<Button android:contentDescription="Close panel"/>'
                 '</LinearLayout>',
             )
+            _write(
+                root,
+                "app/src/main/res/layout-sw600dp/tablet.xml",
+                '<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android">'
+                '<TextView android:text="Tablet sidebar"/>'
+                '</LinearLayout>',
+            )
+            _write(
+                root,
+                "app/src/main/res/xml/shortcuts.xml",
+                '<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">'
+                '<shortcut android:shortcutId="new" android:title="New conversation"/>'
+                '</shortcuts>',
+            )
+            _write(
+                root,
+                "app/src/main/res/menu/thread.xml",
+                '<menu xmlns:android="http://schemas.android.com/apk/res/android">'
+                '<item android:id="@+id/share" android:title="Share thread"/>'
+                '</menu>',
+            )
             issues = guard.check_repo(root)
             self.assertTrue(any("Hardcoded Activity" in i for i in issues), issues)
             self.assertTrue(any("Type search query" in i for i in issues), issues)
             self.assertTrue(any("Close panel" in i for i in issues), issues)
+            self.assertTrue(any("layout-sw600dp/tablet.xml" in i and "Tablet sidebar" in i for i in issues), issues)
+            self.assertTrue(any("xml/shortcuts.xml" in i and "New conversation" in i for i in issues), issues)
+            self.assertTrue(any("menu/thread.xml" in i and "Share thread" in i for i in issues), issues)
             self.assertFalse(any("@string/ok" in i for i in issues), issues)
+
+    def test_text_wrapper_calls_and_format_trailing_args_are_flagged(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write(root, "app/src/main/res/values/strings.xml", f"{FR_RES}<string name='ok'>OK</string></resources>")
+            _write(root, "app/src/main/res/values-en/strings.xml", f"{EN_RES}<string name='ok'>OK</string></resources>")
+            _write(
+                root,
+                "app/src/main/java/org/example/WrapperBypass.java",
+                'class WrapperBypass {\n'
+                '    void render(android.widget.TextView tv, org.json.JSONObject obj) {\n'
+                '        tv.setText(new SpannableString("Styled label"));\n'
+                '        tv.setText(new SpannableStringBuilder("Builder label"));\n'
+                '        tv.setText(TextUtils.concat(obj.optString("key", ""), "Concat suffix"));\n'
+                '        tv.setText(Html.fromHtml("<b>Html label</b>", 0));\n'
+                '        tv.setText(String.format(Locale.US, "%s: %s", obj.optString("name", ""), "Fallback status"));\n'
+                '    }\n'
+                '}\n',
+            )
+            issues = guard.check_repo(root)
+            for expected in ("Styled label", "Builder label", "Concat suffix", "<b>Html label</b>", "Fallback status"):
+                self.assertTrue(any(expected in i for i in issues), (expected, issues))
+            self.assertFalse(any("'key'" in i or "'name'" in i for i in issues), issues)
 
 
 if __name__ == "__main__":

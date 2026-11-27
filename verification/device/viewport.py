@@ -4,7 +4,10 @@ from contextlib import contextmanager
 import re
 import time
 
-from device.run import cleanup_all
+try:
+    from .run import cleanup_all
+except ImportError:
+    from run import cleanup_all
 
 CONFIG_SIZE = re.compile(r"-w\d+dp-h\d+dp-")
 CONFIG_ORIENTATION = re.compile(r"-(?:port|land)-")

@@ -381,7 +381,10 @@ def review(ui, kind, request, output, full_screen):
         package = CALENDAR if kind == "calendar_event" else MAPS
         if not component.startswith(package + "/"):
             raise AssertionError("Unexpected receiving application: " + component)
+    last_maps_tap = None
+
     def ready():
+        nonlocal last_maps_tap
         active = focused(ui.device)
         if not active.startswith(package + "/"):
             return False
@@ -392,7 +395,10 @@ def review(ui, kind, request, output, full_screen):
             for label in ("Skip", "Continue without an account"):
                 button = ui.node(label, tree)
                 if button is not None and button.get("package") == MAPS:
-                    ui.tap_node(button)
+                    now = monotonic()
+                    if last_maps_tap is None or now - last_maps_tap >= TAP_RETRY_COOLDOWN_SECONDS:
+                        ui.tap_node(button)
+                        last_maps_tap = now
                     break
         return False
     component = eventually("visible proposal fields in " + package, ready, timeout=150)

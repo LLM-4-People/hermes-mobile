@@ -25,9 +25,9 @@ wait_emulator_offline() {
   disable_emulator_network "$serial"
 
   for ((i = 0; i < max_attempts; i++)); do
-    airplane=$(adb -s "$serial" shell settings get global airplane_mode_on | tr -d '\r')
-    wifi=$(adb -s "$serial" shell settings get global wifi_on | tr -d '\r')
-    connectivity=$(adb -s "$serial" shell dumpsys connectivity)
+    airplane=$(adb -s "$serial" shell settings get global airplane_mode_on 2>/dev/null | tr -d '\r' || true)
+    wifi=$(adb -s "$serial" shell settings get global wifi_on 2>/dev/null | tr -d '\r' || true)
+    connectivity=$(adb -s "$serial" shell dumpsys connectivity 2>/dev/null || true)
     if [[ "$airplane" == "1" && "$wifi" == "0" && "$connectivity" == *'Active default network: none'* ]]; then
       offline_hits=$((offline_hits + 1))
       if (( offline_hits >= required_hits )); then

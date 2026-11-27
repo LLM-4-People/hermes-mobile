@@ -118,6 +118,29 @@ class ViewportRestorationTest(unittest.TestCase):
         messages = [str(err) for err in group.exception.exceptions]
         self.assertTrue(any("-port-" in msg and "-land-" in msg for msg in messages), messages)
 
+    def test_viewport_imports_in_both_package_and_script_modes(self):
+        import os
+        import subprocess
+        import tempfile
+
+        repo_root = Path(__file__).resolve().parents[2]
+        for label, pythonpath, stmt in (
+            ("package", str(repo_root), "import verification.device.viewport as m; assert callable(m.restore_display)"),
+            ("script", str(repo_root / "verification"), "import device.viewport as m; assert callable(m.restore_display)"),
+        ):
+            with self.subTest(mode=label):
+                env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
+                env["PYTHONPATH"] = pythonpath
+                res = subprocess.run(
+                    [sys.executable, "-B", "-c", stmt],
+                    cwd=tempfile.gettempdir(),
+                    env=env,
+                    capture_output=True,
+                    text=True,
+                    timeout=20,
+                )
+                self.assertEqual(res.returncode, 0, res.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()

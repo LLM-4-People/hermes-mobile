@@ -238,7 +238,7 @@ class Gateway:
                 stdout=log,
                 stderr=subprocess.STDOUT,
             )
-        owner = psutil.Process(self.process.pid)
+        owner = None
         deadline = time.monotonic() + GATEWAY_START_TIMEOUT_SECONDS
         while time.monotonic() < deadline:
             if (status := self.process.poll()) is not None:
@@ -254,8 +254,17 @@ class Gateway:
                 raise _PortInUseError(f"Gateway port {self.port} already in use")
             # An unrelated test may claim the ephemeral port while this gateway boots.
             # Send the disposable account token only after our process owns its listener.
-            if not any(c.status == psutil.CONN_LISTEN and c.laddr == (LOOPBACK, self.port)
-                       for c in owner.net_connections(kind="tcp")):
+            try:
+                if owner is None:
+                    owner = psutil.Process(self.process.pid)
+                listening = any(
+                    c.status == psutil.CONN_LISTEN and c.laddr == (LOOPBACK, self.port)
+                    for c in owner.net_connections(kind="tcp")
+                )
+            except psutil.Error:
+                time.sleep(0.05)
+                continue
+            if not listening:
                 time.sleep(0.05)
                 continue
             try:

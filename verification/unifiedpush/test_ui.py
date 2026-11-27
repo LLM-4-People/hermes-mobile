@@ -1,5 +1,6 @@
 """Unit tests for Screen bounds parsing, focus inspection, and verified tap transitions."""
 
+from pathlib import Path
 import unittest
 from unittest.mock import Mock, call, patch
 from xml.etree.ElementTree import Element, SubElement
@@ -11,6 +12,7 @@ from .ui import (
     Screen,
     TAP_RETRY_COOLDOWN_SECONDS,
     TOP_SETTINGS_ID,
+    distributor,
     enroll,
     focused_window,
     open_notifications_settings,
@@ -401,6 +403,93 @@ class ScreenUiTest(unittest.TestCase):
         ):
             start_account(ui, "Alt", "https://example.test", "secret-key", "correct-horse-battery")
         self.assertEqual(tapped, [s["profile_add_action"], s["profile_save_action"]])
+
+    def test_hierarchy_debounces_system_ui_aerr_wait_taps(self):
+        anr = tree(
+            {"text": "System UI isn't responding", "bounds": "[20,100][300,150]"},
+            {"resource-id": "android:id/aerr_wait", "text": "Wait", "bounds": "[160,200][280,250]"},
+        )
+        ready = tree({"text": "Ready", "bounds": "[20,100][200,150]"})
+        ui = Screen(Mock(), Mock())
+        ui.snapshot = Mock(side_effect=[anr, anr, anr, anr, ready])
+        tapped = []
+        ui.tap_node = Mock(side_effect=lambda node: tapped.append(node.get("resource-id")))
+        # First 3 ANR polls are within cooldown (10.0, 10.1, 10.2) -> 1 tap; 4th at 13.0 -> retry tap.
+        with patch("verification.unifiedpush.stack.time.sleep"), patch(
+            "verification.unifiedpush.ui.monotonic", side_effect=[10.0, 10.1, 10.2, 13.0]
+        ):
+            root = ui.hierarchy()
+        self.assertIsNotNone(ui.node("Ready", root))
+        self.assertEqual(tapped, ["android:id/aerr_wait", "android:id/aerr_wait"])
+
+    def test_wait_debounces_notification_permission_without_scrolling(self):
+        perm_tree = tree(
+            {"scrollable": "true", "bounds": "[0,0][320,640]"},
+            {"resource-id": "com.android.permissioncontroller:id/permission_allow_button", "bounds": "[40,300][280,360]"},
+        )
+        scrolled_needed = tree({"scrollable": "true", "bounds": "[0,0][320,640]"})
+        target_tree = tree({"text": "Target", "bounds": "[20,200][200,250]"})
+        ui = Screen(Mock(), Mock())
+        ui.hierarchy = Mock(side_effect=[perm_tree, perm_tree, perm_tree, perm_tree, scrolled_needed, target_tree])
+        tapped = []
+        scrolled = []
+        ui.tap_node = Mock(side_effect=lambda node: tapped.append(node.get("resource-id")))
+        ui.scroll = Mock(side_effect=lambda root: scrolled.append(root))
+        with patch("verification.unifiedpush.stack.time.sleep"), patch(
+            "verification.unifiedpush.ui.monotonic", side_effect=[10.0, 10.1, 10.2, 13.0]
+        ):
+            node = ui.wait("Target", scroll=True, notification_permission=True)
+        self.assertEqual(node.get("text"), "Target")
+        self.assertEqual(len(tapped), 2)
+        self.assertEqual(len(scrolled), 1)
+
+    def test_dismiss_ime_retries_debounced_back_until_hidden(self):
+        device = Mock()
+        # Initial check True; poll1 True->BACK #1; poll1 post-check True;
+        # poll2 True (within cooldown, no BACK); poll2 post-check True;
+        # poll3 True (after cooldown->BACK #2); poll3 post-check False -> done!
+        device.ime_shown.side_effect = [True, True, True, True, True, True, False]
+        ui = Screen(device, Mock())
+        with patch("verification.unifiedpush.stack.time.sleep"), patch(
+            "verification.unifiedpush.ui.monotonic", side_effect=[10.0, 10.1, 13.0]
+        ):
+            ui.dismiss_ime()
+        self.assertEqual(device.shell.call_count, 2)
+        device.shell.assert_called_with("input", "keyevent", "BACK")
+
+    def test_distributor_retries_debounced_back_to_subscribed_topics(self):
+        device = Mock()
+        device.shell.side_effect = lambda *args: (
+            "" if args == ("pm", "list", "packages", NTFY)
+            else NTFY + "/.MainActivity" if args[:2] == ("cmd", "package")
+            else ""
+        )
+        device.ime_shown.side_effect = [True, True, False]
+        ui = Screen(device, Mock())
+        url_field = NTFY + ":id/default_server_dialog_url"
+        editor_tree = tree(
+            {"resource-id": url_field, "bounds": "[20,200][300,260]"},
+            {"text": "Save", "bounds": "[200,300][300,350]"},
+        )
+        saved_settings = tree({"text": "http://127.0.0.1:8080", "bounds": "[20,200][300,260]"})
+        topics = tree({"text": "Subscribed topics", "bounds": "[20,60][280,110]"})
+        # open_editor -> editor_tree; tap_until(Save) -> editor_tree, saved_settings;
+        # back_to_topics -> saved_settings (BACK #1), saved_settings (cooldown skip), saved_settings (BACK #2), topics!
+        ui.hierarchy = Mock(side_effect=[
+            editor_tree,
+            editor_tree, saved_settings,
+            saved_settings, saved_settings, saved_settings, topics,
+        ])
+        ui.type = Mock()
+        ui.tap_node = Mock()
+        with patch("verification.unifiedpush.stack.time.sleep"), patch(
+            "verification.unifiedpush.ui.monotonic", side_effect=[10.0, 10.0, 20.0, 20.1, 23.0]
+        ):
+            with distributor(ui, Path("/tmp/ntfy.apk"), "http://127.0.0.1:8080"):
+                pass
+        back_calls = [c for c in device.shell.call_args_list if c.args == ("input", "keyevent", "BACK")]
+        # 1 BACK for dismiss_ime + 2 debounced BACKs for back_to_topics.
+        self.assertEqual(len(back_calls), 3)
 
 
 if __name__ == "__main__":
