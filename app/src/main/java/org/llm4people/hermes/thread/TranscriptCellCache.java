@@ -33,9 +33,6 @@ public final class TranscriptCellCache {
 
     private final int capacity;
     private final LinkedHashMap<Key, Rendered> lru;
-    private long hits;
-    private long misses;
-    private long evictions;
 
     public TranscriptCellCache() {
         this(DEFAULT_CAPACITY);
@@ -46,11 +43,7 @@ public final class TranscriptCellCache {
         this.capacity = capacity;
         this.lru = new LinkedHashMap<>(Math.min(64, capacity + 1), 0.75f, true) {
             @Override protected boolean removeEldestEntry(Map.Entry<Key, Rendered> eldest) {
-                if (size() > TranscriptCellCache.this.capacity) {
-                    evictions++;
-                    return true;
-                }
-                return false;
+                return size() > TranscriptCellCache.this.capacity;
             }
         };
     }
@@ -78,10 +71,7 @@ public final class TranscriptCellCache {
 
     public synchronized Rendered get(Key key) {
         if (key == null) return null;
-        Rendered found = lru.get(key);
-        if (found != null) hits++;
-        else misses++;
-        return found;
+        return lru.get(key);
     }
 
     public synchronized void put(Key key, Rendered rendered) {
@@ -95,11 +85,7 @@ public final class TranscriptCellCache {
         Objects.requireNonNull(supplier, "supplier");
         synchronized (this) {
             Rendered cached = lru.get(key);
-            if (cached != null) {
-                hits++;
-                return cached;
-            }
-            misses++;
+            if (cached != null) return cached;
         }
         Rendered computed = supplier.get();
         if (computed != null) {
@@ -113,13 +99,4 @@ public final class TranscriptCellCache {
     public synchronized void clear() {
         lru.clear();
     }
-
-    public synchronized void onTrimMemory() {
-        lru.clear();
-    }
-
-    public synchronized int size() { return lru.size(); }
-    public synchronized long hits() { return hits; }
-    public synchronized long misses() { return misses; }
-    public synchronized long evictions() { return evictions; }
 }

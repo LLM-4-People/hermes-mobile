@@ -18,7 +18,6 @@ import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.RouteRegistry;
 
-import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 @SuppressWarnings("deprecation")
@@ -129,10 +128,6 @@ public final class ConnectionDoctorPanelTest extends InstrumentationTestCase {
             RouteRegistry registry = new RouteRegistry();
             AtomicInteger routeOpened = new AtomicInteger();
             ConnectionDoctorPanel.registerRoute(registry, activity, routeOpened::incrementAndGet);
-            List<RouteRegistry.Destination> settings = registry.destinationsIn(
-                    RouteRegistry.Section.SETTINGS, java.util.Collections.emptySet());
-            assertEquals(1, settings.size());
-            assertEquals(ConnectionDoctorPanel.ROUTE_ID, settings.get(0).id());
             assertTrue(registry.dispatch(ConnectionDoctorPanel.ROUTE_ID));
             assertEquals(1, routeOpened.get());
 

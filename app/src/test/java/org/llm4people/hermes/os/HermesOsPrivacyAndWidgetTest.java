@@ -19,15 +19,7 @@ public class HermesOsPrivacyAndWidgetTest {
         @Override public Map<String, String> all() { return new LinkedHashMap<>(data); }
     }
 
-    @Test public void dynamicShortcutsStayOpaqueBoundedAndPrivacySafe() {
-        List<HermesShortcuts.Descriptor> list = HermesShortcuts.descriptors();
-        assertEquals(4, list.size());
-        for (HermesShortcuts.Descriptor item : list) {
-            assertTrue(item.id().startsWith("hermes_"));
-            assertTrue(item.shortLabelRes() != 0);
-            assertTrue(item.longLabelRes() != 0);
-            assertNotNull(item.target());
-        }
+    @Test public void widgetProviderStatusTextIsPrivacySafe() {
         assertEquals(org.llm4people.hermes.R.string.widget_status_private, HermesWidgetProvider.statusTextRes(false));
         assertEquals(org.llm4people.hermes.R.string.widget_status_working, HermesWidgetProvider.statusTextRes(true));
     }

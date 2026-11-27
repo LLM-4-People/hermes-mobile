@@ -42,7 +42,6 @@ public final class InfiniteTranscriptWindow<T> {
     private boolean hasNewer;
     private Long oldestId;
     private Long newestId;
-    private int totalCount = -1;
     private int legacyOffset;
 
     public InfiniteTranscriptWindow(RowIdentity<T> identity, int maxWindowRows) {
@@ -89,7 +88,6 @@ public final class InfiniteTranscriptWindow<T> {
         hasNewer = false;
         oldestId = null;
         newestId = null;
-        totalCount = -1;
         legacyOffset = 0;
     }
 
@@ -112,7 +110,6 @@ public final class InfiniteTranscriptWindow<T> {
         int trimmedTop = trimTopIfNeeded();
         this.hasOlder = hasOlder || trimmedTop > 0;
         this.hasNewer = false;
-        this.totalCount = totalCount;
         this.legacyOffset = rows.size();
         recomputeCursors(cursorOldestId, cursorNewestId, trimmedTop > 0, false);
         return new PageResult(added, 0, added, trimmedTop, 0, 0);
@@ -141,7 +138,6 @@ public final class InfiniteTranscriptWindow<T> {
         int trimmedBottom = trimBottomIfNeeded();
         this.hasOlder = hasMoreOlder;
         if (trimmedBottom > 0) this.hasNewer = true;
-        if (totalCount >= 0) this.totalCount = totalCount;
         this.legacyOffset += unique.size();
         recomputeCursors(pageOldestId, null, false, trimmedBottom > 0);
         return new PageResult(unique.size(), unique.size(), 0, 0, trimmedBottom, unique.size());
@@ -167,7 +163,6 @@ public final class InfiniteTranscriptWindow<T> {
         int trimmedTop = trimTopIfNeeded();
         if (trimmedTop > 0) this.hasOlder = true;
         this.hasNewer = hasMoreNewer;
-        if (totalCount >= 0) this.totalCount = totalCount;
         recomputeCursors(null, pageNewestId, trimmedTop > 0, false);
         return new PageResult(appended, 0, appended, trimmedTop, 0, -trimmedTop);
     }
@@ -215,14 +210,10 @@ public final class InfiniteTranscriptWindow<T> {
         return out;
     }
 
-    public synchronized int size() { return rows.size(); }
-    public synchronized boolean isEmpty() { return rows.isEmpty(); }
     public synchronized boolean hasOlder() { return hasOlder; }
     public synchronized boolean hasNewer() { return hasNewer; }
-    public synchronized boolean atLiveTail() { return !hasNewer; }
     public synchronized Long oldestId() { return oldestId; }
     public synchronized Long newestId() { return newestId; }
-    public synchronized int totalCount() { return totalCount; }
 
     private int trimTopIfNeeded() {
         int trimmed = 0;

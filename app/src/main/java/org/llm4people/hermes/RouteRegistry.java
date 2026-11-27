@@ -1,12 +1,8 @@
 package org.llm4people.hermes;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
@@ -46,10 +42,6 @@ public final class RouteRegistry {
                     ? null : requiredCapability.trim();
             Objects.requireNonNull(open, "open");
         }
-
-        public boolean availableFor(Set<String> capabilities) {
-            return requiredCapability == null || (capabilities != null && capabilities.contains(requiredCapability));
-        }
     }
 
     private final Map<String, Destination> destinations = new LinkedHashMap<>();
@@ -77,27 +69,6 @@ public final class RouteRegistry {
         return this;
     }
 
-    public synchronized Destination destination(String id) {
-        return id == null ? null : destinations.get(id);
-    }
-
-    public synchronized List<Destination> primaryDestinations(Set<String> capabilities) {
-        List<Destination> result = new ArrayList<>();
-        for (Destination d : destinations.values()) {
-            if (d.primary() && d.availableFor(capabilities)) result.add(d);
-        }
-        return Collections.unmodifiableList(result);
-    }
-
-    public synchronized List<Destination> destinationsIn(Section section, Set<String> capabilities) {
-        Objects.requireNonNull(section, "section");
-        List<Destination> result = new ArrayList<>();
-        for (Destination d : destinations.values()) {
-            if (d.section() == section && d.availableFor(capabilities)) result.add(d);
-        }
-        return Collections.unmodifiableList(result);
-    }
-
     public boolean dispatch(String id) {
         Runnable handler;
         synchronized (this) {
@@ -109,9 +80,5 @@ public final class RouteRegistry {
         }
         handler.run();
         return true;
-    }
-
-    public synchronized int size() {
-        return destinations.size();
     }
 }

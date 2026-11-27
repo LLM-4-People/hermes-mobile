@@ -380,10 +380,6 @@ public final class ConnectionDoctorTest {
                 null,
                 opened::incrementAndGet));
 
-        List<RouteRegistry.Destination> settings = registry.destinationsIn(
-                RouteRegistry.Section.SETTINGS, Collections.emptySet());
-        assertEquals(1, settings.size());
-        assertEquals("connection_doctor", settings.get(0).id());
         assertTrue(registry.dispatch(ConnectionDoctorPanel.ROUTE_ID));
         assertEquals(1, opened.get());
     }

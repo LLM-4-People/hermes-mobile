@@ -107,7 +107,7 @@ final class WorkspaceShell {
 
         contentPane.addView(header);
         contentPane.addView(Ui.divider(activity));
-        pending = Ui.tonalButton(activity, activity.getString(R.string.ws_reply_hermes), null);
+        pending = Ui.tonalButton(activity, "", null);
         pending.setBackground(Ui.roundedRipple(activity, 0,
                 Ui.shape(activity, 0, R.color.accent_surface, 0, 0)));
         pending.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
@@ -224,8 +224,18 @@ final class WorkspaceShell {
     }
 
     void pendingResponse(Runnable open) {
-        pending.setVisibility(open == null ? View.GONE : View.VISIBLE);
-        pending.setOnClickListener(open == null ? null : v -> open.run());
+        if (open == null) {
+            pending.setVisibility(View.GONE);
+            pending.setText("");
+            pending.setOnClickListener(null);
+            return;
+        }
+        boolean wasVisible = pending.getVisibility() == View.VISIBLE;
+        pending.setOnClickListener(v -> open.run());
+        pending.setVisibility(View.VISIBLE);
+        if (!wasVisible) {
+            Ui.announceLiveStatus(pending, activity.getString(R.string.ws_reply_hermes));
+        }
     }
 
     View content() { return body; }

@@ -43,20 +43,13 @@ public final class AppPerformanceTest {
 
         assertEquals("First token must flush immediately for zero TTFT penalty", "\nLigne 0: ", emitted.get(0));
         assertEquals("Final text must preserve every single character", expected.toString(), emitted.get(emitted.size() - 1));
-        assertEquals(1_000, coalescer.offeredCount());
-        assertEquals("Every non-duplicate offer must be accounted for as flushed or coalesced",
-                coalescer.offeredCount(), coalescer.flushedCount() + coalescer.coalescedCount());
-        assertTrue("1000 deltas over 2s at 64ms budget must flush <= 35 times (got " + coalescer.flushedCount() + ")",
-                coalescer.flushedCount() <= 35);
-        assertTrue("Over 95% of rapid deltas must coalesce (got " + coalescer.coalescedCount() + ")",
-                coalescer.coalescedCount() >= 950);
+        assertTrue("1000 deltas over 2s at 64ms budget must flush <= 35 times (got " + emitted.size() + ")",
+                emitted.size() <= 35);
 
-        // Reset clears counters and buffers cleanly.
+        // Reset clears buffers cleanly so the next offer flushes immediately.
         coalescer.reset();
-        assertEquals(0, coalescer.offeredCount());
-        assertEquals(0, coalescer.flushedCount());
-        assertEquals(0, coalescer.coalescedCount());
         assertFalse(coalescer.hasPending());
+        assertTrue(coalescer.offer("next-run", now + 200L));
     }
 
     @Test
@@ -80,10 +73,11 @@ public final class AppPerformanceTest {
         } catch (NullPointerException expected) {
             // ok
         }
-        StreamCoalescer duplicateGuard = new StreamCoalescer(64L, sink::set);
+        List<String> dupEmitted = new ArrayList<>();
+        StreamCoalescer duplicateGuard = new StreamCoalescer(64L, dupEmitted::add);
         assertTrue(duplicateGuard.offer("bonjour", 100L));
         assertFalse("Identical snapshot must not re-flush", duplicateGuard.offer("bonjour", 200L));
-        assertEquals(1, duplicateGuard.flushedCount());
+        assertEquals(1, dupEmitted.size());
 
         // An initial empty SSE status frame must NOT consume the 0ms TTFT slot for the first real token.
         List<String> ttft = new ArrayList<>();

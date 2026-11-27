@@ -15,8 +15,6 @@ import org.llm4people.hermes.RouteRegistry;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.nio.charset.StandardCharsets;
-import java.util.List;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -29,9 +27,6 @@ public final class UpdatePanelTest extends InstrumentationTestCase {
         RouteRegistry registry = new RouteRegistry();
         AtomicBoolean opened = new AtomicBoolean(false);
         UpdatePanel.registerRoute(registry, context, () -> opened.set(true));
-        List<RouteRegistry.Destination> settings = registry.destinationsIn(RouteRegistry.Section.SETTINGS, Set.of());
-        assertEquals(1, settings.size());
-        assertEquals(UpdatePanel.ROUTE_ID, settings.get(0).id());
         assertTrue(registry.dispatch(UpdatePanel.ROUTE_ID));
         assertTrue(opened.get());
 

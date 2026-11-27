@@ -1,14 +1,13 @@
 package org.llm4people.hermes.customization;
 
+import org.llm4people.hermes.Base64Url;
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.PlainTextSanitizer;
 import org.llm4people.hermes.SecretPatterns;
 import org.llm4people.hermes.artifact.ThemePalette;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -333,10 +332,12 @@ public final class AppCustomization {
                 .append('|').append(density.wire)
                 .append('|').append(String.format(Locale.ROOT, "%.2f", fontScaleDelta))
                 .append('|').append(startupTab.wire)
-                .append('|').append(b64(companionGreeting))
+                .append('|').append(Base64Url.encode(companionGreeting))
                 .append('|').append(composerShortcuts.size());
         for (ComposerShortcut s : composerShortcuts) {
-            sb.append('|').append(b64(s.id())).append(':').append(b64(s.label())).append(':').append(b64(s.draftText()));
+            sb.append('|').append(Base64Url.encode(s.id())).append(':')
+                    .append(Base64Url.encode(s.label())).append(':')
+                    .append(Base64Url.encode(s.draftText()));
         }
         return sb.toString();
     }
@@ -358,14 +359,17 @@ public final class AppCustomization {
             float delta = Float.parseFloat(parts[4]);
             StartupTab tab = StartupTab.parse(parts[5]);
             if (tab == null) return null;
-            String greeting = unb64(parts[6]);
+            String greeting = Base64Url.decode(parts[6]);
             int count = Integer.parseInt(parts[7]);
             if (count < 0 || count > MAX_COMPOSER_SHORTCUTS || parts.length != 8 + count) return null;
             List<ComposerShortcut> shortcuts = new ArrayList<>(count);
             for (int i = 0; i < count; i++) {
                 String[] triple = parts[8 + i].split(":", -1);
                 if (triple.length != 3) return null;
-                shortcuts.add(new ComposerShortcut(unb64(triple[0]), unb64(triple[1]), unb64(triple[2])));
+                shortcuts.add(new ComposerShortcut(
+                        Base64Url.decode(triple[0]),
+                        Base64Url.decode(triple[1]),
+                        Base64Url.decode(triple[2])));
             }
             return new AppCustomization(p, customHex, d, delta, tab, greeting, shortcuts);
         } catch (IllegalArgumentException invalid) {
@@ -376,16 +380,6 @@ public final class AppCustomization {
 
     private static float clamp(float value, float min, float max) {
         return Math.max(min, Math.min(max, value));
-    }
-
-    private static String b64(String text) {
-        return Base64.getUrlEncoder().withoutPadding()
-                .encodeToString((text == null ? "" : text).getBytes(StandardCharsets.UTF_8));
-    }
-
-    private static String unb64(String encoded) {
-        if (encoded == null || encoded.isEmpty()) return "";
-        return new String(Base64.getUrlDecoder().decode(encoded), StandardCharsets.UTF_8);
     }
 
     @Override public boolean equals(Object other) {

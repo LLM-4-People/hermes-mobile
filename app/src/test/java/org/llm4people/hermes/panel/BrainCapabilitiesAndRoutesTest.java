@@ -73,14 +73,12 @@ public final class BrainCapabilitiesAndRoutesTest {
             @Override public void shareThread() { calls.add("share"); }
         });
 
-        // Legacy gateway with empty capabilities still exposes Skills under SETTINGS (degrades to read-only).
-        List<RouteRegistry.Destination> legacySettings =
-                registry.destinationsIn(RouteRegistry.Section.SETTINGS, BrainCapabilities.empty().asSet());
-        assertEquals(1, legacySettings.size());
-        assertEquals(BrainStudioRoutes.ROUTE_SKILLS, legacySettings.get(0).id());
-        assertTrue(registry.destinationsIn(RouteRegistry.Section.NOTES_TASKS, BrainCapabilities.empty().asSet()).isEmpty());
+        // Legacy gateway with empty capabilities reports all flags false.
+        BrainCapabilities empty = BrainCapabilities.empty();
+        assertFalse(empty.memoryApi());
+        assertFalse(empty.smartNotes());
 
-        // Upgraded gateway unlocks Notes & Shared under NOTES_TASKS and Memory/Search/Skills/Files/Profile under SETTINGS.
+        // Upgraded gateway unlocks Notes, Sharing, Memory, Search, Workspace Files, and Profile Defaults.
         BrainCapabilities full = BrainCapabilities.fromFlags(Map.of(
                 BrainCapabilities.MEMORY_API, true,
                 BrainCapabilities.SMART_NOTES, true,
@@ -88,20 +86,12 @@ public final class BrainCapabilitiesAndRoutesTest {
                 BrainCapabilities.SESSION_SEARCH, true,
                 BrainCapabilities.WORKSPACE_BROWSER, true,
                 BrainCapabilities.PROFILE_DEFAULTS, true));
-        List<RouteRegistry.Destination> notesTasksRoutes =
-                registry.destinationsIn(RouteRegistry.Section.NOTES_TASKS, full.asSet());
-        assertEquals(2, notesTasksRoutes.size());
-        assertEquals(BrainStudioRoutes.ROUTE_NOTES, notesTasksRoutes.get(0).id());
-        assertEquals(BrainStudioRoutes.ROUTE_SHARED_WITH_ME, notesTasksRoutes.get(1).id());
-
-        List<RouteRegistry.Destination> settingsRoutes =
-                registry.destinationsIn(RouteRegistry.Section.SETTINGS, full.asSet());
-        assertEquals(5, settingsRoutes.size());
-        assertTrue(settingsRoutes.stream().anyMatch(d -> BrainStudioRoutes.ROUTE_PROFILE_DEFAULTS.equals(d.id())));
-        assertTrue(settingsRoutes.stream().anyMatch(d -> BrainStudioRoutes.ROUTE_MEMORY.equals(d.id())));
-        assertTrue(settingsRoutes.stream().anyMatch(d -> BrainStudioRoutes.ROUTE_SEARCH.equals(d.id())));
-        assertTrue(settingsRoutes.stream().anyMatch(d -> BrainStudioRoutes.ROUTE_SKILLS.equals(d.id())));
-        assertTrue(settingsRoutes.stream().anyMatch(d -> BrainStudioRoutes.ROUTE_WORKSPACE_FILES.equals(d.id())));
+        assertTrue(full.memoryApi());
+        assertTrue(full.smartNotes());
+        assertTrue(full.universalSharing());
+        assertTrue(full.sessionSearch());
+        assertTrue(full.workspaceFiles());
+        assertTrue(full.profileDefaults());
 
         assertTrue(registry.dispatch(BrainStudioRoutes.ROUTE_MEMORY));
         assertTrue(registry.dispatch(BrainStudioRoutes.ROUTE_NOTES));

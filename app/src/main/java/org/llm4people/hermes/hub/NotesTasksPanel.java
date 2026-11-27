@@ -94,7 +94,7 @@ public final class NotesTasksPanel implements AutoCloseable {
         HorizontalScrollView segmentScroll = new HorizontalScrollView(activity);
         segmentScroll.setFillViewport(true);
         segmentScroll.setHorizontalScrollBarEnabled(false);
-        segmentScroll.setBackground(Ui.shape(activity, Ui.CARD_CORNER_DP, R.color.surface_container, R.color.line, 1));
+        segmentScroll.setBackground(Ui.shape(activity, Ui.CARD_CORNER_DP, R.color.surface_container, R.color.line_strong, 1));
         segmentScroll.setClipToOutline(true);
         segmentBar = Ui.row(activity);
         Ui.pad(segmentBar, 4, 4);

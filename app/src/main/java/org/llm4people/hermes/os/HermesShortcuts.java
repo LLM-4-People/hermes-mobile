@@ -33,10 +33,6 @@ public final class HermesShortcuts {
 
     private HermesShortcuts() {}
 
-    public static List<Descriptor> descriptors() {
-        return DESCRIPTORS;
-    }
-
     public static void publish(Context context) {
         publish(context, null);
     }

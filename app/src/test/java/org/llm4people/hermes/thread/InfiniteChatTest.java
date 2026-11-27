@@ -39,7 +39,7 @@ public final class InfiniteChatTest {
         // 1. Open latest page (99,961..100,000).
         window.replaceLatest(range(totalMessages - pageSize + 1, totalMessages),
                 true, totalMessages - pageSize + 1, totalMessages, (int) totalMessages);
-        assertEquals(pageSize, window.size());
+        assertEquals(pageSize, window.snapshot().size());
         assertTrue(window.hasOlder());
         assertFalse(window.hasNewer());
         assertEquals(Long.valueOf(99_961L), window.oldestId());
@@ -67,10 +67,10 @@ public final class InfiniteChatTest {
             pagesWalked++;
             assertEquals(page.size(), res.prependedCount());
             assertEquals(page.size(), res.anchorDelta());
-            assertTrue("Window must stay strictly <= 400 rows", window.size() <= InfiniteTranscriptWindow.MAX_WINDOW_ROWS);
+            List<FakeRow> snap = window.snapshot();
+            assertTrue("Window must stay strictly <= 400 rows", snap.size() <= InfiniteTranscriptWindow.MAX_WINDOW_ROWS);
 
             // Verify exact contiguous chronological order inside the window.
-            List<FakeRow> snap = window.snapshot();
             for (int i = 1; i < snap.size(); i++) {
                 assertEquals(snap.get(i - 1).id() + 1L, snap.get(i).id());
             }
@@ -80,7 +80,7 @@ public final class InfiniteChatTest {
         }
         assertEquals(2_499, pagesWalked);
         assertEquals(totalMessages, seen.size());
-        assertEquals(InfiniteTranscriptWindow.MAX_WINDOW_ROWS, window.size());
+        assertEquals(InfiniteTranscriptWindow.MAX_WINDOW_ROWS, window.snapshot().size());
         assertFalse(window.hasOlder());
         assertTrue(window.hasNewer());
         assertEquals(Long.valueOf(1L), window.oldestId());
@@ -91,7 +91,7 @@ public final class InfiniteChatTest {
         assertEquals(40, fwd.appendedCount());
         assertEquals(40, fwd.trimmedFromTop());
         assertEquals(-40, fwd.anchorDelta());
-        assertEquals(InfiniteTranscriptWindow.MAX_WINDOW_ROWS, window.size());
+        assertEquals(InfiniteTranscriptWindow.MAX_WINDOW_ROWS, window.snapshot().size());
         assertTrue(window.hasOlder());
         assertTrue(window.hasNewer());
         assertEquals(Long.valueOf(41L), window.oldestId());
@@ -99,15 +99,15 @@ public final class InfiniteChatTest {
 
         // 4. Snap to latest + O(1) after_id live delta append (3 new messages arrive).
         window.replaceLatest(range(99_961L, 100_000L), true, 99_961L, 100_000L, (int) totalMessages);
-        assertTrue(window.atLiveTail());
+        assertFalse(window.hasNewer());
         assertEquals("limit=40&order=oldest&visible_only=true&include_compacted=true&after_id=100000", window.newerQueryParams(40));
 
         InfiniteTranscriptWindow.PageResult delta = window.appendNewer(range(100_001L, 100_003L), false, 100_003L, 100_003);
         assertEquals(3, delta.appendedCount());
         assertEquals(0, delta.trimmedFromTop());
-        assertEquals(43, window.size());
+        assertEquals(43, window.snapshot().size());
         assertEquals(Long.valueOf(100_003L), window.newestId());
-        assertTrue(window.atLiveTail());
+        assertFalse(window.hasNewer());
     }
 
     @Test public void queryParamsFollowGatewayContractAndNeverEmitInvalidOrderDesc() {
@@ -142,8 +142,8 @@ public final class InfiniteChatTest {
                     ThreadTailCache.MAX_MESSAGES_PER_THREAD, e.encodedRows().size());
             assertTrue(cache.put(epochA, e));
         }
-        assertEquals("LRU must stay bounded at MAX_THREADS", ThreadTailCache.MAX_THREADS, cache.size());
         assertNull("Oldest evicted thread must be gone", cache.get(epochA, "sess-0"));
+        assertNotNull("Most recent threads must remain cached", cache.get(epochA, "sess-15"));
 
         long t0 = System.nanoTime();
         ThreadTailCache.Entry hit = cache.get(epochA, "sess-29");
@@ -154,21 +154,20 @@ public final class InfiniteChatTest {
         // Switching profiles immediately wipes RAM and rejects stale epoch reads/writes.
         long epochB = cache.bindProfile("profile-b");
         assertNotEquals(epochA, epochB);
-        assertEquals(0, cache.size());
         assertNull(cache.get(epochA, "sess-29"));
         assertNull(cache.get(epochB, "sess-29"));
         assertFalse(cache.put(epochA, hit));
 
         // onTrimMemory clears RAM while keeping profile epoch active.
         assertTrue(cache.put(epochB, hit));
-        assertEquals(1, cache.size());
+        assertNotNull(cache.get(epochB, "sess-29"));
         cache.onTrimMemory();
-        assertEquals(0, cache.size());
+        assertNull(cache.get(epochB, "sess-29"));
         assertTrue(cache.put(epochB, hit));
 
         // clear() wipes RAM and invalidates epochB.
         cache.clear();
-        assertEquals(0, cache.size());
+        assertNull(cache.get(epochB, "sess-29"));
         assertFalse(cache.put(epochB, hit));
 
         // Vault snapshot roundtrip, size capping, corruption fail-open, and wipe.
@@ -225,19 +224,20 @@ public final class InfiniteChatTest {
         });
         assertSame(r1, r2);
         assertEquals(1, computes.get());
-        assertEquals(1L, cache.hits());
-        assertEquals(1L, cache.misses());
 
-        // Eviction beyond capacity.
+        // Eviction beyond capacity (capacity=4): inserting 6 entries evicts kDay and r-0/r-1.
+        TranscriptCellCache.Key[] inserted = new TranscriptCellCache.Key[6];
         for (int i = 0; i < 6; i++) {
-            TranscriptCellCache.Key k = TranscriptCellCache.keyFor("r-" + i, "Body " + i, "", true, false, 6000);
-            cache.put(k, new TranscriptCellCache.Rendered(null, "Body " + i, "Body " + i, ""));
+            inserted[i] = TranscriptCellCache.keyFor("r-" + i, "Body " + i, "", true, false, 6000);
+            cache.put(inserted[i], new TranscriptCellCache.Rendered(null, "Body " + i, "Body " + i, ""));
         }
-        assertEquals(4, cache.size());
-        assertTrue(cache.evictions() >= 2L);
+        assertNull(cache.get(kDay));
+        assertNull(cache.get(inserted[0]));
+        assertNull(cache.get(inserted[1]));
+        assertNotNull(cache.get(inserted[5]));
 
-        cache.onTrimMemory();
-        assertEquals(0, cache.size());
+        cache.clear();
+        assertNull(cache.get(inserted[5]));
     }
 
     @Test public void scrollControllerTriggersAutoPrefetchAndJumpPillWithoutReentrancy() {

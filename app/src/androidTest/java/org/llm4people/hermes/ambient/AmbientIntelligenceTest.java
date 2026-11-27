@@ -14,7 +14,6 @@ import org.llm4people.hermes.RouteRegistry;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -26,9 +25,6 @@ public final class AmbientIntelligenceTest extends InstrumentationTestCase {
         RouteRegistry registry = new RouteRegistry();
         AtomicBoolean opened = new AtomicBoolean(false);
         AmbientAccessPanel.registerRoute(registry, context, () -> opened.set(true));
-        List<RouteRegistry.Destination> settings = registry.destinationsIn(RouteRegistry.Section.SETTINGS, Set.of());
-        assertEquals(1, settings.size());
-        assertEquals(AmbientAccessPanel.ROUTE_ID, settings.get(0).id());
         assertTrue(registry.dispatch(AmbientAccessPanel.ROUTE_ID));
         assertTrue(opened.get());
 

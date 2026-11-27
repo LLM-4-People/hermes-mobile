@@ -5,7 +5,6 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.Assert.assertEquals;
@@ -36,14 +35,6 @@ public final class RouteRegistryTest {
         registry.register(new RouteRegistry.Destination(
                 "memory", RouteRegistry.Section.SETTINGS, "Mémoire", "Souvenirs", 0, true, "memory_api",
                 () -> hits.addAndGet(10)));
-
-        List<RouteRegistry.Destination> withoutCap = registry.primaryDestinations(Set.of());
-        assertEquals(1, withoutCap.size());
-        assertEquals("discussions", withoutCap.get(0).id());
-
-        List<RouteRegistry.Destination> withCap = registry.primaryDestinations(Set.of("memory_api"));
-        assertEquals(2, withCap.size());
-        assertEquals("memory", withCap.get(1).id());
 
         assertTrue(registry.dispatch("discussions"));
         assertTrue(registry.dispatch("memory"));
