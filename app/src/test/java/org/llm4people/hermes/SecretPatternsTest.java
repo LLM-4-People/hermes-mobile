@@ -6,7 +6,6 @@ import org.junit.Test;
 import org.llm4people.hermes.ambient.NotificationPrivacyGuard;
 import org.llm4people.hermes.customization.AppCustomization;
 import org.llm4people.hermes.os.HermesWidgetSpec;
-import org.llm4people.hermes.presence.AppPresenceTracker;
 import org.llm4people.hermes.presence.ContinuousLocationTracker;
 import org.llm4people.hermes.templates.WorkflowTemplate;
 
@@ -99,15 +98,9 @@ public final class SecretPatternsTest {
     }
 
     @Test
-    public void presenceTrackerAndTemplatesRejectObfuscatedSecrets() {
-        AppPresenceTracker tracker = new AppPresenceTracker();
-        long epoch = tracker.bindProfile("alex", 1L);
-        tracker.updateDraft(epoch, "sk-\u200B1234567890abcdef");
-        String wire = tracker.toWireContextJson(
-                new org.llm4people.hermes.presence.PresencePolicy(
-                        true, false, true, false, false, false, false, 45, 3),
-                null, 1000L);
-        assertFalse("Draft preview must not leak obfuscated secret", wire != null && wire.contains("1234567890abcdef"));
+    public void secretPatternsAndTemplatesRejectObfuscatedSecrets() {
+        assertTrue("SecretPatterns must catch zero-width obfuscated secret",
+                SecretPatterns.containsCredential("sk-\u200B1234567890abcdef"));
 
         try {
             new WorkflowTemplate("tpl_sec", "Safe title", "", "Use sk-\u200B1234567890abcdef", false);

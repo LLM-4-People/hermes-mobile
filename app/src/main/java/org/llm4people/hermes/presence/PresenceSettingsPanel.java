@@ -94,7 +94,6 @@ public final class PresenceSettingsPanel {
     private Button pauseLocationButton;
     private Button undoButton;
     private Switch screenSwitch;
-    private Switch readSwitch;
     private Switch locationSwitch;
     private Switch preciseSwitch;
     private TextView preciseSummary;
@@ -200,12 +199,6 @@ public final class PresenceSettingsPanel {
                 checked -> applyPolicy(policy.withAppPresence(checked), context.getString(R.string.presence_feedback_saved)),
                 null);
 
-        readSwitch = addToggle(togglesCard, true, "presence:toggle_read",
-                context.getString(R.string.presence_toggle_read_title),
-                context.getString(R.string.presence_toggle_read_summary),
-                checked -> applyPolicy(policy.withReadWithoutReply(checked), context.getString(R.string.presence_feedback_saved)),
-                null);
-
         locationSwitch = addToggle(togglesCard, true, "presence:toggle_location",
                 context.getString(R.string.presence_toggle_location_title),
                 context.getString(R.string.presence_toggle_location_summary),
@@ -251,7 +244,6 @@ public final class PresenceSettingsPanel {
         binding = true;
         try {
             if (screenSwitch != null) screenSwitch.setChecked(policy.shareAppPresence);
-            if (readSwitch != null) readSwitch.setChecked(policy.shareReadWithoutReply);
             if (locationSwitch != null) locationSwitch.setChecked(policy.continuousLocationEnabled);
             if (preciseSwitch != null) {
                 preciseSwitch.setChecked(policy.preciseLocation);
@@ -573,7 +565,6 @@ public final class PresenceSettingsPanel {
         if (statusBanner == null) return;
         List<String> tags = new ArrayList<>();
         if (policy.shareAppPresence) tags.add(context.getString(R.string.presence_status_tag_screen));
-        if (policy.shareReadWithoutReply) tags.add(context.getString(R.string.presence_status_tag_read));
         ContinuousLocationTracker.Indicator locInd = ContinuousLocationTracker.indicatorFor(policy);
         switch (locInd) {
             case ACTIVE_COARSE -> tags.add(context.getString(R.string.presence_status_tag_location_coarse));

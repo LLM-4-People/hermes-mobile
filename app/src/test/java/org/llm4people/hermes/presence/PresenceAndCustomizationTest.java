@@ -34,48 +34,36 @@ public final class PresenceAndCustomizationTest {
     public void presencePolicyDefaultsFailClosedAndRejectsCorruptRecords() {
         PresencePolicy def = PresencePolicy.defaults();
         assertFalse(def.shareAppPresence);
-        assertFalse(def.shareReadWithoutReply);
-        assertFalse(def.shareDraftPreview);
         assertFalse(def.continuousLocationEnabled);
         assertFalse(def.preciseLocation);
         assertFalse(def.locationPaused);
         assertFalse(def.proactiveNudgesEnabled);
         assertFalse(def.allowsLiveLocation());
         assertFalse(def.anySharingEnabled());
-        assertEquals(PresencePolicy.DEFAULT_READ_GRACE_SEC, def.readWithoutReplyGraceSec);
         assertEquals(PresencePolicy.DEFAULT_MAX_NUDGES_PER_HOUR, def.maxNudgesPerHour);
 
         // Dependent flags fail closed when parent flag is OFF.
-        PresencePolicy dep = def.withDraftPreview(true).withPreciseLocation(true).withLocationPaused(true);
-        assertFalse(dep.shareDraftPreview);
+        PresencePolicy dep = def.withPreciseLocation(true).withLocationPaused(true);
         assertFalse(dep.preciseLocation);
         assertFalse(dep.locationPaused);
 
         // Encode/decode round-trip preserves opt-ins and clamps bounds.
-        PresencePolicy optedIn = def.withAppPresence(true)
-                .withReadWithoutReply(true)
-                .withContinuousLocation(true)
-                .withPreciseLocation(true)
-                .withProactiveNudges(true)
-                .withReadGraceSec(1)     // clamped to 5
-                .withMaxNudgesPerHour(99); // clamped to 10
-        assertEquals(PresencePolicy.MIN_READ_GRACE_SEC, optedIn.readWithoutReplyGraceSec);
+        PresencePolicy optedIn = new PresencePolicy(true, true, true, false, true, 99);
         assertEquals(PresencePolicy.MAX_MAX_NUDGES_PER_HOUR, optedIn.maxNudgesPerHour);
         assertEquals(optedIn, PresencePolicy.decode(optedIn.encode()));
 
-        // Corrupt records fail closed to all-OFF defaults.
-        assertEquals(def, PresencePolicy.decode("v2|1|1|1|1|1|0|1|30|3"));
+        // Corrupt or legacy records fail closed to all-OFF defaults.
+        assertEquals(def, PresencePolicy.decode("v1|1|1|1|1|1|0|1|30|3"));
         assertEquals(def, PresencePolicy.decode("corrupt-payload"));
-        assertEquals(def, PresencePolicy.decode("v1|1|2|0|0|0|0|0|30|3"));
+        assertEquals(def, PresencePolicy.decode("v2|1|2|0|0|0|3"));
     }
 
     @Test
-    public void appPresenceTrackerEnforcesEpochFencingDraftPrivacyAndReadWithoutReply() {
+    public void appPresenceTrackerEnforcesEpochFencingAndLockWipe() {
         AppPresenceTracker tracker = new AppPresenceTracker();
         long epoch1 = tracker.bindProfile("profile-a", 10L);
         assertTrue(tracker.updateScreen(epoch1, "thread", "sess-1"));
         assertTrue(tracker.updateActiveRunCount(epoch1, 2));
-        assertTrue(tracker.updateDraft(epoch1, "Mon brouillon privé"));
 
         // Stale epoch is ignored cleanly.
         assertFalse(tracker.updateScreen(epoch1 - 1, "atelier", "sess-other"));
@@ -84,53 +72,19 @@ public final class PresenceAndCustomizationTest {
         long t0 = 1_000_000L;
         assertNull(tracker.toWireContextJson(PresencePolicy.defaults(), null, t0));
 
-        // With app presence ON (draft preview OFF), draft_chars is sent, draft text is NEVER leaked!
+        // With app presence ON, screen/session/run count are emitted without draft or read_without_reply fields.
         PresencePolicy screenOnly = PresencePolicy.defaults().withAppPresence(true);
         String json = tracker.toWireContextJson(screenOnly, null, t0);
         assertNotNull(json);
         assertTrue(json.contains("\"current_screen\":\"thread\""));
+        assertTrue(json.contains("\"active_session_id\":\"sess-1\""));
         assertTrue(json.contains("\"active_run_count\":2"));
-        assertTrue(json.contains("\"draft_chars\":19"));
-        assertFalse("Draft text must never leak unless explicitly opted in", json.contains("brouillon"));
-
-        // Secret-like draft text is scrubbed even when draft preview is explicitly opted in.
-        tracker.updateDraft(epoch1, "Bearer sk-supersecret1234567890");
-        String withSecret = tracker.toWireContextJson(screenOnly.withDraftPreview(true), null, t0);
-        assertFalse(withSecret.contains("sk-supersecret"));
-
-        // Read-without-reply lifecycle: delivered -> read -> grace window -> reply clears immediately.
-        PresencePolicy rwrPolicy = PresencePolicy.defaults()
-                .withReadWithoutReply(true)
-                .withReadGraceSec(30);
-        tracker.recordAssistantMessageDelivered(epoch1, "sess-1", "msg-42");
-        tracker.markAssistantMessageRead(epoch1, "sess-1", "msg-42", t0);
-
-        // Before grace window (20s < 30s): not yet flagged.
-        assertFalse(tracker.evaluateReadWithoutReply(rwrPolicy, t0 + 20_000L).inAppUnreadReply());
-
-        // After grace window (35s >= 30s): flagged!
-        AppPresenceTracker.ReadWithoutReplyState flagged = tracker.evaluateReadWithoutReply(rwrPolicy, t0 + 35_000L);
-        assertTrue(flagged.inAppUnreadReply());
-        assertEquals("sess-1", flagged.sessionId());
-        assertEquals("msg-42", flagged.messageId());
-        assertEquals(35L, flagged.readAgeSec());
-
-        // Opted-in notification read/dismissed without reply also surfaces after grace and clears on reply.
-        tracker.recordNotificationReadWithoutReply(epoch1, "notif-1", "Messages", t0);
-        AppPresenceTracker.ReadWithoutReplyState withNotif = tracker.evaluateReadWithoutReply(rwrPolicy, t0 + 40_000L);
-        assertEquals(1, withNotif.dismissedNotifications().size());
-        assertEquals("Messages", withNotif.dismissedNotifications().get(0).appLabel());
-
-        tracker.recordNotificationReplied(epoch1, "notif-1");
-        assertTrue(tracker.evaluateReadWithoutReply(rwrPolicy, t0 + 45_000L).dismissedNotifications().isEmpty());
-
-        // User reply immediately clears in-app read-without-reply!
-        tracker.recordUserReplySent(epoch1, "sess-1");
-        assertFalse(tracker.evaluateReadWithoutReply(rwrPolicy, t0 + 50_000L).inAppUnreadReply());
+        assertFalse(json.contains("draft_"));
+        assertFalse(json.contains("read_without_reply"));
 
         // Lock wipes all state and bumps epoch so old callbacks cannot write back.
         tracker.clearOnLock();
-        assertNull(tracker.toWireContextJson(rwrPolicy.withAppPresence(true), null, t0 + 60_000L));
+        assertNull(tracker.toWireContextJson(screenOnly, null, t0 + 60_000L));
         assertFalse(tracker.updateScreen(epoch1, "atelier", "sess-1"));
     }
 
@@ -402,7 +356,7 @@ public final class PresenceAndCustomizationTest {
         assertEquals(DeepAndroidActions.Status.DENIED_NOT_OPTED_IN,
                 actions.execute("android_proactive_nudge", nudgeParams, off, quietNight, false, now, 14 * 60).status());
 
-        PresencePolicy nudgesOn = off.withProactiveNudges(true).withMaxNudgesPerHour(2);
+        PresencePolicy nudgesOn = new PresencePolicy(false, false, false, false, true, 2);
         // Quiet hours (23:00) -> suppressed.
         assertEquals(DeepAndroidActions.Status.SUPPRESSED_QUIET_HOURS,
                 actions.execute("android_proactive_nudge", nudgeParams, nudgesOn, quietNight, false, now, 23 * 60).status());
