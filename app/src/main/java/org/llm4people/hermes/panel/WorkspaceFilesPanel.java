@@ -36,6 +36,7 @@ final class WorkspaceFilesPanel {
     private final Runnable parent;
     private int activeTab = TAB_TREE;
     private String currentPath = "";
+    private int loadSeq;
     private LinearLayout tabsRow;
     private LinearLayout body;
 
@@ -66,9 +67,21 @@ final class WorkspaceFilesPanel {
     private void renderTabs() {
         tabsRow.removeAllViews();
         tabsRow.addView(BrainUi.chip(panel.activity, panel.t(R.string.brain_files_tab_tree),
-                activeTab == TAB_TREE, () -> { activeTab = TAB_TREE; renderTabs(); loadActiveTab(); }));
+                activeTab == TAB_TREE, () -> {
+                    if (activeTab == TAB_TREE) return;
+                    activeTab = TAB_TREE;
+                    loadSeq++;
+                    renderTabs();
+                    loadActiveTab();
+                }));
         tabsRow.addView(BrainUi.chip(panel.activity, panel.t(R.string.brain_files_tab_diff),
-                activeTab == TAB_DIFF, () -> { activeTab = TAB_DIFF; renderTabs(); loadActiveTab(); }));
+                activeTab == TAB_DIFF, () -> {
+                    if (activeTab == TAB_DIFF) return;
+                    activeTab = TAB_DIFF;
+                    loadSeq++;
+                    renderTabs();
+                    loadActiveTab();
+                }));
     }
 
     private void loadActiveTab() {
@@ -86,7 +99,7 @@ final class WorkspaceFilesPanel {
             BrainUi.liveNote(panel, body, panel.t(R.string.brain_files_restricted));
             return;
         }
-        currentPath = safeDir;
+        int seq = ++loadSeq;
         body.removeAllViews();
         panel.request(body, () -> {
             BrainCapabilities caps = BrainJson.parseCapabilities(panel.api.capabilities());
@@ -97,16 +110,21 @@ final class WorkspaceFilesPanel {
                     + (safeDir.isEmpty() ? "" : "&path=" + HermesApi.queryValue(safeDir));
             return BrainJson.parseWorkspaceTree(panel.api.get(url));
         }, tree -> {
+            if (seq != loadSeq) return;
             if (tree == null) {
                 Diagnostics.event("workspace", "capability_absent");
                 BrainUi.showUnavailable(panel, body, R.string.brain_files_unavailable, () -> loadTree(safeDir));
                 return;
             }
-            renderTree(tree);
-        }, error -> handleWorkspaceError(error, () -> loadTree(safeDir)));
+            renderTree(tree, safeDir);
+        }, error -> {
+            if (seq != loadSeq) return;
+            handleWorkspaceError(error, () -> loadTree(safeDir));
+        });
     }
 
-    private void renderTree(BrainJson.WorkspaceTree tree) {
+    private void renderTree(BrainJson.WorkspaceTree tree, String safeDir) {
+        currentPath = safeDir;
         body.removeAllViews();
         String location = currentPath.isEmpty()
                 ? (tree.rootLabel().isEmpty() ? panel.t(R.string.brain_files_root) : tree.rootLabel())
@@ -185,8 +203,10 @@ final class WorkspaceFilesPanel {
         String url = "/api/sessions/" + HermesApi.segment(sessionId)
                 + "/workspace/file?path=" + HermesApi.queryValue(safePath)
                 + "&start_line=1&end_line=" + endLine;
+        int seq = ++loadSeq;
         panel.request(body, () -> BrainJson.parseWorkspaceFile(panel.api.get(url)),
                 file -> {
+                    if (seq != loadSeq) return;
                     Diagnostics.event("workspace", "file_opened");
                     String title = file.truncated()
                             ? file.path() + " (" + panel.t(R.string.brain_files_truncated) + ")"
@@ -200,6 +220,7 @@ final class WorkspaceFilesPanel {
                     }
                     panel.present(reader.create());
                 }, error -> {
+                    if (seq != loadSeq) return;
                     if (error instanceof HermesApi.HttpError http) {
                         Diagnostics.warning("workspace", "file_http_error", "http_" + http.status);
                         if (http.status == 415) {
@@ -216,6 +237,7 @@ final class WorkspaceFilesPanel {
     }
 
     private void loadDiff() {
+        int seq = ++loadSeq;
         body.removeAllViews();
         panel.request(body, () -> {
             BrainCapabilities caps = BrainJson.parseCapabilities(panel.api.capabilities());
@@ -223,13 +245,17 @@ final class WorkspaceFilesPanel {
             String url = "/api/sessions/" + HermesApi.segment(sessionId) + "/workspace/diff";
             return BrainJson.parseWorkspaceDiff(panel.api.get(url));
         }, diff -> {
+            if (seq != loadSeq) return;
             if (diff == null) {
                 Diagnostics.event("workspace", "capability_absent");
                 BrainUi.showUnavailable(panel, body, R.string.brain_files_unavailable, this::loadDiff);
                 return;
             }
             renderDiff(diff);
-        }, error -> handleWorkspaceError(error, this::loadDiff));
+        }, error -> {
+            if (seq != loadSeq) return;
+            handleWorkspaceError(error, this::loadDiff);
+        });
     }
 
     private void renderDiff(BrainJson.WorkspaceDiff diff) {
@@ -351,8 +377,10 @@ final class WorkspaceFilesPanel {
         }
         String url = "/api/sessions/" + HermesApi.segment(sessionId)
                 + "/workspace/diff?path=" + HermesApi.queryValue(safePath);
+        int seq = ++loadSeq;
         panel.request(body, () -> BrainJson.parseWorkspaceDiff(panel.api.get(url)),
                 diff -> {
+                    if (seq != loadSeq) return;
                     String patch = diff.diffText().isEmpty() ? panel.t(R.string.brain_files_no_changes) : diff.diffText();
                     AlertDialog.Builder reader = CodeReader.dialog(panel.activity, safePath, "diff", patch);
                     if (stageDraft != null && activeThread.getAsBoolean()) {
@@ -362,7 +390,10 @@ final class WorkspaceFilesPanel {
                         });
                     }
                     panel.present(reader.create());
-                }, error -> handleWorkspaceError(error, () -> openFileDiff(safePath)));
+                }, error -> {
+                    if (seq != loadSeq) return;
+                    handleWorkspaceError(error, () -> openFileDiff(safePath));
+                });
     }
 
     private void handleWorkspaceError(Exception error, Runnable retry) {

@@ -417,6 +417,9 @@ final class NotesPanel {
         errorView.setVisibility(View.GONE);
 
         ScrollView scroll = new ScrollView(panel.activity);
+        LinearLayout progressSlot = Ui.column(panel.activity);
+        form.addView(progressSlot);
+
         scroll.setFillViewport(true);
         scroll.addView(form);
 
@@ -427,7 +430,9 @@ final class NotesPanel {
                 .setPositiveButton(R.string.panel_save, null)
                 .create();
         panel.present(dialog);
-        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+        Button saveBtn = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+        saveBtn.setOnClickListener(v -> {
+            if (!saveBtn.isEnabled()) return;
             String validTitle;
             String validBody;
             try {
@@ -438,9 +443,10 @@ final class NotesPanel {
                 errorView.setVisibility(View.VISIBLE);
                 return;
             }
+            errorView.setVisibility(View.GONE);
+            saveBtn.setEnabled(false);
             List<String> tags = NotesModel.parseTagsInput(tagsField.getText().toString());
             boolean pinned = pinBox.isChecked();
-            dialog.dismiss();
             JSONObject payload = new JSONObject();
             PanelData.put(payload, "title", validTitle);
             PanelData.put(payload, "content", validBody);
@@ -449,16 +455,23 @@ final class NotesPanel {
             if (existing != null && !existing.isOwner() && !existing.ownerProfile().isEmpty()) {
                 PanelData.put(payload, "owner_profile", existing.ownerProfile());
             }
-            panel.request(body, () -> existing == null
+            if (!panel.request(progressSlot, () -> existing == null
                     ? panel.api.post("/api/notes", payload)
                     : panel.api.patch("/api/notes/" + HermesApi.segment(existing.id()), payload),
                     saved -> {
+                        if (dialog.isShowing()) dialog.dismiss();
                         Diagnostics.event("notes", existing == null ? "created" : "updated");
                         load();
                     }, error -> {
                         Diagnostics.warning("notes", "save_failed", error);
-                        panel.failure(body, error, this::load);
-                    });
+                        if (dialog.isShowing()) {
+                            saveBtn.setEnabled(true);
+                            errorView.setText(panel.describeError(error));
+                            errorView.setVisibility(View.VISIBLE);
+                        }
+                    })) {
+                saveBtn.setEnabled(true);
+            }
         });
     }
 

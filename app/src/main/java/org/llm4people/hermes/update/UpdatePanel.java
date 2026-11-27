@@ -81,13 +81,9 @@ public final class UpdatePanel {
     private boolean closed;
 
     public UpdatePanel(Activity activity) {
-        this(activity, HermesConfig.load(activity), null);
-    }
-
-    UpdatePanel(Activity activity, HermesConfig config, GithubReleaseClient client) {
         this.activity = Objects.requireNonNull(activity, "activity");
-        this.config = Objects.requireNonNull(config, "config");
-        this.client = client != null ? client : new GithubReleaseClient(this.config);
+        this.config = Objects.requireNonNull(HermesConfig.load(activity), "config");
+        this.client = new GithubReleaseClient(this.config);
         this.coordinator = new UpdateCheckCoordinator(activity);
     }
 

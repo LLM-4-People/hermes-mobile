@@ -228,13 +228,14 @@ public final class SessionPanel implements AutoCloseable {
         request(box, call, success, error -> failure(box, error, retry));
     }
 
-    <T> void request(LinearLayout box, Callable<T> call, Consumer<T> success, Consumer<Exception> rejected) {
+    <T> boolean request(LinearLayout box, Callable<T> call, Consumer<T> success, Consumer<Exception> rejected) {
         ExecutorService pool = worker;
-        if (pool == null || pool.isShutdown()) return;
+        if (pool == null || pool.isShutdown()) return false;
         int page = generation;
         TextView progress = note(box, t(R.string.panel_loading));
         progress.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
         if (!submitWorker(pool, () -> {
+            if (page != generation) return;
             try {
                 T value = call.call();
                 activity.runOnUiThread(() -> {
@@ -252,7 +253,9 @@ public final class SessionPanel implements AutoCloseable {
             }
         })) {
             box.removeView(progress);
+            return false;
         }
+        return true;
     }
 
     /** Pure-JVM testable executor submission guard preventing post-teardown NPE/RejectedExecutionException. */
@@ -267,13 +270,16 @@ public final class SessionPanel implements AutoCloseable {
         }
     }
 
-    TextView failure(LinearLayout box, Exception error, Runnable retry) {
-        org.llm4people.hermes.Diagnostics.warning("panel", "operation_failed");
-        String message = error instanceof HermesApi.HttpError
+    String describeError(Exception error) {
+        return error instanceof HermesApi.HttpError
                 ? t(R.string.panel_http_error, ((HermesApi.HttpError) error).status)
                 : t(error instanceof IOException ? R.string.panel_network_error :
                     error instanceof JSONException ? R.string.panel_invalid : R.string.panel_storage_error);
-        TextView status = note(box, message);
+    }
+
+    TextView failure(LinearLayout box, Exception error, Runnable retry) {
+        org.llm4people.hermes.Diagnostics.warning("panel", "operation_failed");
+        TextView status = note(box, describeError(error));
         status.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
         if (retry != null) action(box, R.string.panel_retry, retry);
         return status;

@@ -179,7 +179,9 @@ public final class ShareWithUserSheet {
             LinearLayout feedback = Ui.column(panel.activity);
             body.addView(feedback);
 
-            panel.action(body, R.string.brain_share_send, () -> {
+            Button[] sendBtn = new Button[1];
+            sendBtn[0] = panel.action(body, R.string.brain_share_send, () -> {
+                if (!sendBtn[0].isEnabled()) return;
                 feedback.removeAllViews();
                 String targetProfile;
                 try {
@@ -189,18 +191,25 @@ public final class ShareWithUserSheet {
                     err.setTextColor(panel.activity.getColor(R.color.danger));
                     return;
                 }
+                sendBtn[0].setEnabled(false);
                 JSONObject payload = new JSONObject();
                 PanelData.put(payload, "resource_kind", kind);
                 PanelData.put(payload, "resource_id", resourceId);
                 PanelData.put(payload, "target_profile", targetProfile);
                 PanelData.put(payload, "permission", selectedPermission);
                 PanelData.put(payload, "label", label);
-                panel.request(feedback, () -> panel.api.post("/api/shares", payload),
+                if (!panel.request(feedback, () -> panel.api.post("/api/shares", payload),
                         ok -> {
+                            sendBtn[0].setEnabled(true);
                             Diagnostics.event("sharing", "grant_created");
                             profileField.setText("");
                             load();
-                        }, error -> handleErrorInto(feedback, error));
+                        }, error -> {
+                            sendBtn[0].setEnabled(true);
+                            handleErrorInto(feedback, error);
+                        })) {
+                    sendBtn[0].setEnabled(true);
+                }
             });
 
             body.addView(Ui.divider(panel.activity));
@@ -220,7 +229,7 @@ public final class ShareWithUserSheet {
                 card.addView(top);
 
                 Button revoke = Ui.button(panel.activity, panel.t(R.string.brain_share_revoke),
-                        v -> revokeShare(grant.shareId()));
+                        v -> revokeShare(grant.shareId(), (Button) v));
                 revoke.setTextColor(Ui.dangerInk(panel.activity));
                 card.addView(revoke);
                 body.addView(card);
@@ -242,13 +251,21 @@ public final class ShareWithUserSheet {
                     });
         }
 
-        private void revokeShare(String shareId) {
+        private void revokeShare(String shareId, Button trigger) {
+            if (trigger != null && !trigger.isEnabled()) return;
             String safeId = UniversalShareModel.validateShareId(shareId);
-            panel.request(body, () -> panel.api.deleteJson("/api/shares/" + HermesApi.segment(safeId)),
+            if (trigger != null) trigger.setEnabled(false);
+            if (!panel.request(body, () -> panel.api.deleteJson("/api/shares/" + HermesApi.segment(safeId)),
                     ok -> {
+                        if (trigger != null) trigger.setEnabled(true);
                         Diagnostics.event("sharing", "grant_revoked");
                         load();
-                    }, error -> handleError(error, this::load));
+                    }, error -> {
+                        if (trigger != null) trigger.setEnabled(true);
+                        handleError(error, this::load);
+                    })) {
+                if (trigger != null) trigger.setEnabled(true);
+            }
         }
 
         private void handleError(Exception error, Runnable retry) {
@@ -280,6 +297,7 @@ public final class ShareWithUserSheet {
         private final Consumer<String> stageDraft;
         private final Runnable parent;
         private String kindFilter = "";
+        private int loadSeq;
         private LinearLayout filterRow;
         private LinearLayout body;
 
@@ -314,6 +332,7 @@ public final class ShareWithUserSheet {
 
         private View filterChip(String kind, String label) {
             return BrainUi.chip(panel.activity, label, kind.equals(kindFilter), () -> {
+                if (kind.equals(kindFilter)) return;
                 kindFilter = kind;
                 renderFilters();
                 load();
@@ -321,14 +340,17 @@ public final class ShareWithUserSheet {
         }
 
         private void load() {
+            final String filter = kindFilter;
+            int seq = ++loadSeq;
             body.removeAllViews();
             panel.request(body, () -> {
                 BrainCapabilities caps = BrainJson.parseCapabilities(panel.api.capabilities());
                 if (!caps.universalSharing()) return null;
-                String url = "/api/shares/incoming" + (kindFilter.isEmpty() ? ""
-                        : "?resource_kind=" + HermesApi.queryValue(kindFilter));
+                String url = "/api/shares/incoming" + (filter.isEmpty() ? ""
+                        : "?resource_kind=" + HermesApi.queryValue(filter));
                 return BrainJson.parseShareList(panel.api.get(url));
             }, grants -> {
+                if (seq != loadSeq) return;
                 if (grants == null) {
                     Diagnostics.event("sharing", "capability_absent");
                     BrainUi.showUnavailable(panel, body, R.string.brain_share_unavailable, this::load);
@@ -336,6 +358,7 @@ public final class ShareWithUserSheet {
                 }
                 render(grants);
             }, error -> {
+                if (seq != loadSeq) return;
                 if (error instanceof HermesApi.HttpError http) {
                     Diagnostics.warning("sharing", "incoming_http_error", "http_" + http.status);
                     BrainUi.liveNote(panel, body,
@@ -379,7 +402,7 @@ public final class ShareWithUserSheet {
                 openLp.setMarginEnd(Ui.dp(panel.activity, 8));
                 actions.addView(openBtn, openLp);
                 Button dismiss = Ui.button(panel.activity, panel.t(R.string.brain_share_dismiss),
-                        v -> dismissShare(grant.shareId()));
+                        v -> dismissShare(grant.shareId(), (Button) v));
                 dismiss.setTextColor(Ui.dangerInk(panel.activity));
                 actions.addView(dismiss);
                 card.addView(BrainUi.chipBar(panel.activity, actions));
@@ -415,13 +438,21 @@ public final class ShareWithUserSheet {
                     });
         }
 
-        private void dismissShare(String shareId) {
+        private void dismissShare(String shareId, Button trigger) {
+            if (trigger != null && !trigger.isEnabled()) return;
             String safeId = UniversalShareModel.validateShareId(shareId);
-            panel.request(body, () -> panel.api.deleteJson("/api/shares/" + HermesApi.segment(safeId)),
+            if (trigger != null) trigger.setEnabled(false);
+            if (!panel.request(body, () -> panel.api.deleteJson("/api/shares/" + HermesApi.segment(safeId)),
                     ok -> {
+                        if (trigger != null) trigger.setEnabled(true);
                         Diagnostics.event("sharing", "incoming_dismissed");
                         load();
-                    }, error -> panel.failure(body, error, this::load));
+                    }, error -> {
+                        if (trigger != null) trigger.setEnabled(true);
+                        panel.failure(body, error, this::load);
+                    })) {
+                if (trigger != null) trigger.setEnabled(true);
+            }
         }
     }
 }

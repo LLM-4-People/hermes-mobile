@@ -755,15 +755,15 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         }
     }
 
+    private BooleanSupplier activeThreadCheck() {
+        ThreadWorkspace origin = threads;
+        String currentSession = origin == null ? null : origin.sessionId();
+        return () -> origin != null && threads == origin && currentSession != null
+                && currentSession.equals(origin.sessionId());
+    }
+
     private NotesTasksPanel.Callbacks notesTasksCallbacks(Account owner) {
         return new NotesTasksPanel.Callbacks() {
-            private BooleanSupplier activeThreadCheck() {
-                ThreadWorkspace origin = threads;
-                String currentSession = origin == null ? null : origin.sessionId();
-                return () -> origin != null && threads == origin && currentSession != null
-                        && currentSession.equals(origin.sessionId());
-            }
-
             @Override public void createNote() {
                 if (account == owner && panels != null) {
                     panels.showCreateNote("", "", activeThreadCheck(), MainActivity.this::stageDraft, null);
@@ -1351,13 +1351,6 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
 
     private BrainStudioRoutes.Handlers brainHandlers() {
         return new BrainStudioRoutes.Handlers() {
-            private BooleanSupplier activeThreadCheck() {
-                ThreadWorkspace origin = threads;
-                String currentSession = origin == null ? null : origin.sessionId();
-                return () -> origin != null && threads == origin && currentSession != null
-                        && currentSession.equals(origin.sessionId());
-            }
-
             private String activeRemoteSessionId() {
                 if (threads == null) return null;
                 String tip = threads.remoteSessionId();
@@ -1433,11 +1426,7 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
                     stageDraft(fallbackDraft);
                     return;
                 }
-                ThreadWorkspace origin = threads;
-                String currentSession = origin == null ? null : origin.sessionId();
-                BooleanSupplier activeCheck = () -> origin != null && threads == origin
-                        && currentSession != null && currentSession.equals(origin.sessionId());
-                panels.showCreateNote(title, body, activeCheck, MainActivity.this::stageDraft, null);
+                panels.showCreateNote(title, body, activeThreadCheck(), MainActivity.this::stageDraft, null);
             }
 
             @Override public void addToCalendar(String title, String description, String fallbackDraft) {

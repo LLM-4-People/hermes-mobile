@@ -350,7 +350,7 @@ public final class AdminConsoleSheet implements AutoCloseable {
 
         LinearLayout top = Ui.row(activity);
         top.setGravity(Gravity.CENTER_VERTICAL);
-        top.addView(ProfileHubSheet.avatarBadge(activity, profile.initials(), profile.isAdmin()));
+        top.addView(Ui.avatarBadge(activity, profile.initials(), 40, profile.isAdmin()));
 
         LinearLayout info = Ui.column(activity);
         TextView title = Ui.text(activity, profile.displayName() + " (@" + profile.slug() + ")", 15);
@@ -397,10 +397,11 @@ public final class AdminConsoleSheet implements AutoCloseable {
                 () -> pairProfileDevice(profile.slug()));
         addRowAction(actions, R.string.profile_hub_edit_action, true, false, false,
                 () -> showEditUserDialog(profile));
-        addRowAction(actions,
+        Button[] roleBtn = new Button[1];
+        roleBtn[0] = addRowAction(actions,
                 profile.isAdmin() ? R.string.admin_console_demote_action : R.string.admin_console_promote_action,
                 canChangeAdminOrDelete, false, false,
-                () -> toggleAdminRole(profile));
+                () -> toggleAdminRole(profile, roleBtn[0]));
         addRowAction(actions, R.string.profile_hub_rotate_key_action, true, false, false,
                 () -> confirmRotateKey(profile));
         addRowAction(actions, R.string.profile_hub_remove_action, canChangeAdminOrDelete, false, true,
@@ -421,7 +422,7 @@ public final class AdminConsoleSheet implements AutoCloseable {
         row.addView(badge, lp);
     }
 
-    private void addRowAction(
+    private Button addRowAction(
             LinearLayout row,
             int labelRes,
             boolean enabled,
@@ -438,6 +439,7 @@ public final class AdminConsoleSheet implements AutoCloseable {
                 LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         if (row.getChildCount() > 0) lp.setMarginStart(Ui.dp(activity, 8));
         row.addView(btn, lp);
+        return btn;
     }
 
     private void renderSettingsTab() {
@@ -575,7 +577,7 @@ public final class AdminConsoleSheet implements AutoCloseable {
             row.addView(metaCol, metaLp);
 
             Button revoke = Ui.outlinedButton(activity, activity.getString(R.string.profile_hub_qr_revoke_action),
-                    v -> revokeTicket(ticket.ticketId()));
+                    v -> revokeTicket(ticket.ticketId(), (Button) v));
             revoke.setTextColor(Ui.dangerInk(activity));
             row.addView(revoke);
             card.addView(row);
@@ -583,9 +585,10 @@ public final class AdminConsoleSheet implements AutoCloseable {
         }
     }
 
-    private void revokeTicket(String ticketId) {
-        if (closed || ticketId == null || ticketId.isEmpty()) return;
-        submitIo(() -> {
+    private void revokeTicket(String ticketId, Button trigger) {
+        if (closed || ticketId == null || ticketId.isEmpty() || (trigger != null && !trigger.isEnabled())) return;
+        if (trigger != null) trigger.setEnabled(false);
+        if (!submitIo(() -> {
             boolean ok = false;
             try {
                 api.revokePairing(ticketId);
@@ -596,6 +599,7 @@ public final class AdminConsoleSheet implements AutoCloseable {
             boolean done = ok;
             main.post(() -> {
                 if (closed || !canAct.getAsBoolean()) return;
+                if (trigger != null) trigger.setEnabled(true);
                 if (done) {
                     Toast.makeText(activity, R.string.profile_hub_qr_revoked, Toast.LENGTH_SHORT).show();
                     refreshAll();
@@ -603,7 +607,9 @@ public final class AdminConsoleSheet implements AutoCloseable {
                     Toast.makeText(activity, R.string.admin_settings_revoke_failed, Toast.LENGTH_LONG).show();
                 }
             });
-        });
+        })) {
+            if (trigger != null) trigger.setEnabled(true);
+        }
     }
 
     private void pairProfileDevice(String slug) {
@@ -617,13 +623,15 @@ public final class AdminConsoleSheet implements AutoCloseable {
                 });
     }
 
-    private void toggleAdminRole(OnboardingModels.RemoteProfile profile) {
+    private void toggleAdminRole(OnboardingModels.RemoteProfile profile, Button trigger) {
+        if (closed || (trigger != null && !trigger.isEnabled())) return;
         if (!ProfileHubSheet.canDemoteOrDeleteAdmin(profiles, profile)) {
             Toast.makeText(activity, R.string.admin_console_last_admin_guard, Toast.LENGTH_LONG).show();
             return;
         }
+        if (trigger != null) trigger.setEnabled(false);
         boolean nextAdmin = !profile.isAdmin();
-        submitIo(() -> {
+        if (!submitIo(() -> {
             boolean ok = false;
             try {
                 JSONObject patch = new JSONObject();
@@ -637,12 +645,15 @@ public final class AdminConsoleSheet implements AutoCloseable {
             boolean done = ok;
             main.post(() -> {
                 if (closed || !canAct.getAsBoolean()) return;
+                if (trigger != null) trigger.setEnabled(true);
                 Toast.makeText(activity,
                         done ? R.string.admin_console_role_updated : R.string.admin_console_role_failed,
                         Toast.LENGTH_SHORT).show();
                 if (done) refreshAll();
             });
-        });
+        })) {
+            if (trigger != null) trigger.setEnabled(true);
+        }
     }
 
     private void showEditUserDialog(OnboardingModels.RemoteProfile profile) {
