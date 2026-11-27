@@ -68,12 +68,20 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ runner.temp }}/tools
-          key: actionlint-${{ runner.os }}-v1.7.12
+          key: actionlint-${{ runner.os }}-v1.7.12-stripped
       - name: Install actionlint on cache miss
         if: steps.actionlint-cache.outputs.cache-hit != 'true'
         run: |
           mkdir -p "$RUNNER_TEMP/tools"
-          GOBIN="$RUNNER_TEMP/tools" go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+          go_tmp="$(mktemp -d "$RUNNER_TEMP/go-actionlint.XXXXXX")"
+          trap 'chmod -R u+w "$go_tmp" 2>/dev/null || true; rm -rf "$go_tmp"' EXIT
+          mkdir -p "$go_tmp/build" "$go_tmp/mod" "$go_tmp/tmp"
+          CGO_ENABLED=0 \
+            GOBIN="$RUNNER_TEMP/tools" \
+            GOCACHE="$go_tmp/build" \
+            GOMODCACHE="$go_tmp/mod" \
+            GOTMPDIR="$go_tmp/tmp" \
+            go install -trimpath -ldflags="-s -w" github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
       - name: Run docs check, writing quality, and CI unit tests in parallel
         run: python3 -B scripts/fast_check.py --ci-only
       - name: Check workflows and shell
