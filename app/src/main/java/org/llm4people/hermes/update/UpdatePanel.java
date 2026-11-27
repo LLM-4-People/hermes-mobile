@@ -517,15 +517,16 @@ public final class UpdatePanel {
 
     private void showFeedback(String message, boolean error, boolean announce) {
         String next = message == null ? "" : message;
-        int desiredLiveRegion = announce
-                ? View.ACCESSIBILITY_LIVE_REGION_POLITE
-                : View.ACCESSIBILITY_LIVE_REGION_NONE;
-        if (feedback.getAccessibilityLiveRegion() != desiredLiveRegion) {
-            feedback.setAccessibilityLiveRegion(desiredLiveRegion);
-        }
         int desiredColor = activity.getColor(error ? R.color.danger : R.color.muted);
         if (feedback.getCurrentTextColor() != desiredColor) {
             feedback.setTextColor(desiredColor);
+        }
+        if (announce) {
+            Ui.announceLiveStatus(feedback, next);
+            return;
+        }
+        if (feedback.getAccessibilityLiveRegion() != View.ACCESSIBILITY_LIVE_REGION_NONE) {
+            feedback.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_NONE);
         }
         boolean wasVisible = feedback.getVisibility() == View.VISIBLE;
         if (!next.contentEquals(feedback.getText())) {

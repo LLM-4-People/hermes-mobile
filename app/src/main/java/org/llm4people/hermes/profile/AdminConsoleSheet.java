@@ -70,6 +70,7 @@ public final class AdminConsoleSheet implements AutoCloseable {
     private PairingShareSheet shareSheet;
     private Tab activeTab = Tab.USERS;
     private UsersLoadState usersLoadState = UsersLoadState.LOADING;
+    private UsersLoadState settingsLoadState = UsersLoadState.LOADING;
     private Button usersTabBtn;
     private Button settingsTabBtn;
     private TextView summaryLine;
@@ -92,10 +93,15 @@ public final class AdminConsoleSheet implements AutoCloseable {
                 HermesApi.Limits.from(HermesConfig.load(activity)));
     }
 
-    /** Pure-Java state transition for the Users tab load lifecycle (host-JVM testable). */
+    /** Pure-Java state transition for tab load lifecycles (host-JVM testable). */
     public static UsersLoadState resolveUsersLoadState(boolean fetchedSuccessfully, boolean hasCachedProfiles) {
         if (fetchedSuccessfully) return UsersLoadState.LOADED;
         return hasCachedProfiles ? UsersLoadState.LOADED : UsersLoadState.ERROR;
+    }
+
+    /** Fail-closed guard: Settings form & Save CTA are rendered strictly when server settings have loaded. */
+    static boolean canRenderSettingsForm(OnboardingModels.AdminSettings loaded) {
+        return loaded != null;
     }
 
     /**
@@ -228,6 +234,10 @@ public final class AdminConsoleSheet implements AutoCloseable {
             usersLoadState = UsersLoadState.LOADING;
             if (activeTab == Tab.USERS) renderActiveTab();
         }
+        if (settings == null) {
+            settingsLoadState = UsersLoadState.LOADING;
+            if (activeTab == Tab.SETTINGS) renderActiveTab();
+        }
         submitIo(() -> {
             List<OnboardingModels.RemoteProfile> loadedProfiles = null;
             OnboardingModels.AdminSettings loadedSettings = null;
@@ -271,6 +281,7 @@ public final class AdminConsoleSheet implements AutoCloseable {
                 if (finalProfiles != null) profiles = finalProfiles;
                 usersLoadState = resolveUsersLoadState(finalProfiles != null, !profiles.isEmpty());
                 if (finalSettings != null) settings = finalSettings;
+                settingsLoadState = resolveUsersLoadState(finalSettings != null, settings != null);
                 if (finalTickets != null) activeTickets = finalTickets;
                 updateSummary();
                 renderActiveTab();
@@ -443,9 +454,24 @@ public final class AdminConsoleSheet implements AutoCloseable {
     }
 
     private void renderSettingsTab() {
-        OnboardingModels.AdminSettings cur = settings != null
-                ? settings
-                : new OnboardingModels.AdminSettings("auto", "", 32, 12, 300, true, 0, 0, 0, 0, 0);
+        if (!canRenderSettingsForm(settings)) {
+            if (settingsLoadState == UsersLoadState.LOADING) {
+                TextView loading = Ui.text(activity, activity.getString(R.string.profile_hub_loading), 13);
+                loading.setTextColor(activity.getColor(R.color.muted));
+                contentSlot.addView(loading, topMargin(12));
+                return;
+            }
+            LinearLayout errorCard = Ui.card(activity);
+            TextView errText = Ui.text(activity, activity.getString(R.string.admin_console_users_load_failed), 14);
+            errText.setTextColor(activity.getColor(R.color.danger));
+            errorCard.addView(errText);
+            Button retryBtn = Ui.outlinedButton(activity, activity.getString(R.string.instrument_retry),
+                    v -> refreshAll());
+            errorCard.addView(retryBtn, topMargin(10));
+            contentSlot.addView(errorCard, topMargin(12));
+            return;
+        }
+        OnboardingModels.AdminSettings cur = settings;
 
         String[] langHolder = {cur.defaultLanguage()};
         contentSlot.addView(label(R.string.admin_settings_language_label));

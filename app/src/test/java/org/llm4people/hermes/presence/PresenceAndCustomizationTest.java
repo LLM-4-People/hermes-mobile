@@ -159,15 +159,17 @@ public final class PresenceAndCustomizationTest {
             assertTrue("Preset " + preset + " light contrast < 4.5",
                     AppCustomization.meetsWcagAa(lightRgb, AppCustomization.LIGHT_SURFACE_RGB));
             assertTrue("Preset " + preset + " dark contrast < 4.5",
-                    AppCustomization.meetsWcagAa(darkRgb, AppCustomization.DARK_SURFACE_RGB));
+                    AppCustomization.meetsWcagAa(darkRgb, org.llm4people.hermes.artifact.ThemePalette.NIGHT_SURFACE & 0xFFFFFF));
         }
 
         // High-contrast custom hex accepted; low-contrast / yellow / malformed rejected.
-        assertTrue(AppCustomization.isAccessibleAccentHex("#1B4D3E"));
-        assertFalse(AppCustomization.isAccessibleAccentHex("#FFFF00"));
-        assertFalse(AppCustomization.isAccessibleAccentHex("#CCCCCC"));
-        assertFalse(AppCustomization.isAccessibleAccentHex("#888888"));
-        assertFalse(AppCustomization.isAccessibleAccentHex("not-a-color"));
+        assertEquals("#1B4D3E", AppCustomization.validateCustomAccentHex("#1B4D3E"));
+        for (String badHex : new String[]{"#FFFF00", "#CCCCCC", "#888888", "not-a-color"}) {
+            try {
+                AppCustomization.validateCustomAccentHex(badHex);
+                fail("Expected rejection for " + badHex);
+            } catch (IllegalArgumentException expected) {}
+        }
 
         // Dark lift guarantees WCAG AA on dark surface even for a deep custom hex.
         AppCustomization custom = AppCustomization.defaults()
@@ -179,7 +181,7 @@ public final class PresenceAndCustomizationTest {
                 .withComposerShortcuts(List.of(
                         new AppCustomization.ComposerShortcut("plan", "Plan du jour", "Aide-moi à planifier ma journée")));
         assertTrue(AppCustomization.meetsWcagAa(
-                custom.darkAccentArgb() & 0xFFFFFF, AppCustomization.DARK_SURFACE_RGB));
+                custom.darkAccentArgb() & 0xFFFFFF, org.llm4people.hermes.artifact.ThemePalette.NIGHT_SURFACE & 0xFFFFFF));
 
         // Secret-like content rejected in greeting & shortcuts.
         try {

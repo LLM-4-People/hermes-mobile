@@ -851,9 +851,8 @@ public final class AmbientAccessPanel {
     private void showFeedback(int messageRes, boolean error) {
         pendingDenialKey = null;
         if (feedback == null) return;
-        feedback.setVisibility(View.VISIBLE);
         feedback.setTextColor(activity.getColor(error ? R.color.danger : R.color.accent));
-        feedback.setText(messageRes);
+        Ui.announceLiveStatus(feedback, activity.getString(messageRes));
         if (feedbackAction != null) {
             feedbackAction.setVisibility(View.GONE);
             feedbackAction.setOnClickListener(null);

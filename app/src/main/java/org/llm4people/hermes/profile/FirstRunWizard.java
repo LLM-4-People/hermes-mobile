@@ -503,21 +503,42 @@ public final class FirstRunWizard {
         Ui.pad(input, 14, 12);
         box.addView(input, new LinearLayout.LayoutParams(-1, -2));
 
+        TextView inlineError = Ui.text(activity, "", 13);
+        inlineError.setTextColor(activity.getColor(R.color.danger));
+        inlineError.setVisibility(View.GONE);
+        LinearLayout.LayoutParams errLp = new LinearLayout.LayoutParams(-1, -2);
+        errLp.topMargin = Ui.dp(activity, 8);
+        box.addView(inlineError, errLp);
+        input.addTextChangedListener(new android.text.TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
+                if (inlineError.getVisibility() == View.VISIBLE) {
+                    inlineError.setText("");
+                    inlineError.setVisibility(View.GONE);
+                }
+            }
+            @Override public void afterTextChanged(android.text.Editable s) {}
+        });
+
         AlertDialog dialog = Ui.secureDialog(new AlertDialog.Builder(activity)
                 .setTitle(R.string.onboarding_paste_action)
                 .setView(box)
                 .setNegativeButton(R.string.profile_setup_cancel, null)
-                .setPositiveButton(R.string.onboarding_paste_confirm_action, (d, w) -> {
-                    String raw = input.getText().toString().trim();
-                    input.getText().clear();
-                    PairingLinkParser.ParsedInput parsed = PairingLinkParser.parseOrNull(raw);
-                    if (parsed == null) {
-                        showStatus(activity, statusNote,
-                                activity.getString(R.string.onboarding_paste_invalid), R.color.danger);
-                    } else {
-                        onParsed.accept(parsed);
-                    }
-                }));
+                .setPositiveButton(R.string.onboarding_paste_confirm_action, null));
+        Button confirmBtn = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+        if (confirmBtn != null) {
+            confirmBtn.setOnClickListener(v -> {
+                String raw = input.getText().toString().trim();
+                PairingLinkParser.ParsedInput parsed = PairingLinkParser.parseOrNull(raw);
+                if (parsed == null) {
+                    Ui.showInlineError(inlineError, activity.getString(R.string.onboarding_paste_invalid));
+                    return;
+                }
+                input.getText().clear();
+                dialog.dismiss();
+                onParsed.accept(parsed);
+            });
+        }
         dialog.setOnDismissListener(d -> input.getText().clear());
         targets.trackDialog(dialog);
     }
@@ -600,9 +621,13 @@ public final class FirstRunWizard {
 
     private static void showStatus(Activity activity, TextView view, String message, int colorRes) {
         if (view == null) return;
+        if (message == null || message.isEmpty()) {
+            view.setText("");
+            view.setVisibility(View.GONE);
+            return;
+        }
         view.setTextColor(activity.getColor(colorRes));
-        view.setText(message);
-        view.setVisibility(message == null || message.isEmpty() ? View.GONE : View.VISIBLE);
+        Ui.announceLiveStatus(view, message);
     }
 
     /**

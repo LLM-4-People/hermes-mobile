@@ -118,6 +118,18 @@ public final class QrScannerActivityTest {
     }
 
     @Test
+    public void imageFailureRoutingTargetsOnlyActiveSurfaceAndMapsVerdictStrings() {
+        assertTrue("Fallback visible must route image failure only to fallbackDetail",
+                QrScannerActivity.routesImageFailureToFallback(true));
+        assertFalse("Camera mode active must route image failure only to statusText",
+                QrScannerActivity.routesImageFailureToFallback(false));
+        assertEquals(org.llm4people.hermes.R.string.qr_scanner_not_hermes,
+                QrScannerActivity.imageFailureMessageRes(QrScannerActivity.ScanVerdict.NOT_HERMES));
+        assertEquals(org.llm4people.hermes.R.string.qr_scanner_image_no_qr,
+                QrScannerActivity.imageFailureMessageRes(QrScannerActivity.ScanVerdict.NO_QR));
+    }
+
+    @Test
     public void deferredEpochUiActionSkipsStaleEpochsAndRunsOnlyWhenCurrent() {
         int[] liveEpoch = {4};
         int[] fallbackCalls = {0};

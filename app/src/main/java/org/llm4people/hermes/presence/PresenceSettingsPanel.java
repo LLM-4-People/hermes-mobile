@@ -591,8 +591,7 @@ public final class PresenceSettingsPanel {
     private void showFeedback(String text) {
         pendingDenialKey = null;
         if (feedback == null) return;
-        feedback.setText(text);
-        feedback.setVisibility(View.VISIBLE);
+        Ui.announceLiveStatus(feedback, text);
         if (feedbackAction != null) {
             feedbackAction.setVisibility(View.GONE);
             feedbackAction.setOnClickListener(null);

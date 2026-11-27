@@ -41,6 +41,7 @@ final class SkillStudio {
     private final Consumer<String> stageDraft;
     private final Runnable parent;
     private final SkillStudioModel.ToggleState toggleState = new SkillStudioModel.ToggleState();
+    private final Set<String> pendingToggles = new java.util.HashSet<>();
     private boolean studioSupported;
     private List<SkillInventory> inventory = new ArrayList<>();
     private String selectedCategory = "";
@@ -250,6 +251,7 @@ final class SkillStudio {
             toggle.setMinimumWidth(minTouch);
             boolean currentEnabled = toggleState.isEnabled(skill.name, skill.enabled);
             toggle.setChecked(currentEnabled);
+            toggle.setEnabled(!pendingToggles.contains(skill.name));
             toggle.setContentDescription(skill.name + " · "
                     + panel.t(currentEnabled ? R.string.brain_skills_enabled : R.string.brain_skills_disabled));
             toggle.setOnClickListener(v -> toggleSkillEnabled(skill, toggle, toggle.isChecked()));
@@ -263,24 +265,47 @@ final class SkillStudio {
     }
 
     private void toggleSkillEnabled(SkillInventory skill, Switch toggle, boolean targetEnabled) {
+        if (!pendingToggles.add(skill.name)) {
+            toggle.setChecked(toggleState.isEnabled(skill.name, skill.enabled));
+            return;
+        }
         boolean previous = toggleState.beginToggle(skill.name, targetEnabled);
         toggle.setEnabled(false);
         JSONObject payload = PanelData.put(new JSONObject(), "enabled", targetEnabled);
-        panel.request(statusBox, () -> panel.api.put(
+        if (!panel.request(statusBox, () -> panel.api.put(
                 "/v1/skills/" + HermesApi.relativePath(skill.name) + "/enabled", payload),
                 ok -> {
+                    pendingToggles.remove(skill.name);
                     Diagnostics.event("skills", "toggle_updated");
-                    toggle.setEnabled(true);
                     replaceInventoryEnabled(skill.name, targetEnabled);
-                    toggle.setContentDescription(skill.name + " · "
-                            + panel.t(targetEnabled ? R.string.brain_skills_enabled : R.string.brain_skills_disabled));
+                    if (!toggle.isAttachedToWindow()) {
+                        renderList();
+                    } else {
+                        toggle.setEnabled(true);
+                        toggle.setContentDescription(skill.name + " · "
+                                + panel.t(targetEnabled ? R.string.brain_skills_enabled : R.string.brain_skills_disabled));
+                    }
                 }, error -> {
+                    pendingToggles.remove(skill.name);
                     Diagnostics.warning("skills", "toggle_failed", error);
                     toggleState.rollback(skill.name, previous);
-                    toggle.setEnabled(true);
-                    toggle.setChecked(previous);
+                    if (!toggle.isAttachedToWindow()) {
+                        renderList();
+                    } else {
+                        toggle.setEnabled(true);
+                        toggle.setChecked(previous);
+                    }
                     BrainUi.liveNote(panel, statusBox, panel.t(R.string.brain_skills_toggle_failed));
-                });
+                })) {
+            pendingToggles.remove(skill.name);
+            toggleState.rollback(skill.name, previous);
+            if (!toggle.isAttachedToWindow()) {
+                renderList();
+            } else {
+                toggle.setEnabled(true);
+                toggle.setChecked(previous);
+            }
+        }
     }
 
     private void replaceInventoryEnabled(String name, boolean enabled) {

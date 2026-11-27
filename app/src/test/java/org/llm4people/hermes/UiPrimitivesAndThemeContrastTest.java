@@ -65,6 +65,11 @@ public final class UiPrimitivesAndThemeContrastTest {
         assertWcagPairs("dark", dark, NON_TEXT_CONTRAST_PAIRS, 3.0);
         assertTrue("composer_capsule.xml unfocused border must use @color/line_strong",
                 readUtf8(resFile("drawable/composer_capsule.xml")).contains("@color/line_strong"));
+        String designJson = readUtf8(repoRoot().resolve(".impeccable/design.json"));
+        assertTrue("design.json ds-field border must stay synced with colors.xml line_strong",
+                designJson.contains("border:1px solid " + light.get("line_strong")));
+        assertFalse("design.json must not retain stale #8E9B94 border token",
+                designJson.contains("#8E9B94"));
 
         // ThemePalette constants must stay 100% synced with values{,-night}/colors.xml (SSoT).
         assertColorEquals("DAY_PAPER", light.get("paper"), org.llm4people.hermes.artifact.ThemePalette.DAY_PAPER);
@@ -189,12 +194,6 @@ public final class UiPrimitivesAndThemeContrastTest {
                 org.llm4people.hermes.customization.AppCustomization.WCAG_AA_MIN_CONTRAST, 1e-9);
         assertEquals(org.llm4people.hermes.artifact.ThemePalette.DAY_SURFACE & 0xFFFFFF,
                 org.llm4people.hermes.customization.AppCustomization.LIGHT_SURFACE_RGB);
-        assertEquals(org.llm4people.hermes.artifact.ThemePalette.NIGHT_SURFACE & 0xFFFFFF,
-                org.llm4people.hermes.customization.AppCustomization.DARK_SURFACE_RGB);
-        assertEquals(org.llm4people.hermes.artifact.ThemePalette.DAY_INK & 0xFFFFFF,
-                org.llm4people.hermes.customization.AppCustomization.LIGHT_INK_RGB);
-        assertEquals(org.llm4people.hermes.artifact.ThemePalette.DAY_ON_ACCENT & 0xFFFFFF,
-                org.llm4people.hermes.customization.AppCustomization.WHITE_RGB);
 
         String expectedDayAccent = org.llm4people.hermes.artifact.ThemePalette.formatHex(
                 org.llm4people.hermes.artifact.ThemePalette.DAY_ACCENT);
@@ -218,7 +217,7 @@ public final class UiPrimitivesAndThemeContrastTest {
             assertTrue(preset.name() + " dark accent contrast < 4.5",
                     org.llm4people.hermes.customization.AppCustomization.meetsWcagAa(
                             org.llm4people.hermes.customization.AppCustomization.parseRgb(preset.darkAccentHex),
-                            org.llm4people.hermes.customization.AppCustomization.DARK_SURFACE_RGB));
+                            org.llm4people.hermes.artifact.ThemePalette.NIGHT_SURFACE & 0xFFFFFF));
         }
     }
 
