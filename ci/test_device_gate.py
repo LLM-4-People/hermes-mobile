@@ -389,6 +389,18 @@ class DeviceGateTest(unittest.TestCase):
         self.assertIn("issues: write", labeler)
         self.assertIn("pull-requests: write", labeler)
 
+    def test_validate_job_builds_stripped_actionlint_with_ephemeral_go_caches(self):
+        workflow = (GATE.parents[1] / ".github/workflows/checks.yml").read_text()
+        validate = workflow.split("\n  validate:\n", 1)[1].split("\n  pages-check:\n", 1)[0]
+        self.assertIn("key: actionlint-${{ runner.os }}-v1.7.12-stripped", validate)
+        self.assertIn("CGO_ENABLED=0", validate)
+        self.assertIn("-trimpath", validate)
+        self.assertIn('-ldflags="-s -w"', validate)
+        self.assertIn('GOCACHE="$go_tmp/build"', validate)
+        self.assertIn('GOMODCACHE="$go_tmp/mod"', validate)
+        self.assertIn('GOTMPDIR="$go_tmp/tmp"', validate)
+        self.assertIn('trap \'chmod -R u+w "$go_tmp" 2>/dev/null || true; rm -rf "$go_tmp"\' EXIT', validate)
+
     def test_nearby_gate_installs_verifies_offline_and_requires_all_evidence(self):
         result, calls = self.nearby_gate()
         self.assertEqual(result.returncode, 0, result.stderr)
