@@ -229,21 +229,22 @@ public final class Android16OsIntegrationTest extends InstrumentationTestCase {
         String widA = "r38_run_active_remove";
         String widB = "r38_run_active_forget";
         String profile = "r38-profile-active";
-        store.upsertSpec(new HermesWidgetSpec(
-                widA, "Status A", "", HermesWidgetSpec.Template.STATUS,
-                java.util.List.of(), null, true, profile), profile);
-        store.upsertSpec(new HermesWidgetSpec(
-                widB, "Status B", "", HermesWidgetSpec.Template.STATUS,
-                java.util.List.of(), null, true, profile), profile);
-
         java.lang.reflect.Field runActiveField = HermesWidgetProvider.class.getDeclaredField("runActive");
         runActiveField.setAccessible(true);
         boolean previous = runActiveField.getBoolean(null);
         try {
+            assertTrue(store.upsertSpec(new HermesWidgetSpec(
+                    widA, "Status A", "", HermesWidgetSpec.Template.STATUS,
+                    java.util.List.of(), null, true, profile), profile));
+            assertTrue(store.upsertSpec(new HermesWidgetSpec(
+                    widB, "Status B", "", HermesWidgetSpec.Template.STATUS,
+                    java.util.List.of(), null, true, profile), profile));
             runActiveField.setBoolean(null, true);
             org.llm4people.hermes.artifact.HomePinBridge.removeWidget(context, widA, profile);
+            assertNull("removeWidget must delete widA from store", store.spec(widA));
             assertTrue("HomePinBridge.removeWidget must preserve runActive=true", runActiveField.getBoolean(null));
             HermesWidgetStore.forgetProfile(context, profile);
+            assertNull("forgetProfile must purge widB from store", store.spec(widB));
             assertTrue("HermesWidgetStore.forgetProfile must preserve runActive=true", runActiveField.getBoolean(null));
         } finally {
             runActiveField.setBoolean(null, previous);

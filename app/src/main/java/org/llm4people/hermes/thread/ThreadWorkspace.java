@@ -125,7 +125,7 @@ public final class ThreadWorkspace implements AutoCloseable {
     private boolean gatewaySupportsKeyset;
     private boolean hasOlderMessages;
     private int messageOffset;
-    private boolean closed;
+    private volatile boolean closed;
     private boolean creating;
     private boolean loading;
     private String inboxWarning = "";
@@ -978,10 +978,12 @@ public final class ThreadWorkspace implements AutoCloseable {
         android.widget.LinearLayout box = org.llm4people.hermes.Ui.column(activity);
         org.llm4people.hermes.Ui.pad(box, 20, 8);
         box.addView(input);
+        boolean[] handled = {false};
         screen.show(new AlertDialog.Builder(activity).setTitle(R.string.thread_rename_title).setView(box)
                 .setNegativeButton(R.string.ws_cancel, null)
                 .setPositiveButton(R.string.thread_rename_confirm, (d, w) -> {
-                    if (closed || !id.equals(session)) return;
+                    if (handled[0] || closed || !id.equals(session)) return;
+                    handled[0] = true;
                     String value = input.getText().toString().trim();
                     if (value.isEmpty()) {
                         screen.notice(activity.getString(R.string.thread_empty_title),

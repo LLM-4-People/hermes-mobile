@@ -28,6 +28,27 @@ public final class PlaceActionTest extends InstrumentationTestCase {
         Intent web = source.target();
         assertEquals("https://www.openstreetmap.org/way/123", web.getDataString());
         checkView(web);
+
+        // R39.8.6: DeviceAction.PlaceRoute (WALKING & DRIVING) and null-safe DeviceReview.placeRoute.
+        for (org.llm4people.hermes.places.NearbyCategory.RouteMode mode : new org.llm4people.hermes.places.NearbyCategory.RouteMode[]{
+                org.llm4people.hermes.places.NearbyCategory.RouteMode.WALKING,
+                org.llm4people.hermes.places.NearbyCategory.RouteMode.DRIVING}) {
+            DeviceAction route = new DeviceAction.PlaceRoute(place, mode);
+            assertEquals(DeviceAction.Kind.NAVIGATION, route.kind());
+            assertEquals(mode.title(context), route.title(context));
+            assertEquals(mode.openLabel(context), route.openLabel(context));
+            assertEquals(R.string.places_map_unavailable_title, route.unavailableTitleRes());
+            assertEquals(R.string.places_map_unavailable_body, route.unavailableMessageRes());
+            assertEquals(context.getString(R.string.places_route_preview,
+                    place.name, mode.chipLabel(context), place.coordinates()), route.preview(context));
+            Intent nav = route.target();
+            assertEquals(mode.navigationUri(place.latitude, place.longitude), nav.getDataString());
+            checkView(nav);
+            Intent fallback = route.fallbackTarget();
+            assertEquals(mode.fallbackGeoUri(place.latitude, place.longitude), fallback.getDataString());
+            checkView(fallback);
+        }
+        DeviceReview.placeRoute(null, null, null, null, null);
     }
 
     private void checkView(Intent intent) {

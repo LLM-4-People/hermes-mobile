@@ -250,8 +250,12 @@ final class PushSettings {
             extras.addView(Ui.tonalButton(activity, activity.getString(R.string.push_settings_open_distributor),
                     v -> openDistributor(v, device)), stackGap(0));
             if (!allowed && device.repair == PushStore.REPAIR_ACTION) {
-                extras.addView(Ui.outlinedButton(activity, activity.getString(R.string.instrument_retry),
-                        v -> retryRepair(device)), stackGap(8));
+                extras.addView(Ui.outlinedButton(activity, activity.getString(R.string.instrument_retry), v -> {
+                    if (handled[0]) return;
+                    handled[0] = true;
+                    v.setEnabled(false);
+                    retryRepair(device);
+                }), stackGap(8));
             }
         }
         if (account != null) {
@@ -269,10 +273,18 @@ final class PushSettings {
             summary.setTextColor(activity.getColor(R.color.muted));
             Ui.pad(summary, 2, 6);
             extras.addView(summary, stackGap(extras.getChildCount() > 0 ? 8 : 0));
-            extras.addView(Ui.tonalButton(activity, activity.getString(R.string.push_policy_button),
-                    v -> showPolicyDialog()), stackGap(8));
-            extras.addView(Ui.outlinedButton(activity, activity.getString(R.string.push_inbox_button),
-                    v -> openDeliveryInbox()), stackGap(8));
+            extras.addView(Ui.tonalButton(activity, activity.getString(R.string.push_policy_button), v -> {
+                if (handled[0]) return;
+                handled[0] = true;
+                v.setEnabled(false);
+                showPolicyDialog();
+            }), stackGap(8));
+            extras.addView(Ui.outlinedButton(activity, activity.getString(R.string.push_inbox_button), v -> {
+                if (handled[0]) return;
+                handled[0] = true;
+                v.setEnabled(false);
+                openDeliveryInbox();
+            }), stackGap(8));
         }
         if (extras != null) {
             ScrollView scroll = new ScrollView(activity);
@@ -653,7 +665,12 @@ final class PushSettings {
                 .setMessage(R.string.push_settings_allow_body)
                 .setNegativeButton(R.string.ws_close, null);
         if (requestRuntime) {
-            recovery.setPositiveButton(R.string.perm_action_allow, (d, w) -> begin());
+            boolean[] handled = {false};
+            recovery.setPositiveButton(R.string.perm_action_allow, (d, w) -> {
+                if (handled[0]) return;
+                handled[0] = true;
+                begin();
+            });
         } else {
             recovery.setPositiveButton(R.string.perm_action_open_notification_settings, null);
         }

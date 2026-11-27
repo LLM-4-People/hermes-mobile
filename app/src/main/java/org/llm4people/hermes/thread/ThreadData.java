@@ -11,9 +11,6 @@ import org.json.JSONException;
 import org.json.JSONObject;
 import org.llm4people.hermes.net.HermesApi;
 
-import java.util.HashSet;
-import java.util.Set;
-
 /** Wire conversions shared by the inbox, transcript and durable run state. */
 final class ThreadData {
     static final int PAGE = HermesConfig.DEFAULT_THREAD_PAGE_SIZE;
@@ -98,20 +95,6 @@ final class ThreadData {
     static RowId rowId(JSONObject row) {
         String id = string(row, "id");
         return id.isEmpty() ? null : new RowId(string(row, "session_id"), id);
-    }
-
-    static JSONArray join(JSONArray first, JSONArray second) {
-        JSONArray joined = new JSONArray();
-        Set<RowId> ids = new HashSet<>();
-        for (JSONArray page : new JSONArray[]{first, second}) {
-            for (int i = 0; i < page.length(); i++) {
-                JSONObject row = page.optJSONObject(i);
-                if (row == null) continue;
-                RowId id = rowId(row);
-                if (id == null || ids.add(id)) joined.put(row);
-            }
-        }
-        return joined;
     }
 
     static JSONArray visibleMessages(JSONArray rows) {

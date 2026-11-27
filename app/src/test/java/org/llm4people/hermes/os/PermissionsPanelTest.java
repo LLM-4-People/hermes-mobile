@@ -45,4 +45,26 @@ public final class PermissionsPanelTest {
         assertFalse(PermissionsPanel.shouldClearStaleFeedback(PermissionCenter.Key.NOTIFICATION_ACCESS, false, states));
         assertFalse(PermissionsPanel.shouldClearStaleFeedback(PermissionCenter.Key.NOTIFICATION_ACCESS, true, states));
     }
+
+    @Test
+    public void feedbackResForPermissionOutcomeMatchesLiveState() {
+        org.junit.Assert.assertEquals(
+                org.llm4people.hermes.R.string.perm_feedback_granted,
+                PermissionsPanel.feedbackResForPermissionOutcome(PermissionCenter.State.GRANTED));
+        org.junit.Assert.assertEquals(
+                org.llm4people.hermes.R.string.perm_feedback_blocked,
+                PermissionsPanel.feedbackResForPermissionOutcome(PermissionCenter.State.PERMANENTLY_DENIED));
+        org.junit.Assert.assertEquals(
+                org.llm4people.hermes.R.string.perm_feedback_denied,
+                PermissionsPanel.feedbackResForPermissionOutcome(PermissionCenter.State.DENIED));
+        org.junit.Assert.assertEquals(
+                org.llm4people.hermes.R.string.perm_feedback_denied,
+                PermissionsPanel.feedbackResForPermissionOutcome(PermissionCenter.State.NOT_REQUESTED));
+        org.junit.Assert.assertEquals(
+                org.llm4people.hermes.R.string.perm_feedback_denied,
+                PermissionsPanel.feedbackResForPermissionOutcome(PermissionCenter.State.UNAVAILABLE));
+        org.junit.Assert.assertEquals(
+                org.llm4people.hermes.R.string.perm_feedback_denied,
+                PermissionsPanel.feedbackResForPermissionOutcome(null));
+    }
 }

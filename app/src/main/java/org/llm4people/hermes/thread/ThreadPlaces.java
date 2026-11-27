@@ -47,7 +47,7 @@ final class ThreadPlaces {
         double lat, lon, accuracy;
         PlaceSelection selection;
         volatile boolean retired;
-        long requestSerial;
+        volatile long requestSerial;
 
         Entry(Pin pin) {
             this.pin = pin;
