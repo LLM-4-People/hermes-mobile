@@ -163,11 +163,6 @@ public final class CommandRegistry {
 
     private record Scored(CommandItem item, int score, int index) {}
 
-    /** Builds the default curated native action catalog in the active FR/EN locale. */
-    public static List<CommandItem> defaultNativeCommands(Context context, Consumer<String> dispatchAction) {
-        return defaultNativeCommands(context, false, dispatchAction);
-    }
-
     /**
      * Builds the curated native action catalog in the active FR/EN locale.
      * Admin-only profile &amp; server actions are included strictly when {@code isAdmin} is true.

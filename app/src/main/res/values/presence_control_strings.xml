@@ -38,16 +38,7 @@
     <string name="custom_section_title">Apparence de l’application</string>
     <string name="custom_section_intro">Choisissez une palette lisible et un espacement confortable pour ce profil.</string>
     <string name="custom_palette_label">Couleur principale</string>
-    <string name="custom_palette_forest">Forêt</string>
-    <string name="custom_palette_slate">Ardoise</string>
-    <string name="custom_palette_terracotta">Terre cuite</string>
-    <string name="custom_palette_indigo">Indigo</string>
-    <string name="custom_palette_plum">Prune</string>
-    <string name="custom_palette_custom">Personnalisée</string>
     <string name="custom_density_label">Espacement</string>
-    <string name="custom_density_compact">Compact</string>
-    <string name="custom_density_comfortable">Confortable</string>
-    <string name="custom_density_spacious">Aéré</string>
     <string name="custom_undo">Annuler le dernier changement</string>
     <string name="custom_reset">Rétablir par défaut</string>
     <string name="custom_feedback_applied">Apparence mise à jour.</string>

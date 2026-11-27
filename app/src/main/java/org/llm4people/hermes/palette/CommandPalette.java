@@ -42,10 +42,6 @@ public final class CommandPalette {
         this.isOpen = isOpen != null ? isOpen : () -> !activity.isFinishing() && !activity.isDestroyed();
     }
 
-    public AlertDialog show() {
-        return show(null);
-    }
-
     public AlertDialog show(Runnable onDismissed) {
         dismiss();
         if (!canAct()) return null;

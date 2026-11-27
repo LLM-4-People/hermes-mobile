@@ -117,8 +117,6 @@
     <string name="ws_table_column_a11y">Colonne %1$s%2$s. Appuyer pour trier.</string>
     <string name="ws_table_empty">Aucune ligne correspondante.</string>
     <string name="ws_table_row_draft_a11y">%1$s. Appuyer pour préparer un brouillon.</string>
-    <string name="ws_ctrl_chip_selected">%1$s, sélectionné</string>
-    <string name="ws_ctrl_chip_unselected">%1$s, non sélectionné</string>
     <string name="ws_metric_delta_a11y">, variation %1$s</string>
     <string name="ws_sparkline_bar">Graphique en barres</string>
     <string name="ws_sparkline_line">Courbe d’évolution</string>

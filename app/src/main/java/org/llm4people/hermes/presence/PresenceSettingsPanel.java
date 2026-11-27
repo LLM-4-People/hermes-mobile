@@ -18,6 +18,7 @@ import org.llm4people.hermes.Ui;
 import org.llm4people.hermes.customization.AppCustomization;
 import org.llm4people.hermes.customization.AppCustomizationStore;
 import org.llm4people.hermes.os.PermissionCenter;
+import org.llm4people.hermes.settings.AppearanceSettingsModel;
 
 import java.util.ArrayList;
 import java.util.EnumMap;
@@ -286,19 +287,19 @@ public final class PresenceSettingsPanel {
         addTop(body, Ui.text(context, context.getString(R.string.custom_palette_label), 14), 10);
         LinearLayout paletteRow1 = Ui.row(context);
         LinearLayout paletteRow2 = Ui.row(context);
-        addPaletteChip(paletteRow1, AppCustomization.PalettePreset.FOREST, R.string.custom_palette_forest);
-        addPaletteChip(paletteRow1, AppCustomization.PalettePreset.SLATE, R.string.custom_palette_slate);
-        addPaletteChip(paletteRow1, AppCustomization.PalettePreset.TERRACOTTA, R.string.custom_palette_terracotta);
-        addPaletteChip(paletteRow2, AppCustomization.PalettePreset.INDIGO, R.string.custom_palette_indigo);
-        addPaletteChip(paletteRow2, AppCustomization.PalettePreset.PLUM, R.string.custom_palette_plum);
+        addPaletteChip(paletteRow1, AppCustomization.PalettePreset.FOREST);
+        addPaletteChip(paletteRow1, AppCustomization.PalettePreset.SLATE);
+        addPaletteChip(paletteRow1, AppCustomization.PalettePreset.TERRACOTTA);
+        addPaletteChip(paletteRow2, AppCustomization.PalettePreset.INDIGO);
+        addPaletteChip(paletteRow2, AppCustomization.PalettePreset.PLUM);
         addTop(body, horizontalRow(paletteRow1), 8);
         addTop(body, horizontalRow(paletteRow2), 8);
 
         addTop(body, Ui.text(context, context.getString(R.string.custom_density_label), 14), 14);
         LinearLayout densityRow = Ui.row(context);
-        addDensityChip(densityRow, AppCustomization.Density.COMPACT, R.string.custom_density_compact);
-        addDensityChip(densityRow, AppCustomization.Density.COMFORTABLE, R.string.custom_density_comfortable);
-        addDensityChip(densityRow, AppCustomization.Density.SPACIOUS, R.string.custom_density_spacious);
+        addDensityChip(densityRow, AppCustomization.Density.COMPACT);
+        addDensityChip(densityRow, AppCustomization.Density.COMFORTABLE);
+        addDensityChip(densityRow, AppCustomization.Density.SPACIOUS);
         addTop(body, horizontalRow(densityRow), 8);
 
         int minTouch = Ui.dp(context, 48);
@@ -339,8 +340,8 @@ public final class PresenceSettingsPanel {
         return scroll;
     }
 
-    private void addPaletteChip(LinearLayout row, AppCustomization.PalettePreset preset, int labelRes) {
-        Button chip = Ui.choiceChip(context, context.getString(labelRes), v -> {
+    private void addPaletteChip(LinearLayout row, AppCustomization.PalettePreset preset) {
+        Button chip = Ui.choiceChip(context, context.getString(AppearanceSettingsModel.paletteLabelRes(preset)), v -> {
             AppCustomization next = customizationStore.current().withPalette(preset, null);
             customizationStore.apply(next);
             listener.onCustomizationChanged(next);
@@ -357,8 +358,8 @@ public final class PresenceSettingsPanel {
         paletteChips.put(preset, chip);
     }
 
-    private void addDensityChip(LinearLayout row, AppCustomization.Density density, int labelRes) {
-        Button chip = Ui.choiceChip(context, context.getString(labelRes), v -> {
+    private void addDensityChip(LinearLayout row, AppCustomization.Density density) {
+        Button chip = Ui.choiceChip(context, context.getString(AppearanceSettingsModel.densityLabelRes(density)), v -> {
             AppCustomization next = customizationStore.current().withDensity(density);
             customizationStore.apply(next);
             listener.onCustomizationChanged(next);

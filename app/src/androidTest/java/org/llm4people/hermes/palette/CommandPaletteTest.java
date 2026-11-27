@@ -25,7 +25,7 @@ public final class CommandPaletteTest extends InstrumentationTestCase {
         AtomicReference<String> stagedDraft = new AtomicReference<>();
         AtomicReference<String> openedThread = new AtomicReference<>();
 
-        List<CommandItem> actions = CommandRegistry.defaultNativeCommands(context, dispatched::set);
+        List<CommandItem> actions = CommandRegistry.defaultNativeCommands(context, false, dispatched::set);
         assertEquals(21, actions.size());
         assertTrue(actions.stream().anyMatch(item -> "act:settings".equals(item.id)));
         assertTrue(actions.stream().anyMatch(item -> "act:appearance_settings".equals(item.id)));
@@ -52,7 +52,7 @@ public final class CommandPaletteTest extends InstrumentationTestCase {
             runTestOnUiThread(() -> {
                 CommandPalette palette = new CommandPalette(activity, registry, () -> true);
                 paletteRef.set(palette);
-                dialogRef.set(palette.show());
+                dialogRef.set(palette.show(null));
             });
             getInstrumentation().waitForIdleSync();
 
@@ -82,7 +82,7 @@ public final class CommandPaletteTest extends InstrumentationTestCase {
 
             // Verify template execution stages draft without sending and closes dialog.
             runTestOnUiThread(() -> {
-                AlertDialog second = paletteRef.get().show();
+                AlertDialog second = paletteRef.get().show(null);
                 assertNotNull(second);
                 EditText search = findFirst(second.getWindow().getDecorView(), EditText.class);
                 assertNotNull(search);
