@@ -203,22 +203,27 @@ public final class BiometricVault {
      */
     public static Availability availability(Context context) {
         if (context == null || Build.VERSION.SDK_INT < 29) return Availability.UNAVAILABLE;
-        BiometricManager manager = context.getSystemService(BiometricManager.class);
-        if (manager == null) return Availability.UNAVAILABLE;
-        if (Build.VERSION.SDK_INT >= 30) {
-            if (manager.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG)
-                    == BiometricManager.BIOMETRIC_SUCCESS) {
-                return Availability.STRONG;
+        try {
+            BiometricManager manager = context.getSystemService(BiometricManager.class);
+            if (manager == null) return Availability.UNAVAILABLE;
+            if (Build.VERSION.SDK_INT >= 30) {
+                if (manager.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG)
+                        == BiometricManager.BIOMETRIC_SUCCESS) {
+                    return Availability.STRONG;
+                }
+                if (manager.canAuthenticate(BiometricManager.Authenticators.DEVICE_CREDENTIAL)
+                        == BiometricManager.BIOMETRIC_SUCCESS) {
+                    return Availability.DEVICE_CREDENTIAL;
+                }
+                return Availability.UNAVAILABLE;
             }
-            if (manager.canAuthenticate(BiometricManager.Authenticators.DEVICE_CREDENTIAL)
-                    == BiometricManager.BIOMETRIC_SUCCESS) {
-                return Availability.DEVICE_CREDENTIAL;
-            }
+            @SuppressWarnings("deprecation")
+            int legacy = manager.canAuthenticate();
+            return legacy == BiometricManager.BIOMETRIC_SUCCESS ? Availability.STRONG : Availability.UNAVAILABLE;
+        } catch (RuntimeException err) {
+            Diagnostics.warning("biometric", "availability_check_failed", err);
             return Availability.UNAVAILABLE;
         }
-        @SuppressWarnings("deprecation")
-        int legacy = manager.canAuthenticate();
-        return legacy == BiometricManager.BIOMETRIC_SUCCESS ? Availability.STRONG : Availability.UNAVAILABLE;
     }
 
     public static boolean isEnrolled(Context context, String profileId) {
@@ -499,10 +504,15 @@ public final class BiometricVault {
 
     private static boolean supportsDeviceCredential(Context context) {
         if (context == null || Build.VERSION.SDK_INT < 30) return false;
-        BiometricManager manager = context.getSystemService(BiometricManager.class);
-        return manager != null
-                && manager.canAuthenticate(BiometricManager.Authenticators.DEVICE_CREDENTIAL)
-                == BiometricManager.BIOMETRIC_SUCCESS;
+        try {
+            BiometricManager manager = context.getSystemService(BiometricManager.class);
+            return manager != null
+                    && manager.canAuthenticate(BiometricManager.Authenticators.DEVICE_CREDENTIAL)
+                    == BiometricManager.BIOMETRIC_SUCCESS;
+        } catch (RuntimeException err) {
+            Diagnostics.warning("biometric", "availability_check_failed", err);
+            return false;
+        }
     }
 
     private static BiometricPrompt buildPrompt(Activity activity, String title, String subtitle,

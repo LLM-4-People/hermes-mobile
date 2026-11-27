@@ -42,24 +42,24 @@ public final class HermesShortcuts {
         if (context == null) return;
         Context localized = AppLanguage.localizedContext(context, mode);
         if (localized == null) return;
-        ShortcutManager manager = context.getSystemService(ShortcutManager.class);
-        if (manager == null) return;
-        int limit = Math.max(0, Math.min(DESCRIPTORS.size(), manager.getMaxShortcutCountPerActivity()));
-        List<ShortcutInfo> infos = new ArrayList<>(limit);
-        for (int i = 0; i < limit; i++) {
-            Descriptor item = DESCRIPTORS.get(i);
-            infos.add(new ShortcutInfo.Builder(context, item.id())
-                    .setShortLabel(localized.getString(item.shortLabelRes()))
-                    .setLongLabel(localized.getString(item.longLabelRes()))
-                    .setIcon(Icon.createWithResource(context, item.iconRes()))
-                    .setIntent(OsEntryIntent.intent(context, item.target()))
-                    .setRank(i)
-                    .build());
-        }
         try {
+            ShortcutManager manager = context.getSystemService(ShortcutManager.class);
+            if (manager == null) return;
+            int limit = Math.max(0, Math.min(DESCRIPTORS.size(), manager.getMaxShortcutCountPerActivity()));
+            List<ShortcutInfo> infos = new ArrayList<>(limit);
+            for (int i = 0; i < limit; i++) {
+                Descriptor item = DESCRIPTORS.get(i);
+                infos.add(new ShortcutInfo.Builder(context, item.id())
+                        .setShortLabel(localized.getString(item.shortLabelRes()))
+                        .setLongLabel(localized.getString(item.longLabelRes()))
+                        .setIcon(Icon.createWithResource(context, item.iconRes()))
+                        .setIntent(OsEntryIntent.intent(context, item.target()))
+                        .setRank(i)
+                        .build());
+            }
             manager.setDynamicShortcuts(infos);
         } catch (RuntimeException error) {
-            Diagnostics.warning("os", "shortcuts_publish_failed");
+            Diagnostics.warning("os", "shortcuts_publish_failed", error);
         }
     }
 

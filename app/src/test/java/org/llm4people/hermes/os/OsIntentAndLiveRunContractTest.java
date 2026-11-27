@@ -132,6 +132,115 @@ public final class OsIntentAndLiveRunContractTest {
     }
 
     @Test
+    public void r40IpcAndNudgeGuardsFailClosed() throws Exception {
+        android.content.Context nullServiceCtx = new android.content.ContextWrapper(null) {
+            @Override public android.content.Context getApplicationContext() { return this; }
+            @Override public android.content.pm.PackageManager getPackageManager() { return null; }
+            @Override public Object getSystemService(String name) { return null; }
+            @Override public String getSystemServiceName(Class<?> serviceClass) { return null; }
+        };
+        android.content.Context throwingCtx = new android.content.ContextWrapper(null) {
+            @Override public android.content.Context getApplicationContext() { return this; }
+            @Override public android.content.pm.PackageManager getPackageManager() {
+                throw new RuntimeException("pm ipc failed");
+            }
+            @Override public Object getSystemService(String name) {
+                throw new RuntimeException("service ipc failed");
+            }
+            @Override public String getSystemServiceName(Class<?> serviceClass) {
+                throw new RuntimeException("service name ipc failed");
+            }
+        };
+
+        // R40.8.2: DeepAndroidActions.androidOsBridge().postLocalNudge fails closed on null & throwing NotificationManager.
+        org.llm4people.hermes.Diagnostics.clear();
+        try {
+            assertFalse(DeepAndroidActions.androidOsBridge(nullServiceCtx, "profile-1", null, null)
+                    .postLocalNudge("Title", "Body"));
+            assertFalse(DeepAndroidActions.androidOsBridge(throwingCtx, "profile-1", null, null)
+                    .postLocalNudge("Title", "Body"));
+            String diag = org.llm4people.hermes.Diagnostics.exportRedacted();
+            org.junit.Assert.assertTrue("Expected deep_action.nudge_notify_failed, got: " + diag,
+                    diag.contains("deep_action.nudge_notify_failed"));
+        } finally {
+            org.llm4people.hermes.Diagnostics.clear();
+        }
+
+        // R40.3.1: PushNotices IPC guards fail closed on null & throwing services.
+        Class<?> pushNotices = Class.forName("org.llm4people.hermes.push.PushNotices");
+        Method pushAllowed = pushNotices.getDeclaredMethod("allowed", android.content.Context.class);
+        Method pushTapIntent = pushNotices.getDeclaredMethod(
+                "tapIntent", android.content.Context.class, String.class, String.class);
+        Method pushChannel = pushNotices.getDeclaredMethod("channel", android.content.Context.class);
+        Method pushCancel = pushNotices.getDeclaredMethod("cancel", android.content.Context.class, String.class);
+        pushAllowed.setAccessible(true);
+        pushTapIntent.setAccessible(true);
+        pushChannel.setAccessible(true);
+        pushCancel.setAccessible(true);
+
+        org.llm4people.hermes.Diagnostics.clear();
+        try {
+            assertFalse((Boolean) pushAllowed.invoke(null, new Object[]{null}));
+            assertFalse((Boolean) pushAllowed.invoke(null, nullServiceCtx));
+            assertFalse((Boolean) pushAllowed.invoke(null, throwingCtx));
+            assertNull(pushTapIntent.invoke(null, null, "p1", "ev1"));
+            assertNull(pushTapIntent.invoke(null, nullServiceCtx, "p1", "ev1"));
+            assertNull(pushTapIntent.invoke(null, throwingCtx, "p1", "ev1"));
+            pushChannel.invoke(null, nullServiceCtx);
+            pushChannel.invoke(null, throwingCtx);
+            pushCancel.invoke(null, nullServiceCtx, "p1");
+            pushCancel.invoke(null, throwingCtx, "p1");
+            String diag = org.llm4people.hermes.Diagnostics.exportRedacted();
+            org.junit.Assert.assertTrue("Expected push.allowed_check_failed, got: " + diag,
+                    diag.contains("push.allowed_check_failed"));
+            org.junit.Assert.assertTrue("Expected push.tap_intent_failed, got: " + diag,
+                    diag.contains("push.tap_intent_failed"));
+            org.junit.Assert.assertTrue("Expected push.notice_cancel_failed, got: " + diag,
+                    diag.contains("push.notice_cancel_failed"));
+        } finally {
+            org.llm4people.hermes.Diagnostics.clear();
+        }
+
+        // R40.3.2: PushSyncService.ensureScheduled fails closed on null & throwing JobScheduler.
+        Class<?> pushSyncService = Class.forName("org.llm4people.hermes.push.PushSyncService");
+        Method ensureScheduled = pushSyncService.getDeclaredMethod("ensureScheduled", android.content.Context.class);
+        ensureScheduled.setAccessible(true);
+        org.llm4people.hermes.Diagnostics.clear();
+        try {
+            ensureScheduled.invoke(null, new Object[]{null});
+            ensureScheduled.invoke(null, nullServiceCtx);
+            ensureScheduled.invoke(null, throwingCtx);
+            String diag = org.llm4people.hermes.Diagnostics.exportRedacted();
+            org.junit.Assert.assertTrue("Expected push.job_scheduler_unavailable, got: " + diag,
+                    diag.contains("push.job_scheduler_unavailable"));
+        } finally {
+            org.llm4people.hermes.Diagnostics.clear();
+        }
+
+        // R40.3.4: BiometricVault availability & supportsDeviceCredential fail closed.
+        Method supportsDeviceCredential = BiometricVault.class.getDeclaredMethod(
+                "supportsDeviceCredential", android.content.Context.class);
+        supportsDeviceCredential.setAccessible(true);
+        assertEquals(BiometricVault.Availability.UNAVAILABLE, BiometricVault.availability(null));
+        assertEquals(BiometricVault.Availability.UNAVAILABLE, BiometricVault.availability(throwingCtx));
+        assertFalse((Boolean) supportsDeviceCredential.invoke(null, new Object[]{null}));
+        assertFalse((Boolean) supportsDeviceCredential.invoke(null, throwingCtx));
+
+        // R40.3.5: DistributorIdentity.current & matches fail closed on null / throwing PackageManager.
+        Class<?> distributorIdentity = Class.forName("org.llm4people.hermes.push.DistributorIdentity");
+        Method currentIdentity = distributorIdentity.getDeclaredMethod(
+                "current", android.content.Context.class, String.class);
+        Method matchesIdentity = distributorIdentity.getDeclaredMethod(
+                "matches", android.content.Context.class, String.class, String.class);
+        currentIdentity.setAccessible(true);
+        matchesIdentity.setAccessible(true);
+        assertNull(currentIdentity.invoke(null, null, "org.example.push"));
+        assertNull(currentIdentity.invoke(null, nullServiceCtx, "org.example.push"));
+        assertNull(currentIdentity.invoke(null, throwingCtx, "org.example.push"));
+        assertFalse((Boolean) matchesIdentity.invoke(null, throwingCtx, "org.example.push", "sha256:abc"));
+    }
+
+    @Test
     public void workspacePartsDelegatesJsonQuotingToJsonValues() throws Exception {
         Class<?> workspaceParts = Class.forName("org.llm4people.hermes.artifact.WorkspaceParts");
         for (Method m : workspaceParts.getDeclaredMethods()) {
