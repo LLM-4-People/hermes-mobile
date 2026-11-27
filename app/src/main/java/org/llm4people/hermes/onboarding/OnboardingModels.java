@@ -4,6 +4,7 @@ import org.json.JSONObject;
 import org.llm4people.hermes.JsonValues;
 import org.llm4people.hermes.PlainTextSanitizer;
 import org.llm4people.hermes.Ui;
+import org.llm4people.hermes.artifact.ThemePalette;
 import org.llm4people.hermes.profile.GatewayAddress;
 
 import java.util.ArrayList;
@@ -12,7 +13,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.regex.Pattern;
 
 /**
  * Pure-Java typed data models and fail-closed wire parsers for Track 19 pairing,
@@ -21,8 +21,6 @@ import java.util.regex.Pattern;
  * exact same validation logic.
  */
 public final class OnboardingModels {
-    private static final Pattern HEX_COLOR = Pattern.compile("#[0-9A-Fa-f]{6}");
-
     private OnboardingModels() {}
 
     public record PairingTicket(
@@ -440,7 +438,7 @@ public final class OnboardingModels {
     public static String safeHexColor(String raw) {
         if (raw == null) return "";
         String trimmed = raw.trim();
-        return HEX_COLOR.matcher(trimmed).matches() ? trimmed.toUpperCase(Locale.ROOT) : "";
+        return ThemePalette.isValidHexColor(trimmed) ? trimmed.toUpperCase(Locale.ROOT) : "";
     }
 
     private static String safeSlug(String raw) {

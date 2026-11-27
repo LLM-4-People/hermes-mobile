@@ -2,6 +2,7 @@ package org.llm4people.hermes.customization;
 
 import org.llm4people.hermes.Base64Url;
 import org.llm4people.hermes.Diagnostics;
+import org.llm4people.hermes.Digests;
 import org.llm4people.hermes.PlainTextSanitizer;
 import org.llm4people.hermes.SecretPatterns;
 import org.llm4people.hermes.artifact.ThemePalette;
@@ -31,7 +32,6 @@ public final class AppCustomization {
     public static final int MAX_SHORTCUT_LABEL_CHARS = 32;
     public static final int MAX_SHORTCUT_DRAFT_CHARS = 240;
 
-    private static final Pattern HEX_COLOR = Pattern.compile("#[0-9A-Fa-f]{6}");
     private static final Pattern SHORTCUT_ID = Pattern.compile("[a-z0-9_-]{1,32}");
 
     public enum PalettePreset {
@@ -279,24 +279,25 @@ public final class AppCustomization {
                 base.density, base.fontScaleStep, base.surfaceStyle, systemNight);
     }
 
-    /** Validates a custom {@code #RRGGBB} hex accent against WCAG 2.1 AA (&gt;= 4.5:1 on light surface). */
+    /** Validates a custom {@code #RRGGBB} hex accent against WCAG 2.1 AA (&gt;= 4.5:1 on light paper/surface &amp; label). */
     public static String validateCustomAccentHex(String rawHex) {
-        if (rawHex == null || !HEX_COLOR.matcher(rawHex.trim()).matches()) {
+        String trimmed = rawHex == null ? "" : rawHex.trim();
+        if (!ThemePalette.isValidHexColor(trimmed)) {
             throw new IllegalArgumentException("Accent color must be #RRGGBB");
         }
-        String normalized = rawHex.trim().toUpperCase(Locale.ROOT);
+        String normalized = trimmed.toUpperCase(Locale.ROOT);
         int rgb = parseRgb(normalized);
-        if (!meetsWcagAa(rgb, LIGHT_SURFACE_RGB)) {
+        if (ThemePalette.minLightAccentContrast(0xFF000000 | rgb) < WCAG_AA_MIN_CONTRAST) {
             throw new IllegalArgumentException("Accent color fails WCAG AA 4.5:1 contrast");
         }
         return normalized;
     }
 
     public static int parseRgb(String hex) {
-        if (hex == null || !HEX_COLOR.matcher(hex).matches()) {
+        if (!ThemePalette.isValidHexColor(hex)) {
             throw new IllegalArgumentException("Invalid hex color");
         }
-        return Integer.parseInt(hex.substring(1), 16) & 0xFFFFFF;
+        return Digests.parseUnsignedHex(hex, 1, 6) & 0xFFFFFF;
     }
 
     /** WCAG 2.1 contrast ratio in {@code [1.0, 21.0]}. */

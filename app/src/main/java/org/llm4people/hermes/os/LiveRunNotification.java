@@ -277,18 +277,14 @@ public final class LiveRunNotification {
         } else {
             builder.setProgress(model.max(), model.progress(), model.indeterminate());
         }
-        Notification built = builder.build();
-        if (Build.VERSION.SDK_INT >= 36 && manager != null && manager.canPostPromotedNotifications()) {
-            built.flags |= Notification.FLAG_PROMOTED_ONGOING;
-        }
-        return built;
+        return builder.build();
     }
 
     private static void applyAndroid16LiveUpdate(Context context, NotificationManager manager,
                                                  Notification.Builder builder, Presentation model) {
         if (Build.VERSION.SDK_INT < 36) return;
         int accent = context.getColor(R.color.accent);
-        int muted = context.getColor(R.color.line);
+        int muted = context.getColor(R.color.line_strong);
         Notification.ProgressStyle style = new Notification.ProgressStyle()
                 .addProgressSegment(new Notification.ProgressStyle.Segment(SEGMENT_PREP).setColor(accent))
                 .addProgressSegment(new Notification.ProgressStyle.Segment(SEGMENT_WORK).setColor(accent))

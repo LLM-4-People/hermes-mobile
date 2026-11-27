@@ -62,6 +62,23 @@ public final class DigestsHexAndParserTest {
 
         assertNull(PairingLinkParser.parseOrNull("{\"host\":\"https://hermes.example.org/p/alice\",\"code\":\"\\u+041BC123456\"}"));
         assertNull(PairingLinkParser.parseOrNull("{\"host\":\"https://hermes.example.org/p/alice\",\"code\":\"\\u-001BC123456\"}"));
+        // Place a signed unicode escape in "name" (which accepts any non-control string) so parseOrNull cannot pass false-green.
+        assertNull(PairingLinkParser.parseOrNull(
+                "{\"host\":\"https://hermes.example.org/p/alice\",\"code\":\"ABC123456\",\"name\":\"\\u-001\"}"));
+
+        for (String bad : new String[]{
+                "{\"host\":\"https://hermes.example.org/p/alice\",\"code\":\"\\u+041BC123456\"}",
+                "{\"host\":\"https://hermes.example.org/p/alice\",\"code\":\"\\u-001BC123456\"}",
+                "{\"host\":\"https://hermes.example.org/p/alice\",\"code\":\"ABC123456\",\"name\":\"\\u-001\"}"
+        }) {
+            try {
+                PairingLinkParser.parse(bad);
+                fail("Expected IllegalArgumentException for: " + bad);
+            } catch (IllegalArgumentException expected) {
+                assertTrue("Expected Invalid hex digit, got: " + expected.getMessage(),
+                        expected.getMessage() != null && expected.getMessage().contains("Invalid hex digit"));
+            }
+        }
     }
 
     @Test

@@ -11,6 +11,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import org.llm4people.hermes.Diagnostics;
+import org.llm4people.hermes.Digests;
 import org.llm4people.hermes.profile.Account;
 
 /**
@@ -298,18 +299,27 @@ public final class ThemePalette {
         this.surfaceStyle = spec.surfaceStyle;
     }
 
+    /** Single source of truth for strict ASCII {@code #RRGGBB} hex color syntax validation. */
+    public static boolean isValidHexColor(String raw) {
+        if (raw == null || raw.length() != 7 || raw.charAt(0) != '#') return false;
+        try {
+            Digests.parseUnsignedHex(raw, 1, 6);
+            return true;
+        } catch (IllegalArgumentException invalid) {
+            return false;
+        }
+    }
+
     /** Strictly parses #RRGGBB (opaque 24-bit sRGB). Rejects alpha, shorthand, whitespace, and non-hex. */
     public static int parseHexColor(String raw) throws IOException {
         if (raw == null || raw.length() != 7 || raw.charAt(0) != '#') {
             throw new IOException("Expected #RRGGBB color");
         }
-        int rgb = 0;
-        for (int i = 1; i < 7; i++) {
-            int digit = Character.digit(raw.charAt(i), 16);
-            if (digit < 0) throw new IOException("Invalid hex digit");
-            rgb = (rgb << 4) | digit;
+        try {
+            return 0xFF000000 | Digests.parseUnsignedHex(raw, 1, 6);
+        } catch (IllegalArgumentException invalid) {
+            throw new IOException("Invalid hex digit", invalid);
         }
-        return 0xFF000000 | rgb;
     }
 
     public static String formatHex(int argb) {
@@ -368,15 +378,27 @@ public final class ThemePalette {
         }
     }
 
+    /** Minimum WCAG contrast of a light-mode accent across DAY_PAPER, DAY_SURFACE, and its best label color. */
+    public static double minLightAccentContrast(int accentArgb) {
+        int opaque = 0xFF000000 | (accentArgb & 0xFFFFFF);
+        double vsPaper = contrastRatio(opaque, DAY_PAPER);
+        double vsSurface = contrastRatio(opaque, DAY_SURFACE);
+        double vsOnAccent = contrastRatio(bestOnAccent(opaque), opaque);
+        return Math.min(vsPaper, Math.min(vsSurface, vsOnAccent));
+    }
+
     /** Enforces WCAG AA >= 4.5:1 against paper, surface, and its button label color. */
     public static void validateAccentContrast(int accentArgb, boolean nightMode) throws ContrastException {
-        int paper = nightMode ? NIGHT_PAPER : DAY_PAPER;
-        int surface = nightMode ? NIGHT_SURFACE : DAY_SURFACE;
-        int onAccent = bestOnAccent(accentArgb);
-        double vsPaper = contrastRatio(accentArgb, paper);
-        double vsSurface = contrastRatio(accentArgb, surface);
-        double vsOnAccent = contrastRatio(onAccent, accentArgb);
-        double minRatio = Math.min(vsPaper, Math.min(vsSurface, vsOnAccent));
+        double minRatio;
+        if (!nightMode) {
+            minRatio = minLightAccentContrast(accentArgb);
+        } else {
+            int onAccent = bestOnAccent(accentArgb);
+            double vsPaper = contrastRatio(accentArgb, NIGHT_PAPER);
+            double vsSurface = contrastRatio(accentArgb, NIGHT_SURFACE);
+            double vsOnAccent = contrastRatio(onAccent, accentArgb);
+            minRatio = Math.min(vsPaper, Math.min(vsSurface, vsOnAccent));
+        }
         if (minRatio < WCAG_AA_NORMAL) {
             throw new ContrastException(
                     String.format(Locale.ROOT, "Contrast ratio %.2f is below WCAG AA (4.5:1)", minRatio), minRatio);

@@ -49,7 +49,15 @@ public final class AppearanceSettingsModelTest {
         assertTrue(lowContrast.contrastRatio() < 4.5);
         assertEquals(R.string.appearance_hex_low_contrast, lowContrast.errorRes());
 
-        for (String invalid : new String[]{null, "", "#123", "#GGGGGG", "blue", "#1234567"}) {
+        // R36.5.4: #727272 passes DAY_SURFACE (4.77:1) but fails DAY_PAPER (4.39:1) -> must fail.
+        AppearanceSettingsModel.HexEvaluation failsDayPaper = AppearanceSettingsModel.evaluateCustomHex("#727272");
+        assertTrue(failsDayPaper.validSyntax());
+        assertFalse(failsDayPaper.accessible());
+        assertTrue(failsDayPaper.contrastRatio() < 4.5);
+        assertEquals(R.string.appearance_hex_low_contrast, failsDayPaper.errorRes());
+
+        for (String invalid : new String[]{null, "", "#123", "#GGGGGG", "blue", "#1234567",
+                "#+12345", "#-12345", "#\u0660\u0660\u0660\u0660\u0660\u0660"}) {
             AppearanceSettingsModel.HexEvaluation bad = AppearanceSettingsModel.evaluateCustomHex(invalid);
             assertFalse("Expected syntax failure for " + invalid, bad.validSyntax());
             assertFalse(bad.accessible());

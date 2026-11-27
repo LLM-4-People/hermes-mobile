@@ -8,6 +8,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import org.llm4people.hermes.JsonValues;
 import org.llm4people.hermes.places.NearbyCategory;
 
 import static org.llm4people.hermes.artifact.WorkspaceLayout.*;
@@ -201,32 +202,19 @@ final class WorkspaceParts {
                 while (in.hasNext()) {
                     if (!first) out.append(',');
                     first = false;
-                    appendQuoted(out, in.nextName());
+                    out.append(JsonValues.quote(in.nextName()));
                     out.append(':');
                     writeJsonValue(in, out, depth + 1);
                 }
                 in.endObject();
                 out.append('}');
             }
-            case STRING -> appendQuoted(out, in.nextString());
+            case STRING -> out.append(JsonValues.quote(in.nextString()));
             case NUMBER -> out.append(in.nextString());
             case BOOLEAN -> out.append(in.nextBoolean() ? "true" : "false");
             case NULL -> { in.nextNull(); out.append("null"); }
             default -> throw invalid();
         }
-    }
-
-    private static void appendQuoted(StringBuilder out, String value) {
-        out.append('"');
-        for (int i = 0; i < value.length(); i++) {
-            char c = value.charAt(i);
-            if (c == '"' || c == '\\') out.append('\\').append(c);
-            else if (c == '\n') out.append("\\n");
-            else if (c == '\r') out.append("\\r");
-            else if (c == '\t') out.append("\\t");
-            else out.append(c);
-        }
-        out.append('"');
     }
 
     private static int strictInt(JsonReader in) throws IOException {

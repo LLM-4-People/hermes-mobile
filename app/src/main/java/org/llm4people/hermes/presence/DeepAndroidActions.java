@@ -760,6 +760,15 @@ public final class DeepAndroidActions {
         };
     }
 
+    /** Single source of truth: true when the proactive-nudges channel is uncreated or not muted (IMPORTANCE_NONE). */
+    public static boolean isNudgeChannelEnabled(Context context) {
+        if (context == null) return false;
+        NotificationManager nm = context.getSystemService(NotificationManager.class);
+        if (nm == null) return false;
+        NotificationChannel channel = nm.getNotificationChannel(NUDGE_CHANNEL_ID);
+        return channel == null || channel.getImportance() != NotificationManager.IMPORTANCE_NONE;
+    }
+
     static boolean postNudgeIfAllowed(
             boolean notificationsEnabled,
             int channelImportance,
