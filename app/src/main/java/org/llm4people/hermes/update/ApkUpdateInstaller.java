@@ -241,7 +241,14 @@ public final class ApkUpdateInstaller {
     }
 
     public static boolean canRequestPackageInstalls(Context context) {
-        return context != null && context.getPackageManager().canRequestPackageInstalls();
+        if (context == null) return false;
+        try {
+            PackageManager pm = context.getPackageManager();
+            return pm != null && pm.canRequestPackageInstalls();
+        } catch (RuntimeException unavailable) {
+            Diagnostics.warning("update", "install_permission_check_failed", unavailable);
+            return false;
+        }
     }
 
     /** Launch the native Android package installer for an already-verified APK file. */

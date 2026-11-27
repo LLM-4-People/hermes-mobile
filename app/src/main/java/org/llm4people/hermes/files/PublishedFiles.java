@@ -100,10 +100,13 @@ public final class PublishedFiles implements Closeable {
             String next = result.isNull("next") ? null : result.getString("next");
             if (next != null) labels.add(activity.getString(R.string.files_older_files));
             return () -> {
+                boolean[] handled = {false};
                 AlertDialog.Builder sheet = new AlertDialog.Builder(activity).setTitle(R.string.files_published_title)
                         .setNegativeButton(R.string.ws_close, null);
                 if (files.isEmpty()) sheet.setMessage(R.string.files_empty_message);
                 else sheet.setItems(labels.toArray(new String[0]), (ignored, index) -> {
+                    if (handled[0]) return;
+                    handled[0] = true;
                     if (index == files.size()) page(path, next);
                     else options(files.get(index));
                 });
@@ -113,12 +116,21 @@ public final class PublishedFiles implements Closeable {
     }
 
     private void options(PublishedFile item) {
+        boolean[] handled = {false};
         AlertDialog.Builder sheet = new AlertDialog.Builder(activity).setTitle(item.name)
                 .setMessage(item.mime + "\n" + Formatter.formatShortFileSize(activity, item.size))
                 .setNegativeButton(R.string.ws_close, null)
-                .setPositiveButton(R.string.files_save_as, (d, w) -> select(item));
+                .setPositiveButton(R.string.files_save_as, (d, w) -> {
+                    if (handled[0]) return;
+                    handled[0] = true;
+                    select(item);
+                });
         if (item.text() || item.image()) {
-            sheet.setNeutralButton(R.string.files_preview, (d, w) -> preview(item));
+            sheet.setNeutralButton(R.string.files_preview, (d, w) -> {
+                if (handled[0]) return;
+                handled[0] = true;
+                preview(item);
+            });
         }
         present(sheet);
     }
@@ -197,8 +209,13 @@ public final class PublishedFiles implements Closeable {
     }
 
     private AlertDialog.Builder previewDialog(PublishedFile item) {
+        boolean[] handled = {false};
         return new AlertDialog.Builder(activity).setTitle(item.name).setNegativeButton(R.string.ws_close, null)
-                .setPositiveButton(R.string.files_save_as, (d, w) -> select(item));
+                .setPositiveButton(R.string.files_save_as, (d, w) -> {
+                    if (handled[0]) return;
+                    handled[0] = true;
+                    select(item);
+                });
     }
 
     private interface Operation { Runnable execute(HermesApi client) throws Exception; }

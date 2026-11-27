@@ -380,7 +380,10 @@ public class ThreadStateTest extends InstrumentationTestCase {
     public void testPagedLineageOverlapsAndMalformedRows() throws Exception {
         JSONArray older = new JSONArray("[{\"id\":1},{\"id\":2},null]");
         JSONArray newer = new JSONArray("[{\"id\":2},{\"id\":3}]");
-        JSONArray merged = ThreadData.join(older, newer);
+        InfiniteTranscriptWindow<JSONObject> window = InfiniteTranscriptWindow.forJson();
+        window.replaceLatest(InfiniteTranscriptWindow.fromJsonArray(newer), true, 2L, 3L);
+        window.prependOlder(InfiniteTranscriptWindow.fromJsonArray(older), false, 1L);
+        JSONArray merged = InfiniteTranscriptWindow.toJsonArray(window.snapshot());
         assertEquals(3, merged.length());
         for (int i = 0; i < 3; i++) assertEquals(i + 1, merged.getJSONObject(i).getInt("id"));
         assertFalse(ThreadData.validId("a/b"));
@@ -425,7 +428,10 @@ public class ThreadStateTest extends InstrumentationTestCase {
                 """));
         page.put(0, new JSONObject().put("id", 1).put("role", "user").put("content", "Bonjour"));
         page.put(ThreadData.PAGE - 1, recent.get(0));
-        JSONArray joined = ThreadData.visibleMessages(ThreadData.join(page, recent));
+        InfiniteTranscriptWindow<JSONObject> window = InfiniteTranscriptWindow.forJson();
+        window.replaceLatest(InfiniteTranscriptWindow.fromJsonArray(recent), true, 41L, 41L);
+        window.prependOlder(InfiniteTranscriptWindow.fromJsonArray(ThreadData.visibleMessages(page)), false, 1L);
+        JSONArray joined = InfiniteTranscriptWindow.toJsonArray(window.snapshot());
         assertEquals(1, joined.length() - recent.length());
         assertEquals("Bonjour", ThreadData.content(joined.getJSONObject(0)));
         assertSame(recent.get(0), joined.get(1));

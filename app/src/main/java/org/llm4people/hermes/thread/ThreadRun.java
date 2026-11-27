@@ -595,11 +595,21 @@ final class ThreadRun {
             return;
         }
         ui.notice(page.activity.getString(R.string.thread_gateway_unblock_notice),
-                page.activity.getString(R.string.thread_review_action), owner.guard(() ->
+                page.activity.getString(R.string.thread_review_action), owner.guard(() -> {
+            boolean[] handled = {false};
             ui.show(new AlertDialog.Builder(page.activity).setTitle(R.string.thread_unblock_title)
                     .setMessage(R.string.thread_unblock_body)
-                    .setNegativeButton(R.string.thread_wait_action, (d,w) -> { if (owner.current()) follow(); })
-                    .setPositiveButton(R.string.thread_close_run_action, (d,w) -> { if (owner.current()) resolve(owner, receipt); }))));
+                    .setNegativeButton(R.string.thread_wait_action, (d,w) -> {
+                        if (handled[0] || !owner.current()) return;
+                        handled[0] = true;
+                        follow();
+                    })
+                    .setPositiveButton(R.string.thread_close_run_action, (d,w) -> {
+                        if (handled[0] || !owner.current()) return;
+                        handled[0] = true;
+                        resolve(owner, receipt);
+                    }));
+        }));
     }
 
     private void resolve(RunAction owner, JSONObject receipt) {

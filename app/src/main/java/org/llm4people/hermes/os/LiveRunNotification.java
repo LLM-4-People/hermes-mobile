@@ -199,15 +199,15 @@ public final class LiveRunNotification {
             cancelNotificationOnly(app);
             return;
         }
-        NotificationManager manager = app.getSystemService(NotificationManager.class);
-        if (manager == null) return;
-        ActionLabels labels = actionLabels(localized);
-        ensureChannel(labels.channelName(), manager);
-        Notification notification = build(app, localized, manager, normalized, model, labels);
         try {
+            NotificationManager manager = app.getSystemService(NotificationManager.class);
+            if (manager == null) return;
+            ActionLabels labels = actionLabels(localized);
+            ensureChannel(labels.channelName(), manager);
+            Notification notification = build(app, localized, manager, normalized, model, labels);
             manager.notify(NOTIFICATION_ID, notification);
         } catch (RuntimeException error) {
-            Diagnostics.warning("live_run", "notify_failed");
+            Diagnostics.warning("live_run", "notify_failed", error);
         }
     }
 
@@ -242,8 +242,12 @@ public final class LiveRunNotification {
     }
 
     private static void cancelNotificationOnly(Context app) {
-        NotificationManager manager = app.getSystemService(NotificationManager.class);
-        if (manager != null) manager.cancel(NOTIFICATION_ID);
+        try {
+            NotificationManager manager = app.getSystemService(NotificationManager.class);
+            if (manager != null) manager.cancel(NOTIFICATION_ID);
+        } catch (RuntimeException error) {
+            Diagnostics.warning("live_run", "cancel_failed", error);
+        }
     }
 
     static Notification build(Context appContext, Context localizedContext, NotificationManager manager,
@@ -299,33 +303,49 @@ public final class LiveRunNotification {
         }
         builder.setStyle(style);
         builder.setShortCriticalText(model.shortCriticalText());
-        if (manager != null && manager.canPostPromotedNotifications()) {
-            Bundle extras = new Bundle();
-            extras.putBoolean("android.requestPromotedOngoing", true);
-            builder.addExtras(extras);
+        if (manager != null) {
+            try {
+                if (manager.canPostPromotedNotifications()) {
+                    Bundle extras = new Bundle();
+                    extras.putBoolean("android.requestPromotedOngoing", true);
+                    builder.addExtras(extras);
+                }
+            } catch (RuntimeException error) {
+                Diagnostics.warning("live_run", "promoted_check_failed", error);
+            }
         }
     }
 
     private static void ensureChannel(String channelName, NotificationManager manager) {
-        NotificationChannel channel = new NotificationChannel(
-                CHANNEL_ID,
-                channelName,
-                NotificationManager.IMPORTANCE_DEFAULT);
-        channel.setLockscreenVisibility(Notification.VISIBILITY_PRIVATE);
-        channel.setSound(null, null);
-        channel.enableVibration(false);
-        manager.createNotificationChannel(channel);
+        try {
+            NotificationChannel channel = new NotificationChannel(
+                    CHANNEL_ID,
+                    channelName,
+                    NotificationManager.IMPORTANCE_DEFAULT);
+            channel.setLockscreenVisibility(Notification.VISIBILITY_PRIVATE);
+            channel.setSound(null, null);
+            channel.enableVibration(false);
+            manager.createNotificationChannel(channel);
+        } catch (RuntimeException error) {
+            Diagnostics.warning("live_run", "channel_create_failed", error);
+        }
     }
 
     private static boolean allowed(Context context) {
-        if (Build.VERSION.SDK_INT >= 33
-                && context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
-                != PackageManager.PERMISSION_GRANTED) {
+        if (context == null) return false;
+        try {
+            if (Build.VERSION.SDK_INT >= 33
+                    && context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
+                    != PackageManager.PERMISSION_GRANTED) {
+                return false;
+            }
+            NotificationManager manager = context.getSystemService(NotificationManager.class);
+            if (manager == null || !manager.areNotificationsEnabled()) return false;
+            NotificationChannel channel = manager.getNotificationChannel(CHANNEL_ID);
+            return channel == null || channel.getImportance() != NotificationManager.IMPORTANCE_NONE;
+        } catch (RuntimeException error) {
+            Diagnostics.warning("live_run", "allowed_check_failed", error);
             return false;
         }
-        NotificationManager manager = context.getSystemService(NotificationManager.class);
-        if (manager == null || !manager.areNotificationsEnabled()) return false;
-        NotificationChannel channel = manager.getNotificationChannel(CHANNEL_ID);
-        return channel == null || channel.getImportance() != NotificationManager.IMPORTANCE_NONE;
     }
 }

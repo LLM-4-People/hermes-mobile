@@ -25,7 +25,7 @@ public final class ThreadWindowTest extends TestCase {
         }, "/messages?limit=", 0, 40, -1, ThreadData.rowId(old.getJSONObject(0)), () -> true, ThreadData.PAGE);
         assertEquals(List.of("/messages?limit=40&offset=0", "/messages?limit=40&offset=40"), reads);
         assertEquals(80, loaded.rawCount());
-        JSONArray history = ThreadData.join(loaded.rows(), new JSONArray());
+        JSONArray history = loaded.rows();
         assertEquals(80, history.length());
         assertEquals("source", history.getJSONObject(0).getString("session_id"));
         assertEquals("after-compaction", history.getJSONObject(79).getString("session_id"));

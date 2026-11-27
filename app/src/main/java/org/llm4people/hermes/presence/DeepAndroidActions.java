@@ -719,44 +719,49 @@ public final class DeepAndroidActions {
             }
 
             @Override public boolean postLocalNudge(String title, String body) {
-                if (Build.VERSION.SDK_INT >= 33
-                        && app.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
-                        != PackageManager.PERMISSION_GRANTED) {
+                try {
+                    if (Build.VERSION.SDK_INT >= 33
+                            && app.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
+                            != PackageManager.PERMISSION_GRANTED) {
+                        return false;
+                    }
+                    NotificationManager nm = app.getSystemService(NotificationManager.class);
+                    if (nm == null || !nm.areNotificationsEnabled()) return false;
+                    Context localized = AppLanguage.wrapContext(app);
+                    NotificationChannel channel = new NotificationChannel(
+                            NUDGE_CHANNEL_ID,
+                            localized.getString(R.string.deep_action_nudge_channel),
+                            NotificationManager.IMPORTANCE_DEFAULT);
+                    channel.setLockscreenVisibility(Notification.VISIBILITY_PRIVATE);
+                    nm.createNotificationChannel(channel);
+                    NotificationChannel liveChannel = nm.getNotificationChannel(NUDGE_CHANNEL_ID);
+                    int channelImportance = liveChannel != null
+                            ? liveChannel.getImportance()
+                            : NotificationManager.IMPORTANCE_DEFAULT;
+                    if (channelImportance == NotificationManager.IMPORTANCE_NONE) {
+                        return false;
+                    }
+                    Notification publicVersion = new Notification.Builder(app, NUDGE_CHANNEL_ID)
+                            .setSmallIcon(R.drawable.ic_push_notification)
+                            .setContentTitle(localized.getString(R.string.app_name))
+                            .setContentText(localized.getString(R.string.deep_action_nudge_channel))
+                            .build();
+                    Notification notification = new Notification.Builder(app, NUDGE_CHANNEL_ID)
+                            .setSmallIcon(R.drawable.ic_push_notification)
+                            .setContentTitle(title)
+                            .setContentText(body)
+                            .setVisibility(Notification.VISIBILITY_PRIVATE)
+                            .setPublicVersion(publicVersion)
+                            .setAutoCancel(true)
+                            .build();
+                    return postNudgeIfAllowed(
+                            nm.areNotificationsEnabled(),
+                            channelImportance,
+                            () -> nm.notify((int) (System.currentTimeMillis() & 0x7FFF) + 5100, notification));
+                } catch (RuntimeException failed) {
+                    Diagnostics.warning("deep_action", "nudge_notify_failed", failed);
                     return false;
                 }
-                NotificationManager nm = app.getSystemService(NotificationManager.class);
-                if (nm == null || !nm.areNotificationsEnabled()) return false;
-                Context localized = AppLanguage.wrapContext(app);
-                NotificationChannel channel = new NotificationChannel(
-                        NUDGE_CHANNEL_ID,
-                        localized.getString(R.string.deep_action_nudge_channel),
-                        NotificationManager.IMPORTANCE_DEFAULT);
-                channel.setLockscreenVisibility(Notification.VISIBILITY_PRIVATE);
-                nm.createNotificationChannel(channel);
-                NotificationChannel liveChannel = nm.getNotificationChannel(NUDGE_CHANNEL_ID);
-                int channelImportance = liveChannel != null
-                        ? liveChannel.getImportance()
-                        : NotificationManager.IMPORTANCE_DEFAULT;
-                if (channelImportance == NotificationManager.IMPORTANCE_NONE) {
-                    return false;
-                }
-                Notification publicVersion = new Notification.Builder(app, NUDGE_CHANNEL_ID)
-                        .setSmallIcon(R.drawable.ic_push_notification)
-                        .setContentTitle(localized.getString(R.string.app_name))
-                        .setContentText(localized.getString(R.string.deep_action_nudge_channel))
-                        .build();
-                Notification notification = new Notification.Builder(app, NUDGE_CHANNEL_ID)
-                        .setSmallIcon(R.drawable.ic_push_notification)
-                        .setContentTitle(title)
-                        .setContentText(body)
-                        .setVisibility(Notification.VISIBILITY_PRIVATE)
-                        .setPublicVersion(publicVersion)
-                        .setAutoCancel(true)
-                        .build();
-                return postNudgeIfAllowed(
-                        nm.areNotificationsEnabled(),
-                        channelImportance,
-                        () -> nm.notify((int) (System.currentTimeMillis() & 0x7FFF) + 5100, notification));
             }
         };
     }

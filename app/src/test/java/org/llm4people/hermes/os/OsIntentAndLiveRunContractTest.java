@@ -81,8 +81,54 @@ public final class OsIntentAndLiveRunContractTest {
         // R38.3.3: PermissionCenter.isPermissionDeclared fails closed when PackageManager is null.
         assertFalse(PermissionCenter.isPermissionDeclared(stubContext, "android.permission.POST_NOTIFICATIONS"));
 
-        // R38.3.4: DeepAndroidActions.isNudgeChannelEnabled catches RuntimeException and returns false.
-        assertFalse(DeepAndroidActions.isNudgeChannelEnabled(stubContext));
+        // R38.3.4 & R39.8.4: DeepAndroidActions.isNudgeChannelEnabled catches RuntimeException, logs warning, returns false.
+        org.llm4people.hermes.Diagnostics.clear();
+        try {
+            assertFalse(DeepAndroidActions.isNudgeChannelEnabled(stubContext));
+            String diag = org.llm4people.hermes.Diagnostics.exportRedacted();
+            org.junit.Assert.assertTrue("Expected deep_action.nudge_channel_check_failed, got: " + diag,
+                    diag.contains("deep_action.nudge_channel_check_failed"));
+        } finally {
+            org.llm4people.hermes.Diagnostics.clear();
+        }
+
+        // R39.3.4: ApkUpdateInstaller.canRequestPackageInstalls fails closed on null Context, null PM, and throwing PM.
+        assertFalse(org.llm4people.hermes.update.ApkUpdateInstaller.canRequestPackageInstalls(null));
+        assertFalse(org.llm4people.hermes.update.ApkUpdateInstaller.canRequestPackageInstalls(stubContext));
+        android.content.Context throwingPmContext = new android.content.ContextWrapper(null) {
+            @Override public android.content.pm.PackageManager getPackageManager() {
+                throw new RuntimeException("pm ipc failed");
+            }
+        };
+        org.llm4people.hermes.Diagnostics.clear();
+        try {
+            assertFalse(org.llm4people.hermes.update.ApkUpdateInstaller.canRequestPackageInstalls(throwingPmContext));
+            String diag = org.llm4people.hermes.Diagnostics.exportRedacted();
+            org.junit.Assert.assertTrue("Expected update.install_permission_check_failed, got: " + diag,
+                    diag.contains("update.install_permission_check_failed"));
+        } finally {
+            org.llm4people.hermes.Diagnostics.clear();
+        }
+
+        // R39.3.3: LiveRunNotification.allowed and cancelNotificationOnly fail closed on null / throwing NotificationManager.
+        Method allowedMethod = LiveRunNotification.class.getDeclaredMethod("allowed", android.content.Context.class);
+        allowedMethod.setAccessible(true);
+        Method cancelOnlyMethod = LiveRunNotification.class.getDeclaredMethod(
+                "cancelNotificationOnly", android.content.Context.class);
+        cancelOnlyMethod.setAccessible(true);
+        org.llm4people.hermes.Diagnostics.clear();
+        try {
+            assertFalse((Boolean) allowedMethod.invoke(null, new Object[]{null}));
+            assertFalse((Boolean) allowedMethod.invoke(null, stubContext));
+            cancelOnlyMethod.invoke(null, stubContext);
+            String diag = org.llm4people.hermes.Diagnostics.exportRedacted();
+            org.junit.Assert.assertTrue("Expected live_run.allowed_check_failed, got: " + diag,
+                    diag.contains("live_run.allowed_check_failed"));
+            org.junit.Assert.assertTrue("Expected live_run.cancel_failed, got: " + diag,
+                    diag.contains("live_run.cancel_failed"));
+        } finally {
+            org.llm4people.hermes.Diagnostics.clear();
+        }
     }
 
     @Test

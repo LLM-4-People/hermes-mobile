@@ -2,7 +2,6 @@ package org.llm4people.hermes.os;
 
 import android.app.Activity;
 import android.content.Context;
-import android.content.pm.PackageManager;
 import android.view.View;
 import android.widget.Button;
 import android.widget.LinearLayout;
@@ -207,6 +206,13 @@ public final class PermissionsPanel {
         return pendingWasGranted != (current == PermissionCenter.State.GRANTED);
     }
 
+    /** Pure-JVM SSoT mapping live post-prompt permission state to feedback copy. */
+    static int feedbackResForPermissionOutcome(PermissionCenter.State updated) {
+        if (updated == PermissionCenter.State.GRANTED) return R.string.perm_feedback_granted;
+        if (updated == PermissionCenter.State.PERMANENTLY_DENIED) return R.string.perm_feedback_blocked;
+        return R.string.perm_feedback_denied;
+    }
+
     /** Handle a completed runtime permission prompt initiated by {@link PermissionCenter}. */
     public void onPermissionResult(int requestCode, int[] results) {
         PermissionCenter.Key key = PermissionCenter.fromRequestCode(requestCode);
@@ -215,22 +221,12 @@ public final class PermissionsPanel {
             refresh();
             return;
         }
-        boolean granted = results[0] == PackageManager.PERMISSION_GRANTED;
         PermissionCenter.State updated = PermissionCenter.state(activity, key);
         String label = activity.getString(titleRes(key));
-        if (granted || updated == PermissionCenter.State.GRANTED) {
-            pendingFeedbackKey = key;
-            pendingFeedbackWasGranted = true;
-            showFeedback(activity.getString(R.string.perm_feedback_granted, label), false);
-        } else if (updated == PermissionCenter.State.PERMANENTLY_DENIED) {
-            pendingFeedbackKey = key;
-            pendingFeedbackWasGranted = false;
-            showFeedback(activity.getString(R.string.perm_feedback_blocked, label), true);
-        } else {
-            pendingFeedbackKey = key;
-            pendingFeedbackWasGranted = false;
-            showFeedback(activity.getString(R.string.perm_feedback_denied, label), true);
-        }
+        boolean nowGranted = updated == PermissionCenter.State.GRANTED;
+        pendingFeedbackKey = key;
+        pendingFeedbackWasGranted = nowGranted;
+        showFeedback(activity.getString(feedbackResForPermissionOutcome(updated), label), !nowGranted);
         refresh();
     }
 
