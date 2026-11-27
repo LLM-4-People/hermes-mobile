@@ -15,9 +15,9 @@ import secrets
 import sys
 import tempfile
 
-from device.installed import installed_apk_sha256
+from device.installed import verify_disposable_emulator_apks
 from device.run import APP, DEVICE_DIR, DRIVER, Emulator, android_png_size, cleanup_all, collect_captures
-from device.viewport import await_viewport, restore_display, set_viewport
+from device.viewport import restore_display, set_viewport
 from gateway_fixture import Gateway, PINNED_REVISION, check_source
 
 CAPTURES = {
@@ -70,14 +70,7 @@ def set_tablet_viewport(device, width=1200, height=800, density=160, timeout=20.
 
 def journey(args, gateway):
     device = Emulator(args.serial, args.adb, args.adb_port)
-    if device.shell("getprop", "ro.kernel.qemu") != "1" or DRIVER not in device.shell("pm", "list", "instrumentation"):
-        raise ValueError("Install the current app and androidTest APK on a disposable emulator")
-    hashes = [installed_apk_sha256(device, pkg) for pkg in (APP, APP + ".test")]
-    if args.verify_apks:
-        for path, actual in zip(args.verify_apks, hashes, strict=True):
-            with path.open("rb") as apk:
-                if hashlib.file_digest(apk, "sha256").hexdigest() != actual:
-                    raise ValueError("Installed artifact differs from " + path.name)
+    hashes = verify_disposable_emulator_apks(device, DRIVER, APP, args.verify_apks)
     token = secrets.token_hex(5)
     folder = DEVICE_DIR + "/" + token
     spec = {

@@ -37,7 +37,7 @@ class DiscussionEvidenceTest(unittest.TestCase):
             installed = hashlib.sha256(apk.read_bytes()).hexdigest()
             args = SimpleNamespace(serial="fixture", adb="adb", adb_port=5037, verify_apks=[apk, apk])
             with patch("device.discussion.Emulator") as create, patch(
-                    "device.discussion.installed_apk_sha256", side_effect=[installed, "0" * 64]):
+                    "device.installed.installed_apk_sha256", side_effect=[installed, "0" * 64]):
                 device = create.return_value
                 device.shell.side_effect = ["1", DRIVER]
                 with self.assertRaisesRegex(ValueError, "differs"):

@@ -100,6 +100,9 @@ class HardcodedUiStringsGuardTest(unittest.TestCase):
                         if (ready) setText("Primary label");
                         else setText("Bypassed after else");
                         return setTitle("Bypassed after return");
+                        Intent a = createChooser(intent, "Bypassed chooser");
+                        boolean ok = !toast("Bypassed bang");
+                        boolean z = flag && setTitle("Bypassed and");
                     }
                     void osSurfaces(android.widget.RemoteViews rv, android.content.pm.ShortcutInfo.Builder sb, android.service.quicksettings.Tile tile) {
                         rv.setTextViewText(1, "Widget title text");
@@ -151,6 +154,9 @@ class HardcodedUiStringsGuardTest(unittest.TestCase):
                 "Primary label",
                 "Bypassed after else",
                 "Bypassed after return",
+                "Bypassed chooser",
+                "Bypassed bang",
+                "Bypassed and",
                 "Widget title text",
                 "Widget accessibility text",
                 "Quick Ask",
@@ -217,6 +223,9 @@ class HardcodedUiStringsGuardTest(unittest.TestCase):
                         builder.setItems(new CharSequence[]{ctx.getString(R.string.ok), ctx.getString(R.string.ok)}, null);
                         builder.setSingleChoiceItems(new String[]{ctx.getString(R.string.ok), ctx.getString(R.string.ok)}, 0, null);
                         toast(ctx.getString(R.string.ok));
+                        Intent a = createChooser(intent, ctx.getString(R.string.ok));
+                        boolean ok = !toast(ctx.getString(R.string.ok));
+                        boolean z = flag && setTitle(ctx.getString(R.string.ok));
                         view.setAccessibilityPaneTitle(ctx.getString(R.string.ok));
                         popup.getMenu().add(ctx.getString(R.string.ok));
                         popup.getMenu().add(0, 1, 0, ctx.getString(R.string.ok));

@@ -278,6 +278,7 @@ def tokenize_java(source: str) -> list[Token]:
             i += 1
             continue
 
+        tokens.append(Token("OTHER", ch, line))
         i += 1
 
     return tokens
