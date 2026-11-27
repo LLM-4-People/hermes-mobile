@@ -626,3 +626,16 @@ class DeviceGateTest(unittest.TestCase):
         # Attempt 1 succeeds (hit=1); attempts 2, 3, 4 fail on airplane/wifi/connectivity (resetting hit=0);
         # attempts 5 and 6 succeed consecutively (hit=2).
         self.assertEqual(int(counter.read_text()), 6)
+
+    def test_workspace_job_runs_hermes_contract_tests_without_requiring_android_gate(self):
+        workflow = (GATE.parents[1] / ".github/workflows/checks.yml").read_text()
+        workspace_job = workflow.split("\n  workspace:\n", 1)[1].split("\n  package-debug:\n", 1)[0]
+        self.assertIn("needs.changes.outputs.run_workspace == 'true'", workspace_job)
+        self.assertNotIn("run_android", workspace_job)
+        self.assertIn("uses: ./.github/actions/hermes-fixture", workspace_job)
+        self.assertIn("HERMES_TEST_CHECKOUT: ${{ github.workspace }}/.fixture/hermes", workspace_job)
+        self.assertIn('--workspace-only --server-python "$RUNNER_TEMP/hermes-env/bin/python"', workspace_job)
+
+        live_core_job = workflow.split("\n  device-live-core:\n", 1)[1].split("\n  device-journeys:\n", 1)[0]
+        self.assertNotIn("unittest discover -s server/tests", live_core_job)
+        self.assertNotIn("-r server/requirements.txt", live_core_job)

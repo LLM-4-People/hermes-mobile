@@ -249,6 +249,70 @@ class NearbyJourneyConsentTest(unittest.TestCase):
         self.assertTrue(result["receiver"].startswith(nearby_restaurants.MAPS + "/"))
         self.assertEqual(tapped, ["Don't allow", "Don't allow", "Skip"])
 
+    def test_tap_visible_app_until_handles_transition_during_cooldown_and_post_scroll_debounce(self):
+        from verification.unifiedpush.ui import TAP_RETRY_COOLDOWN_SECONDS
+
+        device = Mock()
+        ui = Screen(device, Mock(), lang="en")
+        scrollable = Element("hierarchy")
+        SubElement(scrollable, "node", {"package": APP, "scrollable": "true", "bounds": "[0,100][320,600]"})
+        button_tree = node_tree((APP, "View on map"))
+        done_tree = node_tree((APP, "Open map"))
+
+        # Case 1: transition completes on next poll during cooldown even though the tapped button disappeared.
+        ui.hierarchy = Mock(side_effect=[button_tree, done_tree])
+        tapped = []
+        ui.tap_node = Mock(side_effect=lambda node: tapped.append(node.get("text")))
+        with patch("verification.unifiedpush.stack.time.sleep"), patch(
+            "verification.unifiedpush.ui.monotonic", side_effect=[10.0, 10.05]
+        ):
+            res = nearby_journey.tap_visible_app_until(
+                ui,
+                "View on map",
+                lambda root: ui.node("Open map", root),
+            )
+        self.assertEqual(res.get("text"), "Open map")
+        self.assertEqual(tapped, ["View on map"])
+        device.shell.assert_not_called()
+
+        # Case 2: off-screen control scrolls once, re-checks ready on next poll, taps once,
+        # skips tap within cooldown (measured AFTER tap_node), and retries after cooldown.
+        ui.hierarchy = Mock(side_effect=[scrollable, button_tree, button_tree, button_tree, done_tree])
+        tapped.clear()
+        step = TAP_RETRY_COOLDOWN_SECONDS + 0.5
+        # Poll 2: check (10.0) -> tap #1 -> record post-tap (10.2)
+        # Poll 3: check (10.3) -> within cooldown of 10.2 -> skip!
+        # Poll 4: check (10.2 + step) -> tap #2 -> record post-tap (10.3 + step)
+        with patch("verification.unifiedpush.stack.time.sleep"), patch(
+            "verification.unifiedpush.ui.monotonic", side_effect=[10.0, 10.2, 10.3, 10.2 + step, 10.3 + step]
+        ):
+            res2 = nearby_journey.tap_visible_app_until(
+                ui,
+                "View on map",
+                lambda root: ui.node("Open map", root),
+            )
+        self.assertEqual(res2.get("text"), "Open map")
+        self.assertEqual(tapped, ["View on map", "View on map"])
+        self.assertEqual(device.shell.call_count, 1)
+        self.assertEqual(device.shell.call_args.args[:2], ("input", "swipe"))
+
+    def test_nearby_journey_delegates_ime_dismissal_to_screen(self):
+        self.assertFalse(hasattr(nearby_journey, "dismiss_ime"))
+        device = Mock()
+        device.ime_shown.return_value = False
+        controls = Mock()
+        controls.send.return_value = b"applied"
+        ui = Screen(device, controls, lang="en")
+        ui.dismiss_ime = Mock()
+        s = ui.strings
+        composer = Element("hierarchy")
+        SubElement(composer, "node", {"package": APP, "text": s["thread_send"], "bounds": "[200,500][300,550]"})
+        SubElement(composer, "node", {"package": APP, "class": "android.widget.EditText", "text": "", "bounds": "[20,500][190,550]"})
+        ui.hierarchy = Mock(return_value=composer)
+        with patch("verification.unifiedpush.stack.time.sleep"):
+            nearby_journey.enter_message(ui, "Test")
+        ui.dismiss_ime.assert_called_once_with()
+
 
 if __name__ == "__main__":
     unittest.main()

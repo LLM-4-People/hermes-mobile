@@ -49,14 +49,33 @@ class FileRoutesTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((await (await self.get('s2')).json())['data'], [])
 
     async def test_cursor_is_stable_across_insertions(self):
-        newest = self.publish()
-        page = await (await self.get('s1?limit=1')).json()
+        with patch.object(store.time, 'time', return_value=1000.0):
+            oldest = store.publish(self.home, 's_cursor', self.work, 'résultat.bin')
+        with patch.object(store.time, 'time', return_value=2000.0):
+            newest = store.publish(self.home, 's_cursor', self.work, 'résultat.bin')
+        page = await (await self.get('s_cursor?limit=1')).json()
         self.assertEqual(page['data'][0]['id'], newest)
-        self.publish()
-        older = await (await self.get(f's1?limit=1&before={page["next"]}')).json()
-        self.assertEqual([i['id'] for i in older['data']], [self.ident])
+        with patch.object(store.time, 'time', return_value=3000.0):
+            store.publish(self.home, 's_cursor', self.work, 'résultat.bin')
+        older = await (await self.get(f's_cursor?limit=1&before={page["next"]}')).json()
+        self.assertEqual([i['id'] for i in older['data']], [oldest])
         self.assertIsNone(older['next'])
-        self.assertEqual((await self.get('s1?limit=0')).status, 400)
+        self.assertEqual((await self.get('s_cursor?limit=0')).status, 400)
+
+    async def test_same_timestamp_cursor_uses_uuid_tiebreaker(self):
+        with patch.object(store.time, 'time', return_value=1700000000.0):
+            ids = [store.publish(self.home, 's_tie', self.work, 'résultat.bin') for _ in range(3)]
+        expected = sorted(ids, reverse=True)
+        seen = []
+        cursor = None
+        while True:
+            suffix = 's_tie?limit=1' + (f'&before={cursor}' if cursor else '')
+            page = await (await self.get(suffix)).json()
+            seen.extend(item['id'] for item in page['data'])
+            cursor = page['next']
+            if cursor is None:
+                break
+        self.assertEqual(seen, expected)
 
     async def test_oversize_or_indirect_source_is_never_published(self):
         (self.work / 'link').symlink_to(self.work / 'résultat.bin')

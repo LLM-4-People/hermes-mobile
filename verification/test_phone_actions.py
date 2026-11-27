@@ -296,14 +296,14 @@ class PhoneActionsTransitionTest(unittest.TestCase):
                 SubElement(after_send, "node", {"package": APP, "class": "android.widget.Button", "text": s["thread_stop"], "bounds": "[230,400][310,460]"})
 
                 device = Mock()
-                device.ime_shown.side_effect = [True, False]
+                device.ime_shown.side_effect = [True, True, False]
                 ui = Screen(device, Mock(), lang=lang)
                 ui.hierarchy = Mock(side_effect=[before_send, before_send, after_send])
                 tapped = []
                 ui.tap_node = Mock(side_effect=lambda node: tapped.append(node.get("text")))
                 step = TAP_RETRY_COOLDOWN_SECONDS + 0.5
                 with patch("verification.unifiedpush.stack.time.sleep"), patch(
-                    "verification.unifiedpush.ui.monotonic", side_effect=[10.0, 10.0 + step]
+                    "verification.unifiedpush.ui.monotonic", side_effect=[5.0, 10.0, 10.0 + step]
                 ):
                     phone_actions.send_composer_message(ui, prompt)
                 device.shell.assert_called_once_with("input", "keyevent", "BACK")
@@ -468,6 +468,15 @@ class PhoneActionsTransitionTest(unittest.TestCase):
             )
         self.assertEqual(proof["kind"], "map_search")
         self.assertEqual(tapped, ["Skip", "Skip"])
+
+    def test_phone_actions_delegates_ime_dismissal_to_screen_dismiss_ime(self):
+        device = Mock()
+        device.shell.return_value = MAIN_ACTIVITY
+        ui = Screen(device, Mock(), lang="en")
+        ui.dismiss_ime = Mock()
+        phone_actions.leave_receiver(ui, phone_actions.CALENDAR, "calendar_event")
+        ui.dismiss_ime.assert_called_once_with()
+        self.assertFalse(hasattr(ui, "tap"))
 
 
 if __name__ == "__main__":

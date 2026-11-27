@@ -96,6 +96,10 @@ QUALIFIED_UI_SINK_ARGS: dict[tuple[str, str], tuple[int, ...]] = {
     ("Ui", "outlinedButton"): (1,),
     ("Ui", "pill"): (1,),
     ("Ui", "choiceChip"): (1,),
+    ("Ui", "showInlineError"): (1,),
+    ("Ui", "announceLiveStatus"): (1,),
+    ("Ui", "copySensitiveText"): (1,),
+    ("Ui", "createSensitiveClip"): (0,),
     ("Toast", "makeText"): (1,),
     ("ClipData", "newPlainText"): (0,),
     ("Action", "Builder"): (1,),
@@ -329,6 +333,39 @@ def _is_human_ui_text(literal: str) -> bool:
     return bool(WORD_RE.search(without_fmt))
 
 
+def _match_generic_type_args(tokens: list[Token], lt_idx: int, max_tokens: int = 64) -> int | None:
+    """If tokens[lt_idx] opens Java generic type arguments `<...>`, return the matching `>` index."""
+    if lt_idx <= 0:
+        return None
+    prev = tokens[lt_idx - 1]
+    if not (
+        (prev.kind == "PUNCT" and prev.value == ".")
+        or (prev.kind == "IDENT" and prev.value[:1].isupper())
+    ):
+        return None
+    depth = 1
+    limit = min(len(tokens), lt_idx + 1 + max_tokens)
+    i = lt_idx + 1
+    while i < limit:
+        tok = tokens[i]
+        if tok.kind == "OTHER" and tok.value == "<":
+            depth += 1
+        elif tok.kind == "OTHER" and tok.value == ">":
+            depth -= 1
+            if depth == 0:
+                return i
+        elif tok.kind == "OTHER" and tok.value == "&":
+            # `&&` is boolean AND, not a Java type intersection bound.
+            if i + 1 < limit and tokens[i + 1].kind == "OTHER" and tokens[i + 1].value == "&":
+                return None
+        elif tok.kind == "PUNCT" and tok.value in (",", ".", "?", "[", "]"):
+            pass
+        elif tok.kind != "IDENT":
+            return None
+        i += 1
+    return None
+
+
 def _split_call_args(tokens: list[Token], open_paren_idx: int) -> list[list[Token]]:
     """Split tokens inside `(...)` starting at open_paren_idx into top-level argument token lists."""
     args: list[list[Token]] = []
@@ -362,6 +399,13 @@ def _split_call_args(tokens: list[Token], open_paren_idx: int) -> list[list[Toke
         elif tok.kind == "PUNCT" and tok.value == "]":
             bracket_depth = max(0, bracket_depth - 1)
             cur.append(tok)
+        elif tok.kind == "OTHER" and tok.value == "<":
+            close_gt = _match_generic_type_args(tokens, i)
+            if close_gt is not None:
+                cur.extend(tokens[i : close_gt + 1])
+                i = close_gt + 1
+                continue
+            cur.append(tok)
         elif (
             tok.kind == "PUNCT"
             and tok.value == ","
@@ -383,6 +427,9 @@ TEXT_WRAPPER_CALLS = frozenset({
     "SpannableStringBuilder",
     "concat",
     "fromHtml",
+    "join",
+    "StringBuilder",
+    "append",
 })
 
 
@@ -569,7 +616,7 @@ class _XmlResources:
     non_translatable: dict[str, set[str]]
     strings: dict[str, str]
     plurals: dict[str, dict[str, str]]
-    array_lengths: dict[str, int]
+    array_items: dict[str, list[str]]
     issues: list[str]
 
 
@@ -581,17 +628,17 @@ def _has_unquoted_edge_whitespace(raw_text: str) -> bool:
 
 
 def _collect_xml_resources(res_dir: Path, root: Path, *, expected_locale: str | None = None) -> _XmlResources:
-    """Collect translatable and non-translatable keys, strings, plurals, and array lengths."""
+    """Collect translatable and non-translatable keys, strings, plurals, and string-array items."""
     translatable: dict[str, set[str]] = {"string": set(), "plurals": set(), "string-array": set()}
     non_translatable: dict[str, set[str]] = {"string": set(), "plurals": set(), "string-array": set()}
     strings: dict[str, str] = {}
     plurals: dict[str, dict[str, str]] = {}
-    array_lengths: dict[str, int] = {}
+    array_items: dict[str, list[str]] = {}
     issues: list[str] = []
 
     if not res_dir.is_dir():
         issues.append(f"{res_dir.relative_to(root).as_posix()}: missing resource directory")
-        return _XmlResources(translatable, non_translatable, strings, plurals, array_lengths, issues)
+        return _XmlResources(translatable, non_translatable, strings, plurals, array_items, issues)
 
     seen_origin: dict[tuple[str, str], str] = {}
     for xml_path in sorted(res_dir.glob("*.xml")):
@@ -645,13 +692,15 @@ def _collect_xml_resources(res_dir: Path, root: Path, *, expected_locale: str | 
                         plurals[name] = qty_map
                     elif tag == "string-array":
                         items = el.findall("item")
-                        array_lengths[name] = len(items)
+                        collected_items: list[str] = []
                         for idx, item in enumerate(items):
                             raw_item = "".join(item.itertext())
+                            collected_items.append(raw_item)
                             if _has_unquoted_edge_whitespace(raw_item):
                                 issues.append(
                                     f"{rel}: <string-array name={name!r}> item[{idx}] has unquoted leading/trailing whitespace that AAPT2 strips"
                                 )
+                        array_items[name] = collected_items
         if expected_locale is not None and file_has_translatable:
             actual_locale = root_el.attrib.get(TOOLS_LOCALE_ATTR, "").strip()
             if actual_locale != expected_locale:
@@ -659,7 +708,7 @@ def _collect_xml_resources(res_dir: Path, root: Path, *, expected_locale: str | 
                     f"{rel}: <resources> defines translatable entries and must declare tools:locale={expected_locale!r} (found {actual_locale!r})"
                 )
 
-    return _XmlResources(translatable, non_translatable, strings, plurals, array_lengths, issues)
+    return _XmlResources(translatable, non_translatable, strings, plurals, array_items, issues)
 
 
 def check_xml_parity(root: Path) -> list[str]:
@@ -705,17 +754,42 @@ def check_xml_parity(root: Path) -> list[str]:
                     f"app/src/main/res/values-en: <plurals name={name!r} quantity={qty!r}> placeholder mismatch {en_ph} vs {fr_ph} in values/"
                 )
 
-    for name in sorted(set(fr.array_lengths) & set(en.array_lengths)):
-        if fr.array_lengths[name] != en.array_lengths[name]:
+    for name in sorted(set(fr.array_items) & set(en.array_items)):
+        fr_items = fr.array_items[name]
+        en_items = en.array_items[name]
+        if len(fr_items) != len(en_items):
             issues.append(
-                f"app/src/main/res/values-en: <string-array name={name!r}> has {en.array_lengths[name]} items vs {fr.array_lengths[name]} in values/"
+                f"app/src/main/res/values-en: <string-array name={name!r}> has {len(en_items)} items vs {len(fr_items)} in values/"
             )
+        for idx in range(min(len(fr_items), len(en_items))):
+            fr_ph = _extract_placeholders(fr_items[idx])
+            en_ph = _extract_placeholders(en_items[idx])
+            if fr_ph != en_ph:
+                issues.append(
+                    f"app/src/main/res/values-en: <string-array name={name!r}> item[{idx}] placeholder mismatch {en_ph} vs {fr_ph} in values/"
+                )
 
     return issues
 
 
 ANDROID_NS = "{http://schemas.android.com/apk/res/android}"
-XML_UI_ATTRS = ("text", "hint", "contentDescription", "title", "label", "description")
+XML_UI_ATTRS = (
+    "text",
+    "hint",
+    "contentDescription",
+    "title",
+    "label",
+    "description",
+    "subtitle",
+    "tooltipText",
+    "summary",
+    "textOn",
+    "textOff",
+    "accessibilityPaneTitle",
+    "shortcutShortLabel",
+    "shortcutLongLabel",
+    "prompt",
+)
 
 
 def check_layout_and_manifest_xml(root: Path) -> list[str]:

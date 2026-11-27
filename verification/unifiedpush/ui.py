@@ -116,11 +116,6 @@ class Screen:
         y = (max(0, y1) + y2) // 2
         self.device.shell("input", "tap", str(x), str(y))
 
-    def tap(self, label, *, scroll=False, notification_permission=False):
-        # Labels are static test controls. Never log field contents.
-        print("Tap " + label, file=sys.stderr, flush=True)
-        self.tap_node(self.wait(label, scroll=scroll, notification_permission=notification_permission))
-
     def tap_until(
         self,
         label,

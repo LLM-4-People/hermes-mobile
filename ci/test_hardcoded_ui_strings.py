@@ -451,6 +451,83 @@ class HardcodedUiStringsGuardTest(unittest.TestCase):
                 self.assertTrue(any(expected in i for i in issues), (expected, issues))
             self.assertFalse(any("'key'" in i or "'name'" in i for i in issues), issues)
 
+    def test_ui_helper_sinks_generic_type_args_and_r26_extensions(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write(
+                root,
+                "app/src/main/res/values/strings.xml",
+                f"""{FR_RES}
+                    <string name="ok">OK</string>
+                    <string-array name="steps">
+                        <item>Étape %1$d</item>
+                        <item>Terminé</item>
+                    </string-array>
+                </resources>""",
+            )
+            _write(
+                root,
+                "app/src/main/res/values-en/strings.xml",
+                f"""{EN_RES}
+                    <string name="ok">OK</string>
+                    <string-array name="steps">
+                        <item>Step %1$s</item>
+                        <item>Done</item>
+                    </string-array>
+                </resources>""",
+            )
+            _write(
+                root,
+                "app/src/main/res/xml/prefs.xml",
+                '<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">'
+                '<SwitchPreference android:summary="Hardcoded summary" android:textOn="Enabled now" android:textOff="Disabled now"/>'
+                '<Preference android:subtitle="Hardcoded subtitle" android:tooltipText="Hardcoded tip" android:prompt="Pick item"/>'
+                '<View android:accessibilityPaneTitle="Pane heading"/>'
+                '<shortcut android:shortcutShortLabel="Quick ask" android:shortcutLongLabel="Ask Hermes quickly"/>'
+                '</PreferenceScreen>',
+            )
+            _write(
+                root,
+                "app/src/main/java/org/example/R26Checks.java",
+                'class R26Checks {\n'
+                '    void demo(android.content.Context ctx, android.widget.TextView tv, int a, int b) {\n'
+                '        Ui.showInlineError(tv, "Inline error text");\n'
+                '        Ui.showInlineError(tv, ctx.getString(R.string.ok));\n'
+                '        Ui.announceLiveStatus(tv, "Live status text");\n'
+                '        Ui.copySensitiveText(ctx, "Sensitive label", "secret");\n'
+                '        Ui.createSensitiveClip("Clip label", "secret");\n'
+                '        Ui.text(new java.util.HashMap<String, android.content.Context>().get("k"), "After generic arg");\n'
+                '        Ui.text(a < b ? ctx : null, "After relational lt");\n'
+                '        tv.setText(String.join(", ", "Joined part"));\n'
+                '        tv.setText(new StringBuilder("Builder head").append("Appended tail").toString());\n'
+                '    }\n'
+                '}\n',
+            )
+            issues = guard.check_repo(root)
+            for expected in (
+                "<string-array name='steps'> item[0] placeholder mismatch",
+                "Hardcoded summary",
+                "Enabled now",
+                "Disabled now",
+                "Hardcoded subtitle",
+                "Hardcoded tip",
+                "Pick item",
+                "Pane heading",
+                "Quick ask",
+                "Ask Hermes quickly",
+                "Inline error text",
+                "Live status text",
+                "Sensitive label",
+                "Clip label",
+                "After generic arg",
+                "After relational lt",
+                "Joined part",
+                "Builder head",
+                "Appended tail",
+            ):
+                self.assertTrue(any(expected in i for i in issues), (expected, issues))
+            self.assertFalse(any("'secret'" in i or "'k'" in i for i in issues), issues)
+
 
 if __name__ == "__main__":
     unittest.main()
