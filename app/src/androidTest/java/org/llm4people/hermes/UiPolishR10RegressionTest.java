@@ -552,12 +552,17 @@ public final class UiPolishR10RegressionTest extends InstrumentationTestCase {
         return ((List<?>) blocksField.get(layout)).get(0);
     }
 
-    private static List<?> invokeInstrumentChangesBetween(Context c, Object a, Object b) throws Exception {
+    private static List<Object> invokeInstrumentChangesBetween(Context c, Object a, Object b) throws Exception {
         Class<?> layoutCls = Class.forName("org.llm4people.hermes.artifact.WorkspaceLayout");
         Class<?> cls = Class.forName("org.llm4people.hermes.artifact.InstrumentChanges");
-        Method m = cls.getDeclaredMethod("between", Context.class, layoutCls, layoutCls);
+        Method m = cls.getDeclaredMethod("details", Context.class, layoutCls, layoutCls);
         m.setAccessible(true);
-        return (List<?>) m.invoke(null, c, a, b);
+        List<?> details = (List<?>) m.invoke(null, c, a, b);
+        List<Object> changes = new java.util.ArrayList<>(details.size());
+        for (Object detail : details) {
+            changes.add(recordAccessor(detail, "change"));
+        }
+        return changes;
     }
 
     private static String invokeInstrumentChangesDescribe(Context c, Object block) throws Exception {
