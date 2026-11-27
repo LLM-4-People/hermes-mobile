@@ -1,4 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import ExitStack, closing
 import json
 import math
 import sqlite3
@@ -119,19 +120,17 @@ class Delivery(unittest.TestCase):
         for request, settled, field in (("question_requested", "question_settled", "pending_questions"),
                                         ("approval_requested", "approval_settled", "pending_approvals")):
             for expire_first in (True, False):
-                with self.subTest(request=request, expire_first=expire_first), TemporaryDirectory() as root:
+                with self.subTest(request=request, expire_first=expire_first), TemporaryDirectory() as root, ExitStack() as stack:
                     settings, store = fixture(root)
                     settings = replace(settings, retention=5)
                     for device in ("accepted", "unattempted"):
                         store.device(device, settings.profile_key, profile=True, now=90,
                                      token=device, management_key="a"*64)
-                    runs = create_runs(settings)
-                    self.addCleanup(runs.close)
+                    runs = stack.enter_context(closing(create_runs(settings)))
                     status = "waiting_for_input" if field == "pending_questions" else "waiting_for_approval"
                     insert_run(runs, settings.run_scope, "private-run", 100, status,
                                session_id="private-session", **{field: {"private-prompt": 100}})
-                    ledgers = HermesLedgers(settings)
-                    self.addCleanup(ledgers.close)
+                    ledgers = stack.enter_context(closing(HermesLedgers(settings)))
                     ledgers.runs.scan((settings.run_scope, 95), store, 95)
                     sent = store.claim(101, 60)
                     self.assertEqual(sent["kind"], request)
@@ -158,7 +157,7 @@ class Delivery(unittest.TestCase):
                     self.assertEqual(store.events()["events"], [])
                     with patch("server.mobile_push.fcm.google.auth.default", return_value=(Mock(), None)):
                         sender = FirebaseSender(settings)
-                    self.addCleanup(sender.session.close)
+                    stack.enter_context(closing(sender.session))
                     with patch.object(sender.session, "post") as post, self.assertLogs("hermes.mobile.push"):
                         response = post.return_value.__enter__.return_value
                         response.ok = False
@@ -241,10 +240,9 @@ class Delivery(unittest.TestCase):
         self.assertNotIn("sensitive", repr(events))
 
     def test_checkpointed_wal_on_read_only_profile_mount_and_subsequent_writer(self):
-        source = create_runs(self.settings)
-        source.execute("PRAGMA journal_mode=WAL")
-        insert_run(source, self.settings.run_scope, "run1", 101, "completed")
-        source.close()
+        with closing(create_runs(self.settings)) as source:
+            source.execute("PRAGMA journal_mode=WAL")
+            insert_run(source, self.settings.run_scope, "run1", 101, "completed")
         path = self.settings.home / "runs_idempotency.db"
         path.chmod(0o444)
         self.settings.home.chmod(0o555)
@@ -339,11 +337,10 @@ class Delivery(unittest.TestCase):
         self.addCleanup(runs.close)
         scope = self.settings.run_scope
         insert_run(runs, scope, "gone", 101, "waiting_for_input", pending_questions={"q": 101})
-        ledgers = HermesLedgers(self.settings)
-        ledgers.runs.scan((scope, 0), self.store, 0)
-        posted = self.store.claim(102, 1)
-        deliver(posted, self.settings, self.store, Mock(send=Mock(return_value=True)))
-        ledgers.close()
+        with closing(HermesLedgers(self.settings)) as ledgers:
+            ledgers.runs.scan((scope, 0), self.store, 0)
+            posted = self.store.claim(102, 1)
+            deliver(posted, self.settings, self.store, Mock(send=Mock(return_value=True)))
         runs.execute("DELETE FROM run_idempotency WHERE scope=?", (scope,))
         runs.commit()
         recovered = HermesLedgers(self.settings)
@@ -393,9 +390,8 @@ class Delivery(unittest.TestCase):
         self.addCleanup(runs.close)
         scope = self.settings.run_scope
         insert_run(runs, scope, "run", 110, "waiting_for_approval", pending_approvals={"p1": 101})
-        ledgers = HermesLedgers(self.settings)
-        ledgers.runs.scan((scope,0), self.store,0)
-        ledgers.close()
+        with closing(HermesLedgers(self.settings)) as ledgers:
+            ledgers.runs.scan((scope,0), self.store,0)
         stale = self.store.claim(112, 10)
         runs.execute("""UPDATE run_idempotency SET status_json='{"status":"cancelled"}' WHERE run_id='run'""")
         runs.commit()

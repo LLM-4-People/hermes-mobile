@@ -10,6 +10,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 @SuppressWarnings("deprecation")
 public class WorkspaceLibraryTest extends InstrumentationTestCase {
@@ -24,15 +25,21 @@ public class WorkspaceLibraryTest extends InstrumentationTestCase {
                     String id = "page/revue-" + i;
                     Account owner = i % 2 == 0 ? fixture.account : second;
                     writes.add(workers.submit(() -> {
-                        start.await();
+                        if (!start.await(5, TimeUnit.SECONDS)) {
+                            throw new IllegalStateException("Start latch timed out");
+                        }
                         new LayoutHistory(owner,id).replace(LiveLayoutContractTest.REVIEW.replace("page/revue",id));
                         return null;
                     }));
                 }
                 start.countDown();
-                for (Future<?> write : writes) write.get();
+                for (Future<?> write : writes) write.get(10, TimeUnit.SECONDS);
                 assertEquals(8, PageLayouts.titles(null, fixture.account,false).size());
-            } finally { workers.shutdownNow(); }
+            } finally {
+                start.countDown();
+                workers.shutdownNow();
+                workers.awaitTermination(5, TimeUnit.SECONDS);
+            }
         }
     }
 

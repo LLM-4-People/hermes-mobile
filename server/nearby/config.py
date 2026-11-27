@@ -2,7 +2,6 @@
 
 from dataclasses import dataclass
 import os
-from typing import Callable
 
 
 OVERPASS_URL_ENV = "HERMES_MOBILE_OVERPASS_URL"
@@ -42,36 +41,24 @@ DEFAULT_LIMIT = _bounded_env_int(
 class CategorySpec:
     slug: str
     selectors: tuple[tuple[str, str], ...]
-    matcher: Callable[[dict], bool]
-
-
-def _match_any(*pairs: tuple[str, str]) -> Callable[[dict], bool]:
-    def _check(tags: dict) -> bool:
-        return any(tags.get(key) == value for key, value in pairs)
-
-    return _check
 
 
 CATEGORIES: dict[str, CategorySpec] = {
     "restaurant": CategorySpec(
         "restaurant",
         (("amenity", "restaurant"),),
-        _match_any(("amenity", "restaurant")),
     ),
     "cafe": CategorySpec(
         "cafe",
         (("amenity", "cafe"),),
-        _match_any(("amenity", "cafe")),
     ),
     "bakery": CategorySpec(
         "bakery",
         (("shop", "bakery"),),
-        _match_any(("shop", "bakery")),
     ),
     "pharmacy": CategorySpec(
         "pharmacy",
         (("amenity", "pharmacy"),),
-        _match_any(("amenity", "pharmacy")),
     ),
     "transit": CategorySpec(
         "transit",
@@ -81,17 +68,10 @@ CATEGORIES: dict[str, CategorySpec] = {
             ("railway", "subway_entrance"),
             ("highway", "bus_stop"),
         ),
-        _match_any(
-            ("public_transport", "station"),
-            ("railway", "station"),
-            ("railway", "subway_entrance"),
-            ("highway", "bus_stop"),
-        ),
     ),
     "park": CategorySpec(
         "park",
         (("leisure", "park"),),
-        _match_any(("leisure", "park")),
     ),
     "grocery": CategorySpec(
         "grocery",
@@ -100,21 +80,14 @@ CATEGORIES: dict[str, CategorySpec] = {
             ("shop", "convenience"),
             ("shop", "greengrocer"),
         ),
-        _match_any(
-            ("shop", "supermarket"),
-            ("shop", "convenience"),
-            ("shop", "greengrocer"),
-        ),
     ),
     "bookshop": CategorySpec(
         "bookshop",
         (("shop", "books"),),
-        _match_any(("shop", "books")),
     ),
     "coworking": CategorySpec(
         "coworking",
         (("amenity", "coworking_space"),),
-        _match_any(("amenity", "coworking_space")),
     ),
 }
 
@@ -143,7 +116,7 @@ def validate_limit(value) -> int:
 
 def matches_category(tags: dict, category: str) -> bool:
     spec = CATEGORIES.get(category)
-    return spec is not None and spec.matcher(tags)
+    return spec is not None and any(tags.get(k) == v for k, v in spec.selectors)
 
 
 def overpass_query(category: str, radius_m: int, lat: float, lon: float) -> str:
