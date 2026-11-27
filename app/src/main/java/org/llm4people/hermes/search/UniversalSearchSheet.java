@@ -3,6 +3,7 @@ package org.llm4people.hermes.search;
 import android.app.Activity;
 import android.app.Dialog;
 import android.content.Context;
+import android.content.res.ColorStateList;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
@@ -102,7 +103,10 @@ public final class UniversalSearchSheet implements AutoCloseable {
             List<UniversalSearchModel.LocalEntry> localEntries,
             Callbacks callbacks) {
         this.activity = activity;
-        this.localized = AppLanguage.wrapContext(activity);
+        Context wrapped = AppLanguage.wrapContext(activity);
+        this.localized = wrapped == activity
+                ? activity
+                : new android.view.ContextThemeWrapper(wrapped, R.style.Theme_Hermes);
         this.api = api;
         this.callbacks = callbacks;
         this.session = new UniversalSearchModel.SearchSession(localEntries);
@@ -509,6 +513,8 @@ public final class UniversalSearchSheet implements AutoCloseable {
             row.setGravity(Gravity.CENTER_VERTICAL);
             row.setPaddingRelative(Ui.dp(localized, 4), 0, Ui.dp(localized, 4), Ui.dp(localized, 12));
             ProgressBar spinner = new ProgressBar(localized, null, android.R.attr.progressBarStyleSmall);
+            spinner.setIndeterminateTintList(ColorStateList.valueOf(localized.getColor(R.color.accent)));
+            spinner.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
             LinearLayout.LayoutParams spinLp = new LinearLayout.LayoutParams(
                     Ui.dp(localized, 18), Ui.dp(localized, 18));
             spinLp.setMarginEnd(Ui.dp(localized, 10));

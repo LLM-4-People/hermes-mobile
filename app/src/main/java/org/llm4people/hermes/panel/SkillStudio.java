@@ -42,6 +42,8 @@ final class SkillStudio {
     private final Runnable parent;
     private final SkillStudioModel.ToggleState toggleState = new SkillStudioModel.ToggleState();
     private final Set<String> pendingToggles = new java.util.HashSet<>();
+    private int loadSeq;
+    private boolean loadFailed;
     private boolean studioSupported;
     private List<SkillInventory> inventory = new ArrayList<>();
     private String selectedCategory = "";
@@ -59,6 +61,7 @@ final class SkillStudio {
     }
 
     void show() {
+        pendingToggles.clear();
         LinearLayout page = panel.page("brain_skills", R.string.brain_skills_title, parent);
         panel.note(page, panel.t(R.string.brain_skills_subtitle));
 
@@ -71,7 +74,9 @@ final class SkillStudio {
         page.addView(toolbar);
         searchField.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
-            @Override public void onTextChanged(CharSequence s, int start, int before, int count) { renderList(); }
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
+                if (!loadFailed) renderList();
+            }
             @Override public void afterTextChanged(Editable s) {}
         });
 
@@ -86,6 +91,8 @@ final class SkillStudio {
     }
 
     private void load() {
+        int seq = ++loadSeq;
+        loadFailed = false;
         statusBox.removeAllViews();
         listBox.removeAllViews();
         panel.request(statusBox, () -> {
@@ -95,6 +102,8 @@ final class SkillStudio {
             List<SkillInventory> rows = SkillInventory.parse(panel.api.get(path));
             return new Object[]{studio, rows};
         }, payload -> {
+            if (seq != loadSeq) return;
+            loadFailed = false;
             studioSupported = (Boolean) payload[0];
             @SuppressWarnings("unchecked")
             List<SkillInventory> rows = (List<SkillInventory>) payload[1];
@@ -104,6 +113,9 @@ final class SkillStudio {
             renderCategories();
             renderList();
         }, error -> {
+            if (seq != loadSeq) return;
+            loadFailed = true;
+            statusBox.removeAllViews();
             if (error instanceof HermesApi.HttpError http) {
                 Diagnostics.warning("skills", "studio_load_http_error", "http_" + http.status);
                 int msg = switch (http.status) {

@@ -31,6 +31,7 @@ final class GlobalSearchPanel {
     private EditText queryField;
     private LinearLayout filterRow;
     private LinearLayout resultsBox;
+    private LinearLayout paginationSlot;
     private String roleFilter = "";
     private String activeQuery = "";
     private int totalMatches;
@@ -144,10 +145,16 @@ final class GlobalSearchPanel {
         if (append && loadingMore) return;
         int seq = ++requestSeq;
         loadingMore = append;
+        LinearLayout targetSlot;
         if (!append) {
             totalMatches = 0;
             canLoadMore = false;
+            paginationSlot = null;
             resultsBox.removeAllViews();
+            targetSlot = resultsBox;
+        } else {
+            targetSlot = paginationSlot != null ? paginationSlot : resultsBox;
+            targetSlot.removeAllViews();
         }
         StringBuilder path = new StringBuilder("/api/sessions/search?q=")
                 .append(HermesApi.queryValue(query))
@@ -156,7 +163,7 @@ final class GlobalSearchPanel {
         if (!roleFilter.isEmpty()) {
             path.append("&role=").append(HermesApi.queryValue(roleFilter));
         }
-        if (!panel.request(resultsBox, () -> BrainJson.parseSearchPage(panel.api.get(path.toString())),
+        if (!panel.request(targetSlot, () -> BrainJson.parseSearchPage(panel.api.get(path.toString())),
                 result -> {
                     if (seq != requestSeq) return;
                     loadingMore = false;
@@ -169,12 +176,13 @@ final class GlobalSearchPanel {
                 }, error -> {
                     if (seq != requestSeq) return;
                     loadingMore = false;
+                    targetSlot.removeAllViews();
                     if (error instanceof HermesApi.HttpError http && (http.status == 404 || http.status == 405 || http.status == 501)) {
                         Diagnostics.warning("search", "endpoint_absent", "http_" + http.status);
-                        BrainUi.showUnavailable(panel, resultsBox, R.string.brain_search_unavailable, this::submitSearch);
+                        BrainUi.showUnavailable(panel, targetSlot, R.string.brain_search_unavailable, this::submitSearch);
                     } else {
                         Diagnostics.warning("search", "query_failed", error);
-                        panel.failure(resultsBox, error, () -> executeSearch(query, offset, append));
+                        panel.failure(targetSlot, error, () -> executeSearch(query, offset, append));
                     }
                 })) {
             loadingMore = false;
@@ -183,6 +191,7 @@ final class GlobalSearchPanel {
 
     private void renderResults() {
         resultsBox.removeAllViews();
+        paginationSlot = null;
         if (loadedHits.isEmpty()) {
             BrainUi.liveNote(panel, resultsBox, panel.t(R.string.brain_search_empty));
             return;
@@ -192,8 +201,10 @@ final class GlobalSearchPanel {
         for (SearchResultModel.Hit hit : loadedHits) {
             resultsBox.addView(hitCard(hit, zone));
         }
+        paginationSlot = Ui.column(panel.activity);
+        resultsBox.addView(paginationSlot);
         if (canLoadMore) {
-            panel.action(resultsBox, R.string.brain_search_more,
+            panel.action(paginationSlot, R.string.brain_search_more,
                     () -> executeSearch(activeQuery, loadedHits.size(), true));
         }
     }

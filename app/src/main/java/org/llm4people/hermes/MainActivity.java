@@ -371,7 +371,11 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             shell.show(activeAppearancePanel.buildView(), getString(R.string.appearance_panel_title));
         });
         shellRoutes.register(AmbientAccessPanel.ROUTE_ID, (route, force) -> {
-            navigation.display(route, this::leavingSurface);
+            boolean changed = navigation.display(route, this::leavingSurface);
+            if (!changed && activeAmbientPanel != null) {
+                activeAmbientPanel.refreshAll();
+                return;
+            }
             if (activeAmbientPanel != null) activeAmbientPanel.close();
             activeAmbientPanel = new AmbientAccessPanel(this, NotificationAllowlist.forAccount(account),
                     ambientCallbacks());
@@ -423,13 +427,18 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             shell.show(activePresencePanel.buildView(), getString(R.string.presence_panel_title));
         });
         shellRoutes.register(UpdatePanel.ROUTE_ID, (route, force) -> {
-            navigation.display(route, this::leavingSurface);
+            boolean changed = navigation.display(route, this::leavingSurface);
+            if (!changed && activeUpdatePanel != null) return;
             if (activeUpdatePanel != null) activeUpdatePanel.close();
             activeUpdatePanel = new UpdatePanel(this);
             shell.show(activeUpdatePanel.buildView(), getString(R.string.update_panel_title));
         });
         shellRoutes.register(ConnectionDoctorPanel.ROUTE_ID, (route, force) -> {
-            navigation.display(route, this::leavingSurface);
+            boolean changed = navigation.display(route, this::leavingSurface);
+            if (!changed && activeDoctorPanel != null) {
+                activeDoctorPanel.refresh();
+                return;
+            }
             if (activeDoctorPanel != null) activeDoctorPanel.close();
             Account owner = account;
             HermesApi doctorApi = new HermesApi(owner.endpoint, owner.bearer,
@@ -438,12 +447,20 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
             shell.show(activeDoctorPanel.buildView(), getString(R.string.doctor_panel_title));
         });
         shellRoutes.register(PermissionsPanel.ROUTE_ID, (route, force) -> {
-            navigation.display(route, this::leavingSurface);
+            boolean changed = navigation.display(route, this::leavingSurface);
+            if (!changed && activePermissionsPanel != null) {
+                activePermissionsPanel.refresh();
+                return;
+            }
             activePermissionsPanel = new PermissionsPanel(this);
             shell.show(activePermissionsPanel.buildView(), getString(R.string.perm_panel_title));
         });
         shellRoutes.register(TemplatesPanel.ROUTE_ID, (route, force) -> {
-            navigation.display(route, this::leavingSurface);
+            boolean changed = navigation.display(route, this::leavingSurface);
+            if (!changed && activeTemplatesPanel != null) {
+                activeTemplatesPanel.refreshCustomSection();
+                return;
+            }
             if (activeTemplatesPanel != null) activeTemplatesPanel.close();
             Account owner = account;
             activeTemplatesPanel = new TemplatesPanel(this, owner, this::stageDraft,

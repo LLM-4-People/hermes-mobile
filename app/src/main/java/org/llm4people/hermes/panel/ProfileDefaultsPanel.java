@@ -80,16 +80,22 @@ final class ProfileDefaultsPanel {
     }
 
     private void mountMainPage() {
+        saving = false;
         Runnable exitAction = parent != null ? parent : panel::close;
         Runnable guardedBack = () -> {
             if (!model.isDirty()) {
                 exitAction.run();
                 return;
             }
+            boolean[] handled = {false};
             panel.present(new AlertDialog.Builder(panel.activity)
                     .setTitle(R.string.profile_defaults_discard_title)
                     .setMessage(R.string.profile_defaults_discard_message)
-                    .setPositiveButton(R.string.profile_defaults_soul_discard_confirm, (d, w) -> exitAction.run())
+                    .setPositiveButton(R.string.profile_defaults_soul_discard_confirm, (d, w) -> {
+                        if (handled[0]) return;
+                        handled[0] = true;
+                        exitAction.run();
+                    })
                     .setNegativeButton(R.string.profile_defaults_soul_keep_editing, null)
                     .create());
         };
@@ -679,10 +685,15 @@ final class ProfileDefaultsPanel {
                 reopenMainPage();
                 return;
             }
+            boolean[] handled = {false};
             panel.present(new AlertDialog.Builder(panel.activity)
                     .setTitle(R.string.profile_defaults_soul_discard_title)
                     .setMessage(R.string.profile_defaults_soul_discard_message)
-                    .setPositiveButton(R.string.profile_defaults_soul_discard_confirm, (d, w) -> reopenMainPage())
+                    .setPositiveButton(R.string.profile_defaults_soul_discard_confirm, (d, w) -> {
+                        if (handled[0]) return;
+                        handled[0] = true;
+                        reopenMainPage();
+                    })
                     .setNegativeButton(R.string.profile_defaults_soul_keep_editing, null)
                     .create());
         };

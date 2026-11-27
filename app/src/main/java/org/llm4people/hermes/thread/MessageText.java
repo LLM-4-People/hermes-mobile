@@ -317,11 +317,20 @@ final class MessageText {
         hint.setTextColor(context.getColor(R.color.muted));
         body.addView(hint);
 
+        boolean[] handled = {false};
         open.accept(new AlertDialog.Builder(context)
                 .setTitle(R.string.markdown_link_confirm_title)
                 .setView(body)
-                .setPositiveButton(R.string.markdown_link_confirm_open, (d, w) -> launchHttps(context, safe.url()))
-                .setNeutralButton(R.string.markdown_link_copy, (d, w) -> copyLink(context, safe.url()))
+                .setPositiveButton(R.string.markdown_link_confirm_open, (d, w) -> {
+                    if (handled[0]) return;
+                    handled[0] = true;
+                    launchHttps(context, safe.url());
+                })
+                .setNeutralButton(R.string.markdown_link_copy, (d, w) -> {
+                    if (handled[0]) return;
+                    handled[0] = true;
+                    copyLink(context, safe.url());
+                })
                 .setNegativeButton(R.string.ws_cancel, null));
     }
 

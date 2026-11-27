@@ -31,6 +31,7 @@ final class MemoryPanel {
     private LinearLayout tabsRow;
     private LinearLayout undoSlot;
     private LinearLayout body;
+    private int loadSeq;
     private String lastDisabledAnnouncement;
     private String lastEmptyAnnouncement;
 
@@ -78,23 +79,30 @@ final class MemoryPanel {
     }
 
     private void load() {
+        int seq = ++loadSeq;
         body.removeAllViews();
         panel.request(body, () -> {
             BrainCapabilities caps = BrainJson.parseCapabilities(panel.api.capabilities());
             if (!caps.memoryApi()) return null;
             return BrainJson.parseMemorySnapshot(panel.api.get("/api/memory"));
         }, loaded -> {
+            if (seq != loadSeq) return;
             if (loaded == null) {
                 Diagnostics.event("memory", "capability_absent");
+                body.removeAllViews();
                 BrainUi.showUnavailable(panel, body, R.string.brain_upgrade_required, this::load);
                 return;
             }
             snapshot = loaded;
             renderEntries();
-        }, error -> handleLoadError(error));
+        }, error -> {
+            if (seq != loadSeq) return;
+            handleLoadError(error);
+        });
     }
 
     private void handleLoadError(Exception error) {
+        body.removeAllViews();
         if (error instanceof HermesApi.HttpError http) {
             Diagnostics.warning("memory", "load_http_error", "http_" + http.status);
             BrainUi.liveNote(panel, body, MemoryModel.describeHttpError(panel.activity, http.status, http.code));
