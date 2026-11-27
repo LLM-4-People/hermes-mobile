@@ -124,9 +124,10 @@ public final class FirstRunWizardClipboardTest extends InstrumentationTestCase {
                 assertTrue("Invalid paste must show inline error",
                         hasVisibleText(dialogRoot, activity.getString(R.string.onboarding_paste_invalid)));
                 manualDialog.dismiss();
-                assertEquals("Dismissing manual dialog must clear sensitive input",
-                        0, manualInput.getText().length());
+                manualInput.post(() -> assertEquals("Dismissing manual dialog must clear sensitive input",
+                        0, manualInput.getText().length()));
             });
+            getInstrumentation().waitForIdleSync();
         } finally {
             try {
                 runTestOnUiThread(() -> {
