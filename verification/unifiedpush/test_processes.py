@@ -213,3 +213,72 @@ class OwnedChildTest(unittest.TestCase):
             timeout=20,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_unused_loopback_port_stays_outside_linux_ephemeral_range_and_gateway_retries_port_collision(self):
+        from types import SimpleNamespace
+        from verification import gateway_fixture
+
+        for _ in range(10):
+            port = gateway_fixture.unused_loopback_port()
+            self.assertGreaterEqual(port, gateway_fixture.PORT_RANGE_START)
+            self.assertLess(port, gateway_fixture.PORT_RANGE_START + gateway_fixture.PORT_RANGE_SPAN)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            hermes_home = root / "home" / ".hermes"
+            hermes_home.mkdir(parents=True)
+            env_file = hermes_home / ".env"
+            env_file.write_text("API_SERVER_ENABLED=true\nAPI_SERVER_PORT=21000\n", encoding="utf-8")
+
+            gw = object.__new__(gateway_fixture.Gateway)
+            gw.python = sys.executable
+            gw.root = root
+            gw.port = 21000
+            gw.endpoint = "http://127.0.0.1:21000"
+            gw.env = {"HERMES_HOME": str(hermes_home)}
+            gw.process = None
+
+            first_proc = subprocess.Popen(
+                [sys.executable, "-c", "import sys; print('api_server: Port 21000 already in use'); sys.exit(1)"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+            )
+            second_proc = subprocess.Popen(
+                [sys.executable, "-c", "import time; time.sleep(60)"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+            )
+            self.addCleanup(release_test_child, first_proc)
+            self.addCleanup(release_test_child, second_proc)
+
+            spawned = []
+
+            def fake_popen(cmd, **kwargs):
+                log = kwargs["stdout"]
+                if not spawned:
+                    log.write(b"api_server: Port 21000 already in use\n")
+                    log.flush()
+                    spawned.append(first_proc)
+                    return first_proc
+                spawned.append(second_proc)
+                return second_proc
+
+            fake_psutil = SimpleNamespace(
+                CONN_LISTEN="LISTEN",
+                Process=lambda pid: SimpleNamespace(
+                    net_connections=lambda kind="tcp": [
+                        SimpleNamespace(status="LISTEN", laddr=(gateway_fixture.LOOPBACK, gw.port))
+                    ]
+                ),
+            )
+            with (
+                patch.dict(sys.modules, {"psutil": fake_psutil}),
+                patch("verification.gateway_fixture.subprocess.Popen", side_effect=fake_popen),
+                patch("verification.gateway_fixture.unused_loopback_port", return_value=22000),
+                patch.object(gw, "_capabilities_ready", return_value=True),
+            ):
+                gw.start()
+            self.assertEqual(gw.port, 22000)
+            self.assertEqual(gw.endpoint, "http://127.0.0.1:22000")
+            self.assertIn("API_SERVER_PORT=22000", env_file.read_text(encoding="utf-8"))
+            self.assertIs(gw.process, second_proc)
