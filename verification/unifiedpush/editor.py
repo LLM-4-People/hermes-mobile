@@ -16,6 +16,7 @@ from .processes import close_child
 
 
 OBSERVER_GRACE_SECONDS = 30
+ANSWER_TIMEOUT_SECONDS = 35
 
 
 class AndroidControls:
@@ -24,8 +25,10 @@ class AndroidControls:
     def __init__(self, command):
         self.command = command
         self.process = None
+        self._buffer = bytearray()
 
     def connect(self):
+        self._buffer.clear()
         self.process = subprocess.Popen(self.command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                         stderr=subprocess.STDOUT, bufsize=0)
         if self.answer() != b"ready":
@@ -33,6 +36,7 @@ class AndroidControls:
 
     def close(self):
         if self.process is None:
+            self._buffer.clear()
             return
         process = self.process
         try:
@@ -41,22 +45,32 @@ class AndroidControls:
                 b'{"action":"finish"}\n', timeout=OBSERVER_GRACE_SECONDS))
         finally:
             self.process = None
+            self._buffer.clear()
 
     def reconnect(self):
         self.close()
         self.connect()
 
     def answer(self):
-        limit = time.monotonic() + 35
-        while time.monotonic() < limit:
-            if not select.select([self.process.stdout], [], [], max(0, limit - time.monotonic()))[0]:
+        limit = time.monotonic() + ANSWER_TIMEOUT_SECONDS
+        while True:
+            newline = self._buffer.find(b"\n")
+            if newline != -1:
+                line = bytes(self._buffer[:newline + 1])
+                del self._buffer[:newline + 1]
+                if line.startswith(b"HM_UI "):
+                    return base64.b64decode(line[6:].strip(), validate=True)
+                continue
+            remaining = limit - time.monotonic()
+            if remaining <= 0:
                 break
-            line = self.process.stdout.readline()
-            if not line:
+            if not select.select([self.process.stdout], [], [], remaining)[0]:
+                break
+            chunk = os.read(self.process.stdout.fileno(), 4096)
+            if not chunk:
                 raise RuntimeError("Android SDK UI session exited before returning a result")
-            if line.startswith(b"HM_UI "):
-                return base64.b64decode(line[6:].strip(), validate=True)
-        raise TimeoutError("Android SDK UI session did not respond within 35 seconds")
+            self._buffer.extend(chunk)
+        raise TimeoutError(f"Android SDK UI session did not respond within {ANSWER_TIMEOUT_SECONDS} seconds")
 
     def send(self, action, **fields):
         self.process.stdin.write((json.dumps(dict(action=action, **fields)) + "\n").encode())

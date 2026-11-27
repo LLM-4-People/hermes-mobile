@@ -12,10 +12,10 @@ from time import monotonic
 from xml.etree import ElementTree
 
 from verification.device.app_strings import AppStrings
+from verification.device.run import APP
 from .shade import bounds, current_notice, show_notice
 from .stack import eventually
 
-APP = "org.llm4people.hermes"
 NTFY = "io.heckel.ntfy"
 TOP_SETTINGS_ID = APP + ":id/top_settings_action"
 NOTIFICATIONS_ROW_ID = APP + ":id/settings_row_notifications"
@@ -199,14 +199,18 @@ class Screen:
         if self.device.ime_shown():
             self.device.shell("input", "keyevent", "BACK")
 
-    def type(self, label, value):
-        if not re.fullmatch(r"[A-Za-z0-9_:/.-]+", value):
-            raise ValueError("Unexpected characters in synthetic test input")
+    def set_text(self, label, value, *, description=None):
+        """Type Unicode text into a named Android editor, retrying transient b'retry' responses."""
         def enter():
             self.hierarchy()
             return self.controls.send("text", label=label, value=value) == b"applied"
 
-        eventually("the named Android editor to accept text", enter)
+        eventually(description or "the named Android editor to accept text", enter)
+
+    def type(self, label, value):
+        if not re.fullmatch(r"[A-Za-z0-9_:/.-]+", value):
+            raise ValueError("Unexpected characters in synthetic test input")
+        self.set_text(label, value)
 
     def permission_allow_node(self, root=None):
         if root is None:
@@ -242,27 +246,41 @@ def distributor(ui, apk, endpoint):
         launch(d, NTFY)
         url_field = NTFY + ":id/default_server_dialog_url"
 
+        last_step = None
+        last_tap = None
+
+        def tap_debounced(step_key, node):
+            nonlocal last_step, last_tap
+            now = monotonic()
+            if last_step == step_key and last_tap is not None and now - last_tap < TAP_RETRY_COOLDOWN_SECONDS:
+                return
+            ui.tap_node(node)
+            last_step = step_key
+            last_tap = now
+
         def open_editor():
             root = ui.hierarchy()
             if ui.node(url_field, root) is not None:
                 return True
             preference = ui.node("Default server", root)
             if preference is not None:
-                ui.tap_node(preference)
+                tap_debounced("Default server", preference)
                 return False
             settings = ui.node("Settings", root)
             if settings is not None:
                 if ui.node("Read the docs", root) is not None:
-                    ui.tap_node(settings)
+                    tap_debounced("Settings", settings)
                 else:
                     # On compact phones the General preferences start below the visible notification rows.
                     ui.scroll(root)
                 return False
             menu = ui.node("More options", root)
             if menu is not None:
-                ui.tap_node(menu)
+                tap_debounced("More options", menu)
             else:
-                ui.allow_if_prompted(root)
+                perm = ui.permission_allow_node(root)
+                if perm is not None:
+                    tap_debounced("permission_allow", perm)
             return False
 
         eventually("ntfy default server editor", open_editor)
@@ -270,17 +288,11 @@ def distributor(ui, apk, endpoint):
         if d.ime_shown():
             d.shell("input", "keyevent", "BACK")
 
-        def saved():
-            root = ui.hierarchy()
-            field = ui.node(url_field, root)
-            if field is None and ui.node(endpoint, root) is not None:
-                return True
-            button = ui.node("Save", root)
-            if button is not None:
-                ui.tap_node(button)
-            return False
-
-        eventually("ntfy settings showing the saved loopback server", saved)
+        ui.tap_until(
+            "Save",
+            lambda root: ui.node(url_field, root) is None and ui.node(endpoint, root) is not None,
+            description="ntfy settings showing the saved loopback server",
+        )
         d.shell("input", "keyevent", "BACK")
         ui.wait("Subscribed topics")
         yield
@@ -299,32 +311,44 @@ def start_account(ui, label, endpoint, bearer, phrase):
         candidate for candidate in (s.get("ws_close"), "Fermer", "Close") if candidate
     ))
 
+    last_step = None
+    last_tap = None
+
+    def tap_debounced(step_key, node):
+        nonlocal last_step, last_tap
+        now = monotonic()
+        if last_step == step_key and last_tap is not None and now - last_tap < TAP_RETRY_COOLDOWN_SECONDS:
+            return
+        ui.tap_node(node)
+        last_step = step_key
+        last_tap = now
+
     def form():
         root = ui.hierarchy()
         if ui.node(connect_title, root) is not None:
             return True
         add = ui.node(add_action, root)
         if add is not None:
-            ui.tap_node(add)
+            tap_debounced("add", add)
             return False
         choose = ui.node(choose_other, root)
         if choose is not None:
-            ui.tap_node(choose)
+            tap_debounced("choose", choose)
             return False
         lock_action = ui.node(lock_now, root)
         if lock_action is not None:
-            ui.tap_node(lock_action)
+            tap_debounced("lock", lock_action)
             return False
         settings_btn = ui.node(TOP_SETTINGS_ID, root)
         if settings_btn is None:
             settings_btn = ui.node(settings_btn_label, root)
         if settings_btn is not None:
-            ui.tap_node(settings_btn)
+            tap_debounced("settings", settings_btn)
             return False
         for close_label in close_labels:
             dismiss = ui.node(close_label, root)
             if dismiss is not None:
-                ui.tap_node(dismiss)
+                tap_debounced("close", dismiss)
                 return False
         return False
 

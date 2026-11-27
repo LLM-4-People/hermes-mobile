@@ -154,7 +154,7 @@ def git_changed_files(base_sha, head_sha, cwd=None):
         return None
     try:
         output = subprocess.check_output(
-            ["git", "diff", "--name-only", f"{base_sha}..{head_sha}"],
+            ["git", "diff", "--name-only", f"{base_sha}...{head_sha}"],
             cwd=cwd,
             text=True,
             stderr=subprocess.PIPE,

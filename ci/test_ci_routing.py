@@ -1,6 +1,7 @@
 """Deterministic positive and negative tests for fail-closed CI path routing and Pages integrity."""
 
 from pathlib import Path
+import subprocess
 import tempfile
 import unittest
 
@@ -130,6 +131,33 @@ class CiRoutingTest(unittest.TestCase):
         self.assertIsNone(ci_routing.git_changed_files(ci_routing.ZERO_SHA, "a" * 40))
         self.assertIsNone(ci_routing.git_changed_files("not-a-sha", "a" * 40))
         self.assertIsNone(ci_routing.git_changed_files("", ""))
+
+    def test_git_changed_files_uses_three_dot_merge_base_for_non_rebased_pr(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            def git(*args):
+                return subprocess.check_output(["git", *args], cwd=repo, text=True).strip()
+            git("init", "-b", "main")
+            git("config", "user.name", "Test")
+            git("config", "user.email", "test@example.com")
+            (repo / "README.md").write_text("base\n", encoding="utf-8")
+            git("add", "README.md")
+            git("commit", "-m", "base")
+            git("checkout", "-b", "docs-pr")
+            (repo / "README.md").write_text("pr docs\n", encoding="utf-8")
+            git("add", "README.md")
+            git("commit", "-m", "docs change")
+            pr_tip = git("rev-parse", "HEAD")
+            git("checkout", "main")
+            android_file = repo / "app/src/main/java/Foo.java"
+            android_file.parent.mkdir(parents=True)
+            android_file.write_text("class Foo {}\n", encoding="utf-8")
+            git("add", "app/src/main/java/Foo.java")
+            git("commit", "-m", "main android advance")
+            main_tip = git("rev-parse", "HEAD")
+
+            changed = ci_routing.git_changed_files(main_tip, pr_tip, cwd=repo)
+            self.assertEqual(changed, ["README.md"])
 
     def test_cli_writes_github_output_and_step_summary(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -6,6 +6,7 @@ import sys
 import time
 from dataclasses import dataclass
 
+from verification.device.run import APP
 from .stack import eventually
 
 
@@ -179,7 +180,7 @@ def show_notice(ui, title):
             keyguard_showing=bool(re.search(r"(?:mKeyguardShowing|showing)=(?:true|1)\b", policy)),
             shade_focused=shade_focused(device),
             hermes_active_notifications=sum(
-                len(parts) >= 5 and parts[1] == "org.llm4people.hermes"
+                len(parts) >= 5 and parts[1] == APP
                 for parts in (line.split("|") for line in device.shell("cmd", "notification", "list").splitlines())
             ),
             panel_open_attempts=reopens + 1, native_scrolls=scrolls, list_swipes=gestures, group_expansions=expansions,

@@ -7,7 +7,8 @@ import sys
 from verification.nearby_location import answer_android_location, location_access
 from verification.phone_actions import focused
 from verification.unifiedpush.stack import eventually
-from verification.unifiedpush.ui import APP
+from verification.unifiedpush import ui as _ui
+from verification.unifiedpush.ui import APP, TAP_RETRY_COOLDOWN_SECONDS
 
 
 PROMPT = "Quels restaurants se trouvent près de moi ?"
@@ -38,8 +39,7 @@ def enter_message(ui, prompt=PROMPT):
     current = field.get("text", "")
     if current != prompt:
         label = current or composer_hint
-        if ui.controls.send("text", label=label, value=prompt) != b"applied":
-            raise AssertionError("The public Android composer did not accept the request")
+        ui.set_text(label, prompt, description="the public Android composer to accept the request")
     dismiss_ime(ui)
 
 
@@ -56,26 +56,37 @@ def open_consent(ui):
     ime_dismissals = 0
     gms_dismissals = 0
     last_send_bounds = None
+    last_gms_back = None
+    last_ime_back = None
+    last_send_tap = None
 
     def opened():
         nonlocal taps, ime_dismissals, gms_dismissals, last_send_bounds
+        nonlocal last_gms_back, last_ime_back, last_send_tap
         root = ui.hierarchy()
         if ui.node(consent_title, root) is not None:
             return (root,)
+        now = _ui.monotonic()
         packages = {node.get("package", "") for node in root.iter("node") if node.get("package")}
         if APP not in packages and GMS_PACKAGE in packages:
-            ui.device.shell("input", "keyevent", "BACK")
-            gms_dismissals += 1
+            if last_gms_back is None or now - last_gms_back >= TAP_RETRY_COOLDOWN_SECONDS:
+                ui.device.shell("input", "keyevent", "BACK")
+                gms_dismissals += 1
+                last_gms_back = now
             return None
         if ui.device.ime_shown():
-            ui.device.shell("input", "keyevent", "BACK")
-            ime_dismissals += 1
+            if last_ime_back is None or now - last_ime_back >= TAP_RETRY_COOLDOWN_SECONDS:
+                ui.device.shell("input", "keyevent", "BACK")
+                ime_dismissals += 1
+                last_ime_back = now
             return None
         send = ui.node(send_btn, root)
         if send is not None:
-            last_send_bounds = send.get("bounds")
-            ui.tap_node(send)
-            taps += 1
+            if last_send_tap is None or now - last_send_tap >= TAP_RETRY_COOLDOWN_SECONDS:
+                last_send_bounds = send.get("bounds")
+                ui.tap_node(send)
+                taps += 1
+                last_send_tap = now
         return None
 
     print("Tap " + send_btn, file=sys.stderr, flush=True)
@@ -231,12 +242,18 @@ def visible_app_node(ui, fragment, *, attribute=None):
 
 def tap_visible_app_until(ui, fragment, ready, *, attribute=None, description=None):
     """Reveal a rendered app control and tap it until the expected UI transition settles."""
+    last_tap = None
+
     def attempt():
+        nonlocal last_tap
         root = ui.hierarchy()
         result = ready(root)
         if result:
             return (result,)
-        ui.tap_node(visible_app_node(ui, fragment, attribute=attribute))
+        now = _ui.monotonic()
+        if last_tap is None or now - last_tap >= TAP_RETRY_COOLDOWN_SECONDS:
+            ui.tap_node(visible_app_node(ui, fragment, attribute=attribute))
+            last_tap = now
         return None
 
     return eventually(description or ("state after tapping " + fragment), attempt)[0]

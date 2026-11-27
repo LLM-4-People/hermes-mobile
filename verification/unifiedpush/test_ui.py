@@ -374,6 +374,34 @@ class ScreenUiTest(unittest.TestCase):
                 self.assertEqual(len(scrolled), 1)
                 self.assertEqual(tapped, [s["nav_settings"], NOTIFICATIONS_ROW_ID])
 
+    def test_set_text_retries_transient_retry_response_with_unicode(self):
+        controls = Mock()
+        controls.send.side_effect = [b"retry", b"applied"]
+        ui = Screen(Mock(), controls)
+        ui.hierarchy = Mock(return_value=tree({"text": "Composer", "bounds": "[0,0][10,10]"}))
+        with patch("verification.unifiedpush.stack.time.sleep"):
+            ui.set_text("Composer", "Quels cafés près de Montréal ?")
+        self.assertEqual(controls.send.call_count, 2)
+
+    def test_start_account_debounces_repeated_same_control_polls(self):
+        ui = Screen(Mock(), Mock(), lang="en")
+        s = ui.strings
+        chooser = tree({"text": s["profile_add_action"], "bounds": "[20,200][280,250]"})
+        connect = tree({"text": s["profile_connect_title"], "bounds": "[20,40][280,90]"})
+        save_form = tree({"text": s["profile_save_action"], "bounds": "[20,500][280,550]"})
+        opened_ws = tree({"text": s["thread_new_conversation"], "bounds": "[20,80][280,130]"})
+        # chooser repeats 3 times within cooldown -> add_action must be tapped only ONCE!
+        ui.hierarchy = Mock(side_effect=[chooser, chooser, chooser, connect, save_form, opened_ws])
+        tapped = []
+        ui.tap_node = Mock(side_effect=lambda node: tapped.append(node.get("text")))
+        ui.field = Mock()
+        clock = [10.0, 10.1, 10.2, 10.3, 10.4, 10.5]
+        with patch("verification.unifiedpush.stack.time.sleep"), patch(
+            "verification.unifiedpush.ui.monotonic", side_effect=clock
+        ):
+            start_account(ui, "Alt", "https://example.test", "secret-key", "correct-horse-battery")
+        self.assertEqual(tapped, [s["profile_add_action"], s["profile_save_action"]])
+
 
 if __name__ == "__main__":
     unittest.main()

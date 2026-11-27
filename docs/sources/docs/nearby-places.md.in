@@ -1,8 +1,8 @@
-# Nearby restaurant data
+# Nearby places data
 
-Hermes Mobile can show named restaurants mapped within 1.5 km of the approximate area approved for the search. The profile gateway sends its two-decimal center to an Overpass server in a POST body. It returns up to 12 places ordered by straight-line distance from that center. A way or relation uses its bounding-box center. The guide can use a city or neighborhood written in the discussion as context, but this endpoint accepts coordinates only. A coarse phone estimate can have more uncertainty than the search radius.
+Hermes Mobile can show named places across 9 allowlisted OpenStreetMap categories (`restaurant`, `cafe`, `bakery`, `pharmacy`, `transit`, `park`, `grocery`, `bookshop`, `coworking`) mapped within a bounded radius (`radius_m` `500`–`5000`, default `1500` or `HERMES_MOBILE_NEARBY_DEFAULT_RADIUS_M`) of the approximate area approved for the search. The profile gateway sends its two-decimal center to an Overpass server in a POST body. It returns up to `limit` places (`6`–`24`, default `12` or `HERMES_MOBILE_NEARBY_DEFAULT_LIMIT`) ordered by straight-line distance from that center. A way or relation uses its bounding-box center. The guide can use a city or neighborhood written in the discussion as context, but this endpoint accepts coordinates only. A coarse phone estimate can have more uncertainty than the search radius.
 
-Each result includes its OpenStreetMap type and ID. The map record is at `https://www.openstreetmap.org/TYPE/ID`. Names, cuisines, addresses and websites come from mapped tags. A listed website is the URL recorded by contributors. The displayed source date is the OSM database timestamp reported by the interpreter. Restaurant hours, ratings, current availability and travel times are outside this search. Data © OpenStreetMap contributors, available under the Open Database License. [OpenStreetMap attribution and license](https://www.openstreetmap.org/copyright)
+Each result includes its OpenStreetMap type and ID. The map record is at `https://www.openstreetmap.org/TYPE/ID`. Names, cuisines, addresses, `opening_hours`, mapped `tags`, and websites come from OpenStreetMap tags. A listed website is the URL recorded by contributors. The displayed source date is the OSM database timestamp reported by the interpreter. Ratings, live availability, and travel times remain outside this search. Data © OpenStreetMap contributors, available under the Open Database License. [OpenStreetMap attribution and license](https://www.openstreetmap.org/copyright)
 
 ## Configure a gateway
 
@@ -15,7 +15,7 @@ docker compose -f "$deployment/compose.json" run --rm gateway-north plugins enab
 docker compose -f "$deployment/compose.json" up -d --no-deps --force-recreate gateway-north
 ```
 
-The phone uses its profile bearer for `POST /api/mobile/places/nearby` and sends two JSON numbers, `latitude` and `longitude`. The gateway returns HTTP 200 with an empty list when the map has no qualifying records. A missing plugin yields 404. A missing interpreter setting, timeout, incomplete response or upstream failure yields 503. The gateway honors upstream retry delays and makes one request per search. It does not cache a user's location, pass on profile credentials, or add coordinates to its access-log path.
+The phone uses its profile bearer for `POST /api/mobile/places/nearby` and sends JSON `latitude` and `longitude` along with optional `category` (default `restaurant`), `radius_m` (`500`–`5000`), and `limit` (`6`–`24`). Unknown categories fail closed with HTTP 400 (`invalid_category`). The gateway returns HTTP 200 with an empty list when the map has no qualifying records. A missing plugin yields 404. A missing interpreter setting, timeout, incomplete response or upstream failure yields 503. The gateway honors upstream retry delays and makes one request per search. It does not cache a user's location, pass on profile credentials, or add coordinates to its access-log path.
 
 ## Recorded map check
 

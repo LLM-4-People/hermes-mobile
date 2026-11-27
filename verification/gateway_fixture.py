@@ -218,22 +218,30 @@ class Gateway:
     def stop(self):
         if self.process is None:
             return
-        if self.process.poll() is None:
-            subprocess.run(
-                [
-                    self.python,
-                    "-c",
-                    "import sys; from gateway.status import write_planned_stop_marker;"
-                    "sys.exit(0 if write_planned_stop_marker(int(sys.argv[1])) else 1)",
-                    str(self.process.pid),
-                ],
-                cwd=self.root,
-                env=self.env,
-                check=True,
-                timeout=20,
-            )
-            self.process.wait(timeout=60)
-        code = self.process.returncode
-        self.process = None
+        from verification.unifiedpush.processes import close_child
+
+        process = self.process
+        code = None
+        try:
+            def planned_stop():
+                subprocess.run(
+                    [
+                        self.python,
+                        "-c",
+                        "import sys; from gateway.status import write_planned_stop_marker;"
+                        "sys.exit(0 if write_planned_stop_marker(int(sys.argv[1])) else 1)",
+                        str(process.pid),
+                    ],
+                    cwd=self.root,
+                    env=self.env,
+                    check=True,
+                    timeout=20,
+                )
+                process.wait(timeout=60)
+
+            close_child(process, planned_stop)
+            code = process.returncode
+        finally:
+            self.process = None
         if code != 0:
             raise RuntimeError(f"Gateway exited with status {code}")

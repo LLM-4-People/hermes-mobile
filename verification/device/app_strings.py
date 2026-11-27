@@ -13,7 +13,11 @@ from xml.etree import ElementTree
 
 log = logging.getLogger(__name__)
 
-APP = "org.llm4people.hermes"
+try:
+    from .run import APP
+except ImportError:
+    from run import APP
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 RES_DIR = REPO_ROOT / "app" / "src" / "main" / "res"
 SUPPORTED_LANGS = ("fr", "en")

@@ -538,8 +538,11 @@ def run(args):
             lambda root: ui.node(composer_hint, root) is not None,
             description="visible control " + composer_hint,
         )
-        if ui.controls.send("text", label=composer_hint, value=args.prompt) != b"applied":
-            raise AssertionError("Could not type the request in the public composer")
+        ui.set_text(
+            composer_hint,
+            args.prompt,
+            description="the public composer to accept the request",
+        )
         send_composer_message(ui, args.prompt)
         run_id, session_id, reply = eventually("completed Hermes run", lambda: completed(gateway), timeout=800 if args.provider_url else 90)
         def canonical_exchange():

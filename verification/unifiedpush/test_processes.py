@@ -131,3 +131,48 @@ class OwnedChildTest(unittest.TestCase):
         self.assertIs(raised.exception, problem)
         self.assertIn("observer input closed", str(raised.exception.__notes__))
         self.assertIsNotNone(child.returncode)
+
+    def test_partial_stdout_line_does_not_bypass_answer_timeout(self):
+        script = (
+            "import sys, time\n"
+            "print('HM_UI cmVhZHk=', flush=True)\n"
+            "sys.stdout.write('.')\n"
+            "sys.stdout.flush()\n"
+            "time.sleep(60)\n"
+        )
+        controls = AndroidControls([sys.executable, "-u", "-c", script])
+        with patch("verification.unifiedpush.editor.ANSWER_TIMEOUT_SECONDS", 0.2), patch(
+            "verification.unifiedpush.editor.OBSERVER_GRACE_SECONDS", 0.05
+        ):
+            controls.connect()
+            child = controls.process
+            self.addCleanup(release_test_child, child)
+            try:
+                started = time.monotonic()
+                with self.assertRaises(TimeoutError):
+                    controls.answer()
+                self.assertLess(time.monotonic() - started, 3.0)
+            finally:
+                controls.close()
+        self.assertIsNotNone(child.returncode)
+
+    def test_gateway_stop_terminates_stalled_process_and_clears_handle_even_if_marker_fails(self):
+        from verification.gateway_fixture import Gateway
+
+        gateway = object.__new__(Gateway)
+        gateway.python = sys.executable
+        gateway.root = Path(tempfile.gettempdir())
+        gateway.env = dict(os.environ)
+        child = subprocess.Popen(
+            [sys.executable, "-c", "import time; time.sleep(60)"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+        )
+        self.addCleanup(release_test_child, child)
+        gateway.process = child
+        with patch("verification.gateway_fixture.subprocess.run", side_effect=subprocess.TimeoutExpired("cmd", 20)):
+            with self.assertRaises(RuntimeError):
+                gateway.stop()
+        self.assertIsNone(gateway.process)
+        self.assertIsNotNone(child.poll())
+        self.assertTrue(child.stdout.closed)

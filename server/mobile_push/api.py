@@ -22,7 +22,6 @@ DEVICE_MAX_BODY_BYTES = 8192
 DELIVERY_MAX_BODY_BYTES = 147_456
 KEY = re.compile("[a-f0-9]{64}")
 TOKEN = re.compile("[!-~]{1,4096}")
-EVENT_ID = re.compile("[a-f0-9]{32}")
 
 
 def bearer(request):
