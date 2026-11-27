@@ -247,7 +247,9 @@ public final class ExhaustiveUiAndLayoutStressTest extends InstrumentationTestCa
                         panel.showStats(null, null);
                         panel.showReminders();
                     });
-                    waitForCondition(() -> failing.handledRequests() >= 8, 8_000L);
+                    // R24.6.3: Superseded pages skip stale HTTP calls before hitting the server;
+                    // at least the active Reminders page must complete its failing request cleanly.
+                    waitForCondition(() -> failing.handledRequests() >= 1, 8_000L);
                     getInstrumentation().waitForIdleSync();
                     // Simulate immediate profile lock mid-flight while a fresh worker request is active.
                     runTestOnUiThread(() -> {
