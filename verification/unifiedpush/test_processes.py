@@ -16,9 +16,14 @@ from .stack import serve
 
 
 def release_test_child(process):
-    if process.poll() is None:
-        process.terminate()
-    process.wait(timeout=5)
+    try:
+        if process.poll() is None:
+            process.terminate()
+        process.wait(timeout=5)
+    finally:
+        for stream in (process.stdin, process.stdout, process.stderr):
+            if stream is not None and not stream.closed:
+                stream.close()
 
 
 @unittest.skipUnless(os.name == "posix", "The AOSP acceptance runner uses POSIX signals")

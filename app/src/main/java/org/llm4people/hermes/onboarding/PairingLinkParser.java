@@ -1,5 +1,6 @@
 package org.llm4people.hermes.onboarding;
 
+import org.llm4people.hermes.Digests;
 import org.llm4people.hermes.PlainTextSanitizer;
 import org.llm4people.hermes.profile.GatewayAddress;
 
@@ -414,7 +415,7 @@ public final class PairingLinkParser {
                     case 't' -> sb.append('\t');
                     case 'u' -> {
                         if (i + 4 > n) throw new IllegalArgumentException("Truncated JSON unicode escape");
-                        sb.append((char) Integer.parseInt(s.substring(i, i + 4), 16));
+                        sb.append((char) Digests.parseUnsignedHex(s, i, 4));
                         i += 4;
                     }
                     default -> throw new IllegalArgumentException("Unsupported JSON escape");

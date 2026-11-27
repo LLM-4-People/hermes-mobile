@@ -685,11 +685,15 @@ public final class AppearanceSettingsPanel {
         activeDialog = dialog;
         Button applyBtn = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
         if (applyBtn != null) {
+            boolean[] submitted = {false};
             applyBtn.setOnClickListener(v -> {
+                if (submitted[0]) return;
                 try {
                     List<AppCustomization.ComposerShortcut> existing = store.current().composerShortcuts;
                     AppCustomization.ComposerShortcut created = AppearanceSettingsModel.createShortcut(
                             existing, labelInput.getText().toString(), draftInput.getText().toString());
+                    submitted[0] = true;
+                    applyBtn.setEnabled(false);
                     List<AppCustomization.ComposerShortcut> updated = new ArrayList<>(existing);
                     updated.add(created);
                     applyCustomization(store.current().withComposerShortcuts(updated));

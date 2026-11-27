@@ -391,9 +391,12 @@ public final class AppLanguage {
                 activity.getString(R.string.language_english)
         };
         int checked = current == Mode.FRENCH ? 1 : current == Mode.ENGLISH ? 2 : 0;
+        boolean[] handled = {false};
         return Ui.secureDialog(new AlertDialog.Builder(activity)
                 .setTitle(R.string.language_picker_title)
                 .setSingleChoiceItems(labels, checked, (dialog, which) -> {
+                    if (handled[0]) return;
+                    handled[0] = true;
                     Mode selected = choices[which];
                     dialog.dismiss();
                     apply(activity, selected);

@@ -43,4 +43,30 @@ public final class Digests {
         Objects.requireNonNull(text, "text");
         return sha256Hex(text.getBytes(StandardCharsets.UTF_8));
     }
+
+    /**
+     * Parses a strict unsigned ASCII hexadecimal slice {@code s[start .. start+length)} (1..8 chars).
+     * Rejects signs ({@code +}/{@code -}), whitespace, and non-ASCII digits fail-closed.
+     */
+    public static int parseUnsignedHex(String s, int start, int length) {
+        if (s == null || length <= 0 || length > 8 || start < 0 || start > s.length() - length) {
+            throw new IllegalArgumentException("Invalid hex slice");
+        }
+        int value = 0;
+        for (int i = 0; i < length; i++) {
+            char c = s.charAt(start + i);
+            int digit;
+            if (c >= '0' && c <= '9') {
+                digit = c - '0';
+            } else if (c >= 'a' && c <= 'f') {
+                digit = c - 'a' + 10;
+            } else if (c >= 'A' && c <= 'F') {
+                digit = c - 'A' + 10;
+            } else {
+                throw new IllegalArgumentException("Invalid hex digit");
+            }
+            value = (value << 4) | digit;
+        }
+        return value;
+    }
 }

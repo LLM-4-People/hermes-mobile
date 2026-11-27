@@ -1,5 +1,7 @@
 package org.llm4people.hermes.update;
 
+import org.llm4people.hermes.Digests;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -115,13 +117,12 @@ final class UpdateJson {
                     case 't' -> out.append('\t');
                     case 'u' -> {
                         if (pos + 4 > len) throw new IOException("Truncated unicode escape");
-                        String hex = src.substring(pos, pos + 4);
-                        pos += 4;
                         try {
-                            out.append((char) Integer.parseInt(hex, 16));
-                        } catch (NumberFormatException badHex) {
+                            out.append((char) Digests.parseUnsignedHex(src, pos, 4));
+                        } catch (IllegalArgumentException badHex) {
                             throw new IOException("Invalid unicode escape", badHex);
                         }
+                        pos += 4;
                     }
                     default -> throw new IOException("Invalid escape character");
                 }

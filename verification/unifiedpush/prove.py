@@ -17,10 +17,7 @@ from urllib.parse import urlsplit
 from .assets import APK, SERVER, digest, extract_server
 from verification.device.installed import installed_apk_sha256
 from .editor import editor
-try:
-    from verification.device.run import Emulator, cleanup_all
-except ModuleNotFoundError:
-    from device.run import Emulator, cleanup_all
+from verification.device.run import Emulator, cleanup_all
 from verification.gateway_fixture import Gateway, PINNED_REVISION, check_source
 from .stack import (
     LOCAL_HTTP,

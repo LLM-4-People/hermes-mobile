@@ -2831,6 +2831,22 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
                         closeAndRun.invoke(hubSheet, hubAction);
                         closeAndRun.invoke(hubSheet, hubAction);
                         assertEquals("Second closeAndRun after close must be a no-op", 1, hubActions.get());
+
+                        // R35.6.6: AppLanguage.showPicker single-choice click is single-fire on rapid double-tap.
+                        AtomicInteger langApplies = new AtomicInteger();
+                        AppLanguage.Mode originalMode = AppLanguage.readMode(activity);
+                        AlertDialog langDialog = AppLanguage.showPicker(activity, mode -> langApplies.incrementAndGet());
+                        try {
+                            android.widget.ListView langList = langDialog.getListView();
+                            assertNotNull(langList);
+                            int sameIdx = originalMode == AppLanguage.Mode.FRENCH ? 1
+                                    : originalMode == AppLanguage.Mode.ENGLISH ? 2 : 0;
+                            langList.performItemClick(langList.getChildAt(sameIdx), sameIdx, sameIdx);
+                            langList.performItemClick(langList.getChildAt(sameIdx), sameIdx, sameIdx);
+                            assertEquals("Rapid double-tap in language picker must apply only once", 1, langApplies.get());
+                        } finally {
+                            if (langDialog.isShowing()) langDialog.dismiss();
+                        }
                     } catch (Exception err) {
                         throw new AssertionError(err);
                     }

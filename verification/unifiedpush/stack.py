@@ -14,10 +14,7 @@ from urllib.parse import urlsplit
 from urllib.request import HTTPSHandler, ProxyHandler, Request, build_opener
 
 from .processes import close_child
-try:
-    from verification.device.run import cleanup_all
-except ModuleNotFoundError:
-    from device.run import cleanup_all
+from verification.device.run import cleanup_all
 from deploy.accounts import CADDY_IMAGE
 from verification.gateway_fixture import unused_loopback_port
 
