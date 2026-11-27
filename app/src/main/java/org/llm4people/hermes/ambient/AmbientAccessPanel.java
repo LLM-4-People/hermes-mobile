@@ -862,7 +862,7 @@ public final class AmbientAccessPanel {
 
     private void clearFeedback() {
         pendingDenialKey = null;
-        if (feedback != null) feedback.setVisibility(View.GONE);
+        Ui.clearLiveStatus(feedback);
         if (feedbackAction != null) {
             feedbackAction.setVisibility(View.GONE);
             feedbackAction.setOnClickListener(null);

@@ -33,7 +33,6 @@ import java.util.concurrent.Executors;
  * and passes strictly home-screen-safe titles and opaque IDs — never private transcripts or credentials.
  */
 public final class HomePinBridge {
-    public static final String ACTION_WIDGET_UPDATED = "org.llm4people.hermes.ACTION_WIDGET_SPEC_UPDATED";
     public static final String EXTRA_WIDGET_ID = "hermes_widget_id";
     public static final String EXTRA_SURFACE_ID = "hermes_surface_id";
     private static final ExecutorService PIN_EXECUTOR = Executors.newSingleThreadExecutor(r -> {
@@ -117,7 +116,7 @@ public final class HomePinBridge {
         HermesWidgetSpec osSpec = toOsWidgetSpec(spec, ownerProfileId);
         if (osSpec == null) return;
         if (!new HermesWidgetStore(activity.getApplicationContext()).upsertSpec(osSpec, ownerProfileId)) return;
-        pinShortcutAsync(activity, "widget-" + osSpec.widgetId, osSpec.title, null, osSpec.widgetId);
+        pinShortcutAsync(activity, osSpec.widgetId, osSpec.title, null, osSpec.widgetId);
     }
 
     static String safeSurfaceTitle(String title) {
@@ -179,12 +178,16 @@ public final class HomePinBridge {
             Intent launch = new Intent(app, MainActivity.class)
                     .setAction(Intent.ACTION_VIEW)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+            boolean attachedTarget = false;
             if (surfaceId != null && WorkspaceLayout.custom(surfaceId)) {
                 launch.putExtra(EXTRA_SURFACE_ID, surfaceId);
+                attachedTarget = true;
             }
-            if (widgetId != null && DraftForm.validId(widgetId)) {
+            if (widgetId != null && HermesWidgetSpec.validWidgetId(widgetId)) {
                 launch.putExtra(EXTRA_WIDGET_ID, widgetId);
+                attachedTarget = true;
             }
+            if (!attachedTarget) return false;
             String safeLabel = HermesWidgetSpec.sanitizeHomeText(label, 50);
             if (safeLabel.isEmpty()) return false;
             String shortLabel = safeShortShortcutLabel(safeLabel);
@@ -210,7 +213,6 @@ public final class HomePinBridge {
         HermesWidgetSpec osSpec = toOsWidgetSpec(spec, ownerProfileId);
         if (osSpec != null) {
             HermesWidgetPinning.PinResult result = HermesWidgetPinning.requestPinWidget(activity, osSpec);
-            broadcastWidgetUpdated(activity, osSpec.widgetId);
             if (result == HermesWidgetPinning.PinResult.REQUESTED) {
                 Diagnostics.event("home_pin", "widget_requested");
                 Toast.makeText(activity, HermesWidgetPinning.guidanceMessage(activity, result),
@@ -235,7 +237,6 @@ public final class HomePinBridge {
         Context app = context.getApplicationContext();
         if (!new HermesWidgetStore(app).upsertSpec(osSpec, ownerProfileId)) return;
         HermesWidgetProvider.refreshWidget(app, osSpec.widgetId);
-        broadcastWidgetUpdated(app, osSpec.widgetId);
     }
 
     /** Removes a widget spec owned by {@code ownerProfileId} (or unowned) and refreshes Android widgets. */
@@ -243,8 +244,7 @@ public final class HomePinBridge {
         if (context == null || !HermesWidgetSpec.validWidgetId(widgetId)) return;
         Context app = context.getApplicationContext();
         if (!new HermesWidgetStore(app).removeSpec(widgetId, ownerProfileId)) return;
-        HermesWidgetProvider.refresh(app, false);
-        broadcastWidgetUpdated(app, widgetId);
+        HermesWidgetProvider.refresh(app);
     }
 
     /** Reconciles HermesWidgetStore for a specific owner profile after a Live UI rollback. */
@@ -284,7 +284,6 @@ public final class HomePinBridge {
         if (spec != null) {
             if (!new HermesWidgetStore(app).upsertSpec(spec, ownerProfileId)) return false;
             HermesWidgetProvider.refreshWidget(app, spec.widgetId);
-            broadcastWidgetUpdated(app, spec.widgetId);
             Diagnostics.event("widget", "delivery_widget_updated");
             return true;
         }
@@ -296,20 +295,11 @@ public final class HomePinBridge {
                 return false;
             }
             HermesWidgetProvider.refreshWidget(app, widgetId);
-            broadcastWidgetUpdated(app, widgetId);
             Diagnostics.event("widget", "delivery_widget_refreshed");
             return true;
         }
         Diagnostics.warning("widget", "delivery_widget_invalid");
         return false;
-    }
-
-    private static void broadcastWidgetUpdated(Context context, String widgetId) {
-        if (context == null || widgetId == null || widgetId.isEmpty()) return;
-        Intent update = new Intent(ACTION_WIDGET_UPDATED)
-                .setPackage(context.getPackageName())
-                .putExtra(EXTRA_WIDGET_ID, widgetId);
-        context.sendBroadcast(update);
     }
 
     private static void guidance(Activity activity, String title, String message) {

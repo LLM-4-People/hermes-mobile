@@ -1036,25 +1036,16 @@ public final class ThreadWorkspace implements AutoCloseable {
             JSONArray visiblePage = ThreadData.visibleMessages(page);
             int prependedCount = 0;
             int anchorShift = 0;
-            if (keysetBeforeId != null) {
+            if (keysetBeforeId != null || older) {
                 InfiniteTranscriptWindow.PageResult result = transcriptWindow.prependOlder(
-                        InfiniteTranscriptWindow.fromJsonArray(visiblePage), hasMore, cursorOldest, saturatedTotal(total, -1));
-                messages = InfiniteTranscriptWindow.toJsonArray(transcriptWindow.snapshot());
-                hasMore = transcriptWindow.hasOlder();
-                prependedCount = result.prependedCount();
-                anchorShift = result.anchorDelta();
-            } else if (older) {
-                InfiniteTranscriptWindow.PageResult result = transcriptWindow.prependOlder(
-                        InfiniteTranscriptWindow.fromJsonArray(visiblePage), hasMore, cursorOldest,
-                        saturatedTotal(total, -1));
+                        InfiniteTranscriptWindow.fromJsonArray(visiblePage), hasMore, cursorOldest);
                 messages = InfiniteTranscriptWindow.toJsonArray(transcriptWindow.snapshot());
                 hasMore = transcriptWindow.hasOlder();
                 prependedCount = result.prependedCount();
                 anchorShift = result.anchorDelta();
             } else {
                 messages = ThreadData.visibleMessages(ThreadData.join(page, new JSONArray()));
-                transcriptWindow.replaceLatest(InfiniteTranscriptWindow.fromJsonArray(messages), hasMore, cursorOldest, cursorNewest,
-                        saturatedTotal(total, messages.length()));
+                transcriptWindow.replaceLatest(InfiniteTranscriptWindow.fromJsonArray(messages), hasMore, cursorOldest, cursorNewest);
                 messages = InfiniteTranscriptWindow.toJsonArray(transcriptWindow.snapshot());
                 hasMore = transcriptWindow.hasOlder();
             }
@@ -1141,8 +1132,7 @@ public final class ThreadWorkspace implements AutoCloseable {
             long total = ThreadContext.visibleTotal(data);
             JSONArray visiblePage = ThreadData.visibleMessages(window.rows());
             InfiniteTranscriptWindow.PageResult result = transcriptWindow.appendNewer(
-                    InfiniteTranscriptWindow.fromJsonArray(visiblePage), window.more(), cursorNewest,
-                    saturatedTotal(total, -1));
+                    InfiniteTranscriptWindow.fromJsonArray(visiblePage), window.more(), cursorNewest);
             messages = InfiniteTranscriptWindow.toJsonArray(transcriptWindow.snapshot());
             hasOlderMessages = transcriptWindow.hasOlder();
             if (instruments != null) instruments.proposals(messages);
@@ -1648,7 +1638,7 @@ public final class ThreadWorkspace implements AutoCloseable {
             }
         }
         if (parsed.isEmpty()) return;
-        transcriptWindow.replaceLatest(parsed, cached.hasMore(), cached.oldestId(), cached.newestId(), cached.totalCount());
+        transcriptWindow.replaceLatest(parsed, cached.hasMore(), cached.oldestId(), cached.newestId());
         messages = InfiniteTranscriptWindow.toJsonArray(transcriptWindow.snapshot());
         hasOlderMessages = transcriptWindow.hasOlder();
         emptyTranscript = false;

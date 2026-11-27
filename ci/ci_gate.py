@@ -32,13 +32,6 @@ ROUTED_JOBS: tuple[str, ...] = (
 
 ALL_UPSTREAM_JOBS: tuple[str, ...] = ALWAYS_REQUIRED_JOBS + ROUTED_JOBS
 
-REQUIRED_CHANGE_OUTPUTS: tuple[str, ...] = (
-    "run_pages_check",
-    "run_workspace",
-    "run_android",
-    "run_push_acceptance",
-)
-
 
 def _parse_bool_flag(outputs: dict[str, Any], key: str) -> bool:
     raw = outputs.get(key)

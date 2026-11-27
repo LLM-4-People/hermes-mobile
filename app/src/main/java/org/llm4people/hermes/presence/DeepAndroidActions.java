@@ -32,6 +32,7 @@ import org.llm4people.hermes.os.HermesTileService;
 import org.llm4people.hermes.os.HermesWidgetProvider;
 import org.llm4people.hermes.os.HermesWidgetSpec;
 import org.llm4people.hermes.os.HermesWidgetStore;
+import org.llm4people.hermes.os.PermissionCenter;
 import org.llm4people.hermes.os.PermissionsPanel;
 import org.llm4people.hermes.push.DeliveryItem;
 import org.llm4people.hermes.push.PushPolicy;
@@ -713,7 +714,7 @@ public final class DeepAndroidActions {
                             HermesWidgetSpec.Template.STATUS, List.of(), null, homeScreenSafe, ownerProfileId);
                     new HermesWidgetStore(app).upsertSpec(spec);
                 }
-                HermesWidgetProvider.refresh(app, false);
+                HermesWidgetProvider.refresh(app);
                 return true;
             }
 
@@ -758,6 +759,13 @@ public final class DeepAndroidActions {
                         () -> nm.notify((int) (System.currentTimeMillis() & 0x7FFF) + 5100, notification));
             }
         };
+    }
+
+    /** Single source of truth: true when notifications permission is granted AND the nudges channel is enabled. */
+    public static boolean areNudgesReady(Context context) {
+        return context != null
+                && PermissionCenter.state(context, PermissionCenter.Key.NOTIFICATIONS) == PermissionCenter.State.GRANTED
+                && isNudgeChannelEnabled(context);
     }
 
     /** Single source of truth: true when the proactive-nudges channel is uncreated or not muted (IMPORTANCE_NONE). */

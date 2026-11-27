@@ -38,7 +38,7 @@ public final class InfiniteChatTest {
 
         // 1. Open latest page (99,961..100,000).
         window.replaceLatest(range(totalMessages - pageSize + 1, totalMessages),
-                true, totalMessages - pageSize + 1, totalMessages, (int) totalMessages);
+                true, totalMessages - pageSize + 1, totalMessages);
         assertEquals(pageSize, window.snapshot().size());
         assertTrue(window.hasOlder());
         assertFalse(window.hasNewer());
@@ -63,7 +63,7 @@ public final class InfiniteChatTest {
             withOverlap.add(new FakeRow("seg_" + ((cursor - 1) / 25_000L), cursor, "Overlap"));
 
             InfiniteTranscriptWindow.PageResult res = window.prependOlder(
-                    withOverlap, start > 1L, start, (int) totalMessages);
+                    withOverlap, start > 1L, start);
             pagesWalked++;
             assertEquals(page.size(), res.prependedCount());
             assertEquals(page.size(), res.anchorDelta());
@@ -87,7 +87,7 @@ public final class InfiniteChatTest {
         assertEquals(Long.valueOf(400L), window.newestId());
 
         // 3. Page forward toward present and verify top trimming + negative anchorDelta.
-        InfiniteTranscriptWindow.PageResult fwd = window.appendNewer(range(401L, 440L), true, 440L, (int) totalMessages);
+        InfiniteTranscriptWindow.PageResult fwd = window.appendNewer(range(401L, 440L), true, 440L);
         assertEquals(40, fwd.appendedCount());
         assertEquals(40, fwd.trimmedFromTop());
         assertEquals(-40, fwd.anchorDelta());
@@ -98,11 +98,11 @@ public final class InfiniteChatTest {
         assertEquals(Long.valueOf(440L), window.newestId());
 
         // 4. Snap to latest + O(1) after_id live delta append (3 new messages arrive).
-        window.replaceLatest(range(99_961L, 100_000L), true, 99_961L, 100_000L, (int) totalMessages);
+        window.replaceLatest(range(99_961L, 100_000L), true, 99_961L, 100_000L);
         assertFalse(window.hasNewer());
         assertEquals("limit=40&order=oldest&visible_only=true&include_compacted=true&after_id=100000", window.newerQueryParams(40));
 
-        InfiniteTranscriptWindow.PageResult delta = window.appendNewer(range(100_001L, 100_003L), false, 100_003L, 100_003);
+        InfiniteTranscriptWindow.PageResult delta = window.appendNewer(range(100_001L, 100_003L), false, 100_003L);
         assertEquals(3, delta.appendedCount());
         assertEquals(0, delta.trimmedFromTop());
         assertEquals(43, window.snapshot().size());
@@ -121,7 +121,7 @@ public final class InfiniteChatTest {
         assertFalse(empty.olderQueryParams(40, true).contains("order=desc"));
         assertFalse(empty.newerQueryParams(40).contains("order=desc"));
 
-        empty.replaceLatest(range(501L, 540L), true, 501L, 540L, 540);
+        empty.replaceLatest(range(501L, 540L), true, 501L, 540L);
         assertEquals("limit=40&order=latest&visible_only=true&include_compacted=true&before_id=501",
                 empty.olderQueryParams(40, true));
         assertEquals("limit=40&order=oldest&visible_only=true&include_compacted=true&after_id=540",
