@@ -251,4 +251,39 @@ public final class Android16OsIntegrationTest extends InstrumentationTestCase {
             store.purgeProfile(profile);
         }
     }
+
+    public void testNullSystemServiceBranchesFailClosedWithoutWarnings() throws Exception {
+        Context base = getInstrumentation().getTargetContext();
+        Context nullServiceCtx = new android.content.ContextWrapper(base) {
+            @Override public Context getApplicationContext() { return this; }
+            @Override public Object getSystemService(String name) { return null; }
+            @Override public String getSystemServiceName(Class<?> serviceClass) { return null; }
+        };
+        assertNull(nullServiceCtx.getSystemService(NotificationManager.class));
+
+        Class<?> pushNotices = Class.forName("org.llm4people.hermes.push.PushNotices");
+        java.lang.reflect.Method pushAllowed = pushNotices.getDeclaredMethod("allowed", Context.class);
+        java.lang.reflect.Method pushCancel = pushNotices.getDeclaredMethod("cancel", Context.class, String.class);
+        pushAllowed.setAccessible(true);
+        pushCancel.setAccessible(true);
+
+        Class<?> pushSyncService = Class.forName("org.llm4people.hermes.push.PushSyncService");
+        java.lang.reflect.Method ensureScheduled = pushSyncService.getDeclaredMethod("ensureScheduled", Context.class);
+        ensureScheduled.setAccessible(true);
+
+        org.llm4people.hermes.Diagnostics.clear();
+        try {
+            assertFalse((Boolean) pushAllowed.invoke(null, nullServiceCtx));
+            pushCancel.invoke(null, nullServiceCtx, "profile-null-nm");
+            ensureScheduled.invoke(null, nullServiceCtx);
+            assertFalse(org.llm4people.hermes.presence.DeepAndroidActions
+                    .androidOsBridge(nullServiceCtx, "profile-null-nm", null, null)
+                    .postLocalNudge("Title", "Body"));
+            String diag = org.llm4people.hermes.Diagnostics.exportRedacted();
+            assertFalse("Expected no failure warnings when getSystemService returns null, got: " + diag,
+                    diag.contains("_failed") || diag.contains("job_scheduler_unavailable"));
+        } finally {
+            org.llm4people.hermes.Diagnostics.clear();
+        }
+    }
 }

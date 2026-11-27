@@ -1,5 +1,6 @@
 package org.llm4people.hermes.os;
 
+import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.Context;
 import android.content.SharedPreferences;
@@ -202,11 +203,16 @@ public final class BiometricVault {
      * which cannot unlock AndroidKeyStore auth-bound keys).
      */
     public static Availability availability(Context context) {
-        if (context == null || Build.VERSION.SDK_INT < 29) return Availability.UNAVAILABLE;
+        return availability(context, Build.VERSION.SDK_INT);
+    }
+
+    @SuppressLint("NewApi")
+    static Availability availability(Context context, int sdkInt) {
+        if (context == null || sdkInt < 29) return Availability.UNAVAILABLE;
         try {
             BiometricManager manager = context.getSystemService(BiometricManager.class);
             if (manager == null) return Availability.UNAVAILABLE;
-            if (Build.VERSION.SDK_INT >= 30) {
+            if (sdkInt >= 30) {
                 if (manager.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG)
                         == BiometricManager.BIOMETRIC_SUCCESS) {
                     return Availability.STRONG;
@@ -503,7 +509,12 @@ public final class BiometricVault {
     }
 
     private static boolean supportsDeviceCredential(Context context) {
-        if (context == null || Build.VERSION.SDK_INT < 30) return false;
+        return supportsDeviceCredential(context, Build.VERSION.SDK_INT);
+    }
+
+    @SuppressLint("NewApi")
+    static boolean supportsDeviceCredential(Context context, int sdkInt) {
+        if (context == null || sdkInt < 30) return false;
         try {
             BiometricManager manager = context.getSystemService(BiometricManager.class);
             return manager != null

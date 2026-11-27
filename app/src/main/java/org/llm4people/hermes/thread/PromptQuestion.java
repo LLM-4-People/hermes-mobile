@@ -75,8 +75,14 @@ final class PromptQuestion {
                 write.setVisibility(View.GONE);
                 custom.setVisibility(View.VISIBLE);
                 input.requestFocus();
-                input.post(() -> card.getContext().getSystemService(android.view.inputmethod.InputMethodManager.class)
-                        .showSoftInput(input, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT));
+                input.post(() -> {
+                    if (!input.isAttachedToWindow()) return;
+                    android.view.inputmethod.InputMethodManager imm =
+                            card.getContext().getSystemService(android.view.inputmethod.InputMethodManager.class);
+                    if (imm != null) {
+                        imm.showSoftInput(input, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT);
+                    }
+                });
             });
         }
         actions.addView(custom);

@@ -197,10 +197,15 @@ public final class ShareMediaActivity extends Activity {
 
     private void busy(String previous) {
         waiting = previous;
+        boolean[] handled = {false};
         showDialog(new AlertDialog.Builder(this)
                 .setTitle(R.string.share_pending_title)
                 .setMessage(R.string.share_pending_media_body)
-                .setPositiveButton(R.string.share_pending_resume, (d, w) -> review(previous))
+                .setPositiveButton(R.string.share_pending_resume, (d, w) -> {
+                    if (handled[0]) return;
+                    handled[0] = true;
+                    review(previous);
+                })
                 .setNegativeButton(R.string.ws_close, (d, w) -> finish())
                 .setOnCancelListener(d -> finish()));
     }

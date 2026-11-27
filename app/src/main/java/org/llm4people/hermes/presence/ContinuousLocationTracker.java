@@ -87,7 +87,6 @@ public final class ContinuousLocationTracker {
     private LocationListener activeListener;
     private boolean running;
     private boolean preciseMode;
-    private Snapshot previous;
     private Snapshot latest;
 
     /** Pure-Java live privacy indicator for UI badges. */
@@ -187,7 +186,6 @@ public final class ContinuousLocationTracker {
             unregisterLocked();
             if (downgradedFromPrecise) {
                 latest = null;
-                previous = null;
             }
             preciseMode = effectivePrecise;
             LocationListener listener = createLocationListener();
@@ -199,7 +197,6 @@ public final class ContinuousLocationTracker {
             }
             if (!subscribed) {
                 latest = null;
-                previous = null;
                 preciseMode = false;
                 Diagnostics.warning("presence", "location_no_provider");
                 return false;
@@ -296,7 +293,6 @@ public final class ContinuousLocationTracker {
             deltaMs = nowMs - latest.capturedAtMs();
         }
         MovingState state = classifyMovingState(speedMps, deltaM, deltaMs);
-        previous = latest;
         latest = new Snapshot(effectiveLat, effectiveLon, safeAccuracy, areaLabel, state, nowMs, precise);
         return latest;
     }
@@ -314,10 +310,9 @@ public final class ContinuousLocationTracker {
     /** Stops all Android listeners and wipes all in-memory fixes immediately (lock/pause/disable/forget). */
     public void stopAndWipe() {
         synchronized (lock) {
-            boolean wasActive = running || latest != null || previous != null;
+            boolean wasActive = running || latest != null;
             unregisterLocked();
             latest = null;
-            previous = null;
             preciseMode = false;
             if (wasActive) {
                 Diagnostics.event("presence", "location_wiped");

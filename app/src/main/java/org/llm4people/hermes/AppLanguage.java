@@ -159,18 +159,23 @@ public final class AppLanguage {
     /** Read the persisted or Android 13+ system per-app language mode. */
     public static Mode readMode(Context context) {
         if (context == null) return Mode.AUTO;
-        if (Build.VERSION.SDK_INT >= 33) {
-            LocaleManager manager = context.getSystemService(LocaleManager.class);
-            if (manager != null) {
-                LocaleList appLocales = manager.getApplicationLocales();
-                if (appLocales != null && !appLocales.isEmpty()) {
-                    return Mode.fromWire(appLocales.get(0).toLanguageTag());
+        try {
+            if (Build.VERSION.SDK_INT >= 33) {
+                LocaleManager manager = context.getSystemService(LocaleManager.class);
+                if (manager != null) {
+                    LocaleList appLocales = manager.getApplicationLocales();
+                    if (appLocales != null && !appLocales.isEmpty()) {
+                        return Mode.fromWire(appLocales.get(0).toLanguageTag());
+                    }
+                    return Mode.AUTO;
                 }
-                return Mode.AUTO;
             }
+            SharedPreferences prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+            return Mode.fromWire(prefs.getString(KEY_MODE, Mode.AUTO.wire));
+        } catch (RuntimeException err) {
+            Diagnostics.warning("locale", "read_mode_failed", err);
+            return Mode.AUTO;
         }
-        SharedPreferences prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
-        return Mode.fromWire(prefs.getString(KEY_MODE, Mode.AUTO.wire));
     }
 
     /** Persist and apply the selected language mode across Android 13+ LocaleManager and older APIs. */
@@ -183,12 +188,16 @@ public final class AppLanguage {
                     .putString(KEY_MODE, target.wire)
                     .apply();
             if (Build.VERSION.SDK_INT >= 33) {
-                LocaleManager manager = context.getSystemService(LocaleManager.class);
-                if (manager != null) {
-                    LocaleList next = target == Mode.AUTO
-                            ? LocaleList.getEmptyLocaleList()
-                            : LocaleList.forLanguageTags(target.wire);
-                    manager.setApplicationLocales(next);
+                try {
+                    LocaleManager manager = context.getSystemService(LocaleManager.class);
+                    if (manager != null) {
+                        LocaleList next = target == Mode.AUTO
+                                ? LocaleList.getEmptyLocaleList()
+                                : LocaleList.forLanguageTags(target.wire);
+                        manager.setApplicationLocales(next);
+                    }
+                } catch (RuntimeException err) {
+                    Diagnostics.warning("locale", "platform_apply_failed", err);
                 }
             }
         }, systemLanguageTags());

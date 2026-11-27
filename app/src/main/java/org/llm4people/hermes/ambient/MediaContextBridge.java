@@ -107,9 +107,9 @@ public final class MediaContextBridge {
         if (!optInEnabled || context == null || !HermesNotificationListener.isListenerEnabled(context)) {
             return Collections.emptyList();
         }
-        MediaSessionManager manager = context.getSystemService(MediaSessionManager.class);
-        if (manager == null) return Collections.emptyList();
         try {
+            MediaSessionManager manager = context.getSystemService(MediaSessionManager.class);
+            if (manager == null) return Collections.emptyList();
             ComponentName listener = HermesNotificationListener.componentName(context);
             List<MediaController> controllers = manager.getActiveSessions(listener);
             if (controllers == null || controllers.isEmpty()) return Collections.emptyList();
@@ -153,9 +153,9 @@ public final class MediaContextBridge {
         if (!optInEnabled || context == null || action == null || !HermesNotificationListener.isListenerEnabled(context)) {
             return false;
         }
-        MediaSessionManager manager = context.getSystemService(MediaSessionManager.class);
-        if (manager == null) return false;
         try {
+            MediaSessionManager manager = context.getSystemService(MediaSessionManager.class);
+            if (manager == null) return false;
             List<MediaController> controllers = manager.getActiveSessions(
                     HermesNotificationListener.componentName(context));
             if (controllers == null || controllers.isEmpty()) return false;

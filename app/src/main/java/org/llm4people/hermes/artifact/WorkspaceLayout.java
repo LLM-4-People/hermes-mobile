@@ -90,8 +90,9 @@ final class WorkspaceLayout {
                 "changes require their action. Ask a focused question with choices when a decision is needed. " +
                 "For existing screens, surface is one of " + String.join(", ", SURFACES.keySet()) +
                 ". Use version 1 or 2, a title and 1-" + MAX_BLOCKS + " blocks. Default mode extend needs exactly one " +
-                "{\"type\":\"content\"}; replace needs none. Optional theme system/light/dark, density compact/comfortable/spacious, " +
-                "surface_style paper/outlined/tinted, and WCAG-AA accent #RRGGBB. " +
+                "{\"type\":\"content\"}; replace needs none. Optional theme " + String.join("/", ThemePalette.THEMES) +
+                ", density " + String.join("/", ThemePalette.DENSITIES) +
+                ", surface_style " + String.join("/", ThemePalette.SURFACE_STYLES) + ", and WCAG-AA accent #RRGGBB. " +
                 "Sections have a title, optional note and up to 8 distinct actions from " + String.join(", ", ACTIONS.keySet()) +
                 ". Other blocks include {type:link,title,page}, {type:value,title,source} (sources: " +
                 String.join(", ", SOURCES) + "), {type:metric_grid,title,items:[{label,value,delta?,unit?,tone?,provenance?,source?}]}, " +
