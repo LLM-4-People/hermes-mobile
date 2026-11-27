@@ -38,16 +38,7 @@
     <string name="custom_section_title">App appearance</string>
     <string name="custom_section_intro">Pick a high-contrast palette and comfortable spacing for this profile.</string>
     <string name="custom_palette_label">Accent color</string>
-    <string name="custom_palette_forest">Forest</string>
-    <string name="custom_palette_slate">Slate</string>
-    <string name="custom_palette_terracotta">Terracotta</string>
-    <string name="custom_palette_indigo">Indigo</string>
-    <string name="custom_palette_plum">Plum</string>
-    <string name="custom_palette_custom">Custom</string>
     <string name="custom_density_label">Spacing</string>
-    <string name="custom_density_compact">Compact</string>
-    <string name="custom_density_comfortable">Comfortable</string>
-    <string name="custom_density_spacious">Spacious</string>
     <string name="custom_undo">Undo last change</string>
     <string name="custom_reset">Reset to default</string>
     <string name="custom_feedback_applied">Appearance updated.</string>

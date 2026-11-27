@@ -6,6 +6,8 @@ import android.graphics.drawable.RippleDrawable;
 import android.os.Build;
 import android.os.SystemClock;
 import android.test.InstrumentationTestCase;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
@@ -84,10 +86,34 @@ public final class WorkspaceSecurityDialogTest extends InstrumentationTestCase {
                         pinRadio.performClick();
                         List<EditText> inputs = collectViews(childWindow, EditText.class);
                         assertEquals("Expected first + confirm EditTexts", 2, inputs.size());
-                        inputs.get(0).setText("123456");
-                        inputs.get(1).setText("654321");
                         Button saveBtn = findButton(childWindow, childSaveLabel);
                         assertNotNull(saveBtn);
+
+                        // R23.5.1: Initial empty-PIN Save must still emit a live-region text-change event even
+                        // though note already displays the same lock_setup_missing_pin hint text.
+                        String missingPinText = activity.getString(R.string.lock_setup_missing_pin);
+                        TextView noteView = findTextView(childWindow, missingPinText);
+                        assertNotNull("Expected initial PIN hint note in dialog", noteView);
+                        AtomicInteger noteTextChanges = new AtomicInteger();
+                        noteView.addTextChangedListener(new TextWatcher() {
+                            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+                            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
+                                noteTextChanges.incrementAndGet();
+                            }
+                            @Override public void afterTextChanged(Editable s) {}
+                        });
+                        saveBtn.performClick();
+                        assertTrue("Empty-PIN Save must fire text-change event for TalkBack announcement",
+                                noteTextChanges.get() >= 2);
+                        assertEquals(View.ACCESSIBILITY_LIVE_REGION_POLITE, noteView.getAccessibilityLiveRegion());
+                        assertEquals(missingPinText, noteView.getText().toString());
+                        int afterFirstInvalid = noteTextChanges.get();
+                        saveBtn.performClick();
+                        assertTrue("Repeated invalid Save must re-fire text-change event",
+                                noteTextChanges.get() >= afterFirstInvalid + 2);
+
+                        inputs.get(0).setText("123456");
+                        inputs.get(1).setText("654321");
                         saveBtn.performClick();
                         assertEquals("Mismatched PIN must keep first input intact",
                                 "123456", inputs.get(0).getText().toString());

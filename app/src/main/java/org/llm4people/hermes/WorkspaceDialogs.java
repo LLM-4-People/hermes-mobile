@@ -371,9 +371,10 @@ final class WorkspaceDialogs {
                         note.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
                     }
                     String errMsg = activity.getString(errRes);
-                    if (!errMsg.contentEquals(note.getText())) {
-                        note.setText(errMsg);
+                    if (errMsg.contentEquals(note.getText())) {
+                        note.setText("");
                     }
+                    note.setText(errMsg);
                     return;
                 }
                 char[] secret = null;

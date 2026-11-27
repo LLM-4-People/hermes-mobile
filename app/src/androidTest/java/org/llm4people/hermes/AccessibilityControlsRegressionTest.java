@@ -2231,7 +2231,7 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
                                 "cmd-b", CommandItem.Category.SCREEN, "Settings", "", "", () -> {}));
                         CommandPalette palette = new CommandPalette(activity, cmdRegistry, () -> true);
                         paletteRef.set(palette);
-                        palette.show();
+                        palette.show(null);
 
                         Field countAnnouncementField = CommandPalette.class.getDeclaredField("countAnnouncement");
                         countAnnouncementField.setAccessible(true);
@@ -2354,10 +2354,16 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
                         assertEquals(2, chipButtons.size());
                         assertCheckableNode(chipButtons.get(0), true);
                         assertCheckableNode(chipButtons.get(1), false);
+                        assertNull("Selected chip must rely on checkable state without duplicate contentDescription",
+                                chipButtons.get(0).getContentDescription());
+                        assertNull("Unselected chip must rely on checkable state without duplicate contentDescription",
+                                chipButtons.get(1).getContentDescription());
 
                         chipButtons.get(1).performClick();
                         assertCheckableNode(chipButtons.get(0), false);
                         assertCheckableNode(chipButtons.get(1), true);
+                        assertNull(chipButtons.get(0).getContentDescription());
+                        assertNull(chipButtons.get(1).getContentDescription());
 
                         // R22.4.2(a): VoiceDrafts locale chips use Ui.choiceChip/Ui.styleChoiceChip with checkable state.
                         VoiceDrafts voice = new VoiceDrafts(activity);

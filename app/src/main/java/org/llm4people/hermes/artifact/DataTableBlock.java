@@ -116,10 +116,6 @@ public final class DataTableBlock {
             filterQuery = query == null ? "" : query.trim().toLowerCase(effective);
         }
 
-        public List<List<String>> visibleRows() {
-            return visibleRows(Locale.getDefault());
-        }
-
         public List<List<String>> visibleRows(Locale locale) {
             Locale effective = locale == null ? Locale.getDefault() : locale;
             List<List<String>> result = new ArrayList<>();

@@ -53,19 +53,19 @@ public final class RichBlocksModelTest {
 
         // Numeric sort ascending: 2.5, 12, 100
         table.toggleSort(1);
-        assertEquals(Arrays.asList("Alpha", "Gamma", "Bêta"), firstCol(table.visibleRows()));
+        assertEquals(Arrays.asList("Alpha", "Gamma", "Bêta"), firstCol(table.visibleRows(java.util.Locale.ROOT)));
 
         // Toggle same column -> descending: 100, 12, 2.5
         table.toggleSort(1);
-        assertEquals(Arrays.asList("Bêta", "Gamma", "Alpha"), firstCol(table.visibleRows()));
+        assertEquals(Arrays.asList("Bêta", "Gamma", "Alpha"), firstCol(table.visibleRows(java.util.Locale.ROOT)));
 
         // Case-insensitive filter
         table.setFilter("gam", java.util.Locale.ROOT);
-        assertEquals(1, table.visibleRows().size());
-        assertEquals("Gamma", table.visibleRows().get(0).get(0));
+        assertEquals(1, table.visibleRows(java.util.Locale.ROOT).size());
+        assertEquals("Gamma", table.visibleRows(java.util.Locale.ROOT).get(0).get(0));
 
         // Row tap prepares editable draft text cleanly
-        String draft = table.draftForRow(table.visibleRows().get(0));
+        String draft = table.draftForRow(table.visibleRows(java.util.Locale.ROOT).get(0));
         assertTrue(draft.startsWith("Détaille cette ligne :"));
         assertTrue(draft.contains("Élément : Gamma"));
         assertTrue(draft.contains("Coût : 12 €"));

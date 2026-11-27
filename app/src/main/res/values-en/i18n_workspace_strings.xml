@@ -117,8 +117,6 @@
     <string name="ws_table_column_a11y">Column %1$s%2$s. Tap to sort.</string>
     <string name="ws_table_empty">No matching rows.</string>
     <string name="ws_table_row_draft_a11y">%1$s. Tap to prepare a draft.</string>
-    <string name="ws_ctrl_chip_selected">%1$s, selected</string>
-    <string name="ws_ctrl_chip_unselected">%1$s, not selected</string>
     <string name="ws_metric_delta_a11y">, change %1$s</string>
     <string name="ws_sparkline_bar">Bar chart</string>
     <string name="ws_sparkline_line">Trend chart</string>

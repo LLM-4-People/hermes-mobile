@@ -90,10 +90,9 @@ public final class DeepAndroidPresenceAndroidTest extends InstrumentationTestCas
 
         // 2. Live Customization Preview Card -> Apply & Undo
         AppCustomizationStore store = new AppCustomizationStore(new MemoryBacking());
-        AppCustomization proposed = AppCustomization.defaults()
-                .withPalette(AppCustomization.PalettePreset.TERRACOTTA, null)
-                .withDensity(AppCustomization.Density.SPACIOUS)
-                .withCompanionGreeting("Bonjour");
+        InteractiveCardView.CustomizationDelta proposed = new InteractiveCardView.CustomizationDelta(
+                AppCustomization.PalettePreset.TERRACOTTA, null, AppCustomization.Density.SPACIOUS,
+                null, null, "Bonjour", null);
 
         InteractiveCardView previewCard = new InteractiveCardView(ctx,
                 InteractiveCardView.Spec.customizationPreview("prev1", "Nouvel habillage", "Aperçu instantané", proposed),

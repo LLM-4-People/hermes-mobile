@@ -225,11 +225,6 @@ public final class InteractiveCardView extends LinearLayout {
         }
 
         public static Spec customizationPreview(
-                String cardId, String title, String subtitle, AppCustomization proposed) {
-            return new Spec(cardId, Kind.CUSTOMIZATION_PREVIEW, title, subtitle, null, null, null, proposed, null);
-        }
-
-        public static Spec customizationPreview(
                 String cardId, String title, String subtitle, CustomizationDelta delta) {
             Objects.requireNonNull(delta, "delta");
             return new Spec(cardId, Kind.CUSTOMIZATION_PREVIEW, title, subtitle, null, null, null,
@@ -416,11 +411,7 @@ public final class InteractiveCardView extends LinearLayout {
     }
 
     private void applyCardSurface(Context context) {
-        GradientDrawable bg = new GradientDrawable();
-        bg.setColor(context.getColor(R.color.surface));
-        bg.setCornerRadius(Ui.dp(context, Ui.CARD_CORNER_DP));
-        bg.setStroke(Math.max(1, Ui.dp(context, 1)), context.getColor(R.color.line));
-        setBackground(bg);
+        setBackground(Ui.shape(context, Ui.CARD_CORNER_DP, R.color.surface, R.color.line, 1));
     }
 
     private void renderCard(Context context) {
@@ -538,9 +529,11 @@ public final class InteractiveCardView extends LinearLayout {
 
         LinearLayout details = Ui.column(context);
         details.addView(Ui.text(context,
-                context.getString(R.string.card_preview_palette, paletteLabel(context, proposed.palette)), 14));
+                context.getString(R.string.card_preview_palette,
+                        context.getString(AppearanceSettingsModel.paletteLabelRes(proposed.palette))), 14));
         TextView densityLine = Ui.text(context,
-                context.getString(R.string.card_preview_density, densityLabel(context, proposed.density)), 13);
+                context.getString(R.string.card_preview_density,
+                        context.getString(AppearanceSettingsModel.densityLabelRes(proposed.density))), 13);
         densityLine.setTextColor(context.getColor(R.color.muted));
         details.addView(densityLine);
         if (!proposed.companionGreeting.isEmpty()) {
@@ -612,17 +605,10 @@ public final class InteractiveCardView extends LinearLayout {
         PairingInvite invite = spec.pairingInvite;
         if (invite == null) return;
 
-        TextView modePill = Ui.text(context,
+        TextView modePill = Ui.pill(context,
                 context.getString("invite".equals(invite.mode())
-                        ? R.string.card_pairing_mode_invite : R.string.card_pairing_mode_device), 12);
-        modePill.setTypeface(Ui.mediumTypeface());
-        modePill.setTextColor(context.getColor(R.color.accent));
-        modePill.setPaddingRelative(Ui.dp(context, 10), Ui.dp(context, 4),
-                Ui.dp(context, 10), Ui.dp(context, 4));
-        GradientDrawable pillBg = new GradientDrawable();
-        pillBg.setCornerRadius(Ui.dp(context, 999));
-        pillBg.setColor(context.getColor(R.color.accent_surface));
-        modePill.setBackground(pillBg);
+                        ? R.string.card_pairing_mode_invite : R.string.card_pairing_mode_device),
+                R.color.accent_surface, R.color.accent);
         LayoutParams modeLp = new LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT);
         modeLp.topMargin = Ui.dp(context, 10);
         addView(modePill, modeLp);
@@ -681,25 +667,6 @@ public final class InteractiveCardView extends LinearLayout {
         LayoutParams actionsLp = new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
         actionsLp.topMargin = Ui.dp(context, 12);
         addView(actionsScroll, actionsLp);
-    }
-
-    static String paletteLabel(Context context, AppCustomization.PalettePreset preset) {
-        return switch (preset) {
-            case FOREST -> context.getString(R.string.custom_palette_forest);
-            case SLATE -> context.getString(R.string.custom_palette_slate);
-            case TERRACOTTA -> context.getString(R.string.custom_palette_terracotta);
-            case INDIGO -> context.getString(R.string.custom_palette_indigo);
-            case PLUM -> context.getString(R.string.custom_palette_plum);
-            case CUSTOM -> context.getString(R.string.custom_palette_custom);
-        };
-    }
-
-    static String densityLabel(Context context, AppCustomization.Density density) {
-        return switch (density) {
-            case COMPACT -> context.getString(R.string.custom_density_compact);
-            case COMFORTABLE -> context.getString(R.string.custom_density_comfortable);
-            case SPACIOUS -> context.getString(R.string.custom_density_spacious);
-        };
     }
 
     private static String validateId(String raw) {
