@@ -285,15 +285,19 @@ public final class UiPolishR10ContractTest {
         assertTrue(voiceDrafts.contains("if (handled[0] || recovery != this || paused || !target.visible()) return;"));
         assertTrue(pairingShare.contains("R.string.admin_settings_revoke_failed"));
 
-        // R38.8.3: Widget refresh callers must preserve runActive instead of hardcoding false.
+        // R38.8.3 / R39.8.2: Widget refresh callers must preserve runActive instead of hardcoding false.
+        Pattern refreshFalse = Pattern.compile("HermesWidgetProvider\\.refresh\\([^,]+,\\s*false\\s*\\)");
+        Pattern refreshSingleArg = Pattern.compile("HermesWidgetProvider\\.refresh\\([^,)]+\\)");
         for (String rel : new String[]{
                 "src/main/java/org/llm4people/hermes/artifact/HomePinBridge.java",
                 "src/main/java/org/llm4people/hermes/os/HermesWidgetStore.java",
                 "src/main/java/org/llm4people/hermes/presence/DeepAndroidActions.java"
         }) {
             String src = read(rel);
-            assertFalse(rel + " must not call HermesWidgetProvider.refresh(app, false)",
-                    src.contains("HermesWidgetProvider.refresh(app, false)"));
+            assertFalse(rel + " must not call HermesWidgetProvider.refresh(..., false)",
+                    refreshFalse.matcher(src).find());
+            assertTrue(rel + " must call 1-arg HermesWidgetProvider.refresh(...)",
+                    refreshSingleArg.matcher(src).find());
         }
 
         // R38 PR B contracts: 4dp centered progress/slider tracks, opaque Switch style & ThemePalette controls,
@@ -302,15 +306,19 @@ public final class UiPolishR10ContractTest {
         assertTrue(uiSrc.contains("layers.setLayerGravity(i, Gravity.CENTER_VERTICAL | Gravity.FILL_HORIZONTAL);"));
         assertTrue(uiSrc.contains("bar.setBackground(centeredTrackDrawable(context, trackColor));"));
         assertTrue(uiSrc.contains("public static void styleSwitch("));
-        assertTrue(read("src/main/res/values/themes.xml").contains("android:switchStyle"));
+        String themesXml = read("src/main/res/values/themes.xml");
+        assertTrue(themesXml.contains("android:switchStyle"));
+        assertTrue(themesXml.contains("android:colorBackgroundFloating"));
         assertTrue(controlsBlock.contains("Ui.styleSwitch("));
         assertTrue(controlsBlock.contains("box.setButtonTintList("));
         String wsForms = read("src/main/java/org/llm4people/hermes/artifact/WorkspaceForms.java");
         assertTrue(wsForms.contains("choice.setPopupBackgroundDrawable("));
         assertTrue(wsForms.contains("choice.setBackgroundTintList("));
+        assertTrue(wsForms.contains("ctv.setCheckMarkTintList("));
         String r38ReminderPanel = read("src/main/java/org/llm4people/hermes/panel/ReminderPanel.java");
         assertTrue(r38ReminderPanel.contains("if (!v.isEnabled()) return;"));
         assertTrue(r38ReminderPanel.contains("if (jobId.isEmpty() || !button.isEnabled()) return;"));
+        assertTrue(r38ReminderPanel.contains("if (save == null || !save.isEnabled()) return;"));
         String r38MemoryPanel = read("src/main/java/org/llm4people/hermes/panel/MemoryPanel.java");
         assertTrue(r38MemoryPanel.contains("if (lastDeleted != deleted || (trigger != null && !trigger.isEnabled())) return;"));
         String r38SurfaceRenderer = read("src/main/java/org/llm4people/hermes/artifact/SurfaceRenderer.java");
@@ -318,5 +326,11 @@ public final class UiPolishR10ContractTest {
         assertTrue(r38SurfaceRenderer.contains("if (resetHandled[0]) return;"));
         assertTrue(read("src/main/java/org/llm4people/hermes/artifact/WorkspacePages.java")
                 .contains("if (handled[0]) return;"));
+
+        // R39 PR B contracts: UniversalSearchSheet inFlightEpoch, AdminConsoleSheet & PairingShareSheet double-tap guards.
+        String searchSheet = read("src/main/java/org/llm4people/hermes/search/UniversalSearchSheet.java");
+        assertTrue(searchSheet.contains("inFlightEpoch == epoch"));
+        assertTrue(adminConsole.contains("if (!saveBtn.isEnabled()) return;"));
+        assertTrue(pairingShare.contains("if (!revokeBtn.isEnabled() || closed || io.isShutdown()) return;"));
     }
 }

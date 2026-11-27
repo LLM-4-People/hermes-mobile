@@ -532,6 +532,7 @@ public final class AdminConsoleSheet implements AutoCloseable {
 
         Button saveBtn = Ui.filledButton(activity, activity.getString(R.string.admin_settings_save_action), null);
         saveBtn.setOnClickListener(v -> {
+            if (!saveBtn.isEnabled()) return;
             OnboardingModels.AdminSettings validated = validateSettingsInput(
                     langHolder[0],
                     modelField.getText().toString(),

@@ -2905,21 +2905,49 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
                         assertEquals(expectedTrackH, barBg.getLayerHeight(0));
                         assertEquals(expectedTrackGravity, barBg.getLayerGravity(0));
 
-                        // R38.5.3: Ui.styleSwitch applies custom opaque track/thumb drawables with null tints.
+                        // R38.5.3 / R39.8.1: Ui.styleSwitch replaces stock drawables, clears tints, applies exact colors, and is null-safe.
                         android.widget.Switch styledSwitch = new android.widget.Switch(activity);
+                        android.graphics.drawable.Drawable origTrack = styledSwitch.getTrackDrawable();
+                        android.graphics.drawable.Drawable origThumb = styledSwitch.getThumbDrawable();
+                        styledSwitch.setTrackTintList(android.content.res.ColorStateList.valueOf(0xFF111111));
+                        styledSwitch.setThumbTintList(android.content.res.ColorStateList.valueOf(0xFF222222));
+                        int customTrackOff = 0xFF224466;
+                        int customTrackOn = 0xFF1E4D8C;
                         Ui.styleSwitch(activity, styledSwitch,
-                                activity.getColor(R.color.line_strong), activity.getColor(R.color.accent),
-                                activity.getColor(R.color.surface), activity.getColor(R.color.line_strong),
+                                customTrackOff, customTrackOn,
+                                activity.getColor(R.color.surface), customTrackOff,
                                 activity.getColor(R.color.on_accent));
                         assertNotNull(styledSwitch.getTrackDrawable());
                         assertNotNull(styledSwitch.getThumbDrawable());
+                        assertNotSame("Ui.styleSwitch must replace stock track drawable", origTrack, styledSwitch.getTrackDrawable());
+                        assertNotSame("Ui.styleSwitch must replace stock thumb drawable", origThumb, styledSwitch.getThumbDrawable());
                         assertNull(styledSwitch.getTrackTintList());
                         assertNull(styledSwitch.getThumbTintList());
+                        android.graphics.drawable.StateListDrawable swTrack =
+                                (android.graphics.drawable.StateListDrawable) styledSwitch.getTrackDrawable();
+                        swTrack.setState(new int[]{android.R.attr.state_checked});
+                        assertEquals(customTrackOn,
+                                ((android.graphics.drawable.GradientDrawable) swTrack.getCurrent()).getColor().getDefaultColor());
+                        swTrack.setState(new int[]{});
+                        assertEquals(customTrackOff,
+                                ((android.graphics.drawable.GradientDrawable) swTrack.getCurrent()).getColor().getDefaultColor());
+                        Ui.styleSwitch(null, styledSwitch, customTrackOff, customTrackOn, 0, 0, 0);
+                        Ui.styleSwitch(activity, null, customTrackOff, customTrackOn, 0, 0, 0);
 
-                        // R38.5.3 / R38.5.4: InteractiveControlsBlock Switch/CheckBox and WorkspaceForms Spinner honor ThemePalette.
+                        // R39.5.1: Theme.Hermes sets android:colorBackgroundFloating to @color/surface.
+                        android.util.TypedValue floatingBg = new android.util.TypedValue();
+                        assertTrue("Theme.Hermes must resolve android:colorBackgroundFloating",
+                                activity.getTheme().resolveAttribute(android.R.attr.colorBackgroundFloating, floatingBg, true));
+                        int floatingColor = floatingBg.resourceId != 0
+                                ? activity.getColor(floatingBg.resourceId) : floatingBg.data;
+                        assertEquals(activity.getColor(R.color.surface), floatingColor);
+
+                        // R38.5.3 / R38.5.4 / R39.5.2 / R39.8.1: InteractiveControlsBlock Switch/CheckBox and WorkspaceForms Spinner honor custom ThemePalette.
                         org.llm4people.hermes.artifact.ThemePalette customPal =
                                 org.llm4people.hermes.artifact.ThemePalette.resolve(
-                                        org.llm4people.hermes.artifact.ThemePalette.OverrideSpec.defaults(), false);
+                                        org.llm4people.hermes.artifact.ThemePalette.OverrideSpec.validated(
+                                                "light", "#1E4D8C", null, "#F8F6F0", "#112233", "comfortable", 1, "paper", false),
+                                        false);
                         LinearLayout r38FormGroup = Ui.column(activity);
                         Class<?> blockCls = Class.forName("org.llm4people.hermes.artifact.WorkspaceLayout$Block");
                         java.lang.reflect.Constructor<?> blockCtor = blockCls.getDeclaredConstructor();
@@ -2942,6 +2970,10 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
                                 Activity.class,
                                 org.llm4people.hermes.artifact.ArtifactDesk.Host.class);
                         mountForm.setAccessible(true);
+                        Method unfocusedStrokeMethod = wsFormsCls.getDeclaredMethod(
+                                "editorUnfocusedStrokeColor", org.llm4people.hermes.artifact.ThemePalette.class);
+                        unfocusedStrokeMethod.setAccessible(true);
+                        int expectedUnfocusedStroke = (Integer) unfocusedStrokeMethod.invoke(null, customPal);
                         org.llm4people.hermes.artifact.ArtifactDesk.Host stubHost =
                                 (org.llm4people.hermes.artifact.ArtifactDesk.Host) java.lang.reflect.Proxy.newProxyInstance(
                                         org.llm4people.hermes.artifact.ArtifactDesk.Host.class.getClassLoader(),
@@ -2955,6 +2987,21 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
                         assertEquals(customPal.surface,
                                 ((android.graphics.drawable.ColorDrawable) r38Spinner.getPopupBackground()).getColor());
                         assertNotNull("Spinner must set backgroundTintList", r38Spinner.getBackgroundTintList());
+                        View spinnerClosed = r38Spinner.getAdapter().getView(0, null, r38Spinner);
+                        assertTrue(spinnerClosed instanceof TextView);
+                        assertEquals(customPal.ink, ((TextView) spinnerClosed).getCurrentTextColor());
+                        View spinnerDrop = r38Spinner.getAdapter().getDropDownView(0, null, r38Spinner);
+                        assertTrue(spinnerDrop instanceof TextView);
+                        assertEquals(customPal.ink, ((TextView) spinnerDrop).getCurrentTextColor());
+                        assertTrue("Dropdown item must be CheckedTextView with themed checkMarkTintList",
+                                spinnerDrop instanceof android.widget.CheckedTextView);
+                        android.content.res.ColorStateList dropCheckTint =
+                                ((android.widget.CheckedTextView) spinnerDrop).getCheckMarkTintList();
+                        assertNotNull(dropCheckTint);
+                        assertEquals(customPal.accent,
+                                dropCheckTint.getColorForState(new int[]{android.R.attr.state_checked}, 0));
+                        assertEquals(expectedUnfocusedStroke,
+                                dropCheckTint.getColorForState(new int[]{}, 0));
 
                         LinearLayout r38CtrlGroup = Ui.column(activity);
                         org.llm4people.hermes.artifact.InteractiveControlsBlock.Control toggleCtrl =
@@ -2987,6 +3034,11 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
                         assertNotNull(ctrlCheck);
                         assertNull("Themed Switch must clear stock trackTintList", ctrlSwitch.getTrackTintList());
                         assertNull("Themed Switch must clear stock thumbTintList", ctrlSwitch.getThumbTintList());
+                        android.graphics.drawable.StateListDrawable ctrlTrack =
+                                (android.graphics.drawable.StateListDrawable) ctrlSwitch.getTrackDrawable();
+                        ctrlTrack.setState(new int[]{android.R.attr.state_checked});
+                        assertEquals(customPal.accent,
+                                ((android.graphics.drawable.GradientDrawable) ctrlTrack.getCurrent()).getColor().getDefaultColor());
                         assertNotNull("Themed CheckBox must set buttonTintList", ctrlCheck.getButtonTintList());
                         assertEquals(customPal.accent,
                                 ctrlCheck.getButtonTintList().getColorForState(

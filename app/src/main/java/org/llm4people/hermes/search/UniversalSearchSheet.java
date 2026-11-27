@@ -49,6 +49,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 
 /**
  * Material 3 FLAG_SECURE Universal Search overlay accessible from any screen.
@@ -85,6 +86,7 @@ public final class UniversalSearchSheet implements AutoCloseable {
     private LinearLayout statusSlot;
     private LinearLayout resultsContainer;
     private Runnable pendingDebounce;
+    private int inFlightEpoch = -1;
     private boolean offlineBannerAnnounced;
     private LinearLayout offlineBannerView;
     private String lastEmptyAnnouncement;
@@ -330,6 +332,7 @@ public final class UniversalSearchSheet implements AutoCloseable {
             clearButton.setVisibility(raw.isEmpty() ? View.GONE : View.VISIBLE);
         }
         int epoch = session.setQuery(raw);
+        inFlightEpoch = -1;
         cancelPendingDebounce();
         renderResults();
 
@@ -367,56 +370,65 @@ public final class UniversalSearchSheet implements AutoCloseable {
 
     private void triggerRemoteNow(int epoch, String query) {
         cancelPendingDebounce();
-        if (closed || api == null || query.isEmpty()) return;
+        if (closed || api == null || query.isEmpty() || epoch != session.epoch()
+                || inFlightEpoch == epoch || io.isShutdown()) return;
+        inFlightEpoch = epoch;
         session.markRemoteLoading(epoch, true);
-        renderStatus();
-        io.execute(() -> {
-            if (closed || epoch != session.epoch()) return;
-            boolean degraded = false;
-            List<UniversalSearchModel.Result> sessionHits = Collections.emptyList();
-            try {
-                if (supportsSessionSearch()) {
-                    String path = "/api/sessions/search?q=" + HermesApi.queryValue(query)
-                            + "&limit=" + UniversalSearchModel.MAX_REMOTE_SESSION_HITS
-                            + "&offset=0";
-                    JSONObject reply = api.get(path);
-                    sessionHits = UniversalSearchModel.parseSessionSearchHits(
-                            reply, localized.getString(R.string.ws_search_untitled_thread));
-                }
-            } catch (HermesApi.HttpError http) {
-                if (http.status == 404 || http.status == 405 || http.status == 501) {
-                    sessionSearchSupported = Boolean.FALSE;
-                    Diagnostics.debug("universal_search", "session_search_absent");
-                } else {
+        renderResults();
+        try {
+            io.execute(() -> {
+                if (closed || epoch != session.epoch()) return;
+                boolean degraded = false;
+                List<UniversalSearchModel.Result> sessionHits = Collections.emptyList();
+                try {
+                    if (supportsSessionSearch()) {
+                        String path = "/api/sessions/search?q=" + HermesApi.queryValue(query)
+                                + "&limit=" + UniversalSearchModel.MAX_REMOTE_SESSION_HITS
+                                + "&offset=0";
+                        JSONObject reply = api.get(path);
+                        sessionHits = UniversalSearchModel.parseSessionSearchHits(
+                                reply, localized.getString(R.string.ws_search_untitled_thread));
+                    }
+                } catch (HermesApi.HttpError http) {
+                    if (http.status == 404 || http.status == 405 || http.status == 501) {
+                        sessionSearchSupported = Boolean.FALSE;
+                        Diagnostics.debug("universal_search", "session_search_absent");
+                    } else {
+                        degraded = true;
+                        Diagnostics.warning("universal_search", "session_search_http_" + http.status);
+                    }
+                } catch (Exception err) {
                     degraded = true;
-                    Diagnostics.warning("universal_search", "session_search_http_" + http.status);
+                    Diagnostics.warning("universal_search", "session_search_failed", err);
                 }
-            } catch (Exception err) {
-                degraded = true;
-                Diagnostics.warning("universal_search", "session_search_failed", err);
-            }
 
-            List<UniversalSearchModel.Result> notes = cachedNotes;
-            List<UniversalSearchModel.Result> shared = cachedShared;
-            if (!catalogLoaded) {
-                CatalogFetch catalog = fetchCatalogSafe();
-                notes = catalog.notes;
-                shared = catalog.shared;
-                if (catalog.degraded) degraded = true;
-                catalogLoaded = !catalog.degraded;
-            }
-
-            final List<UniversalSearchModel.Result> finalSessions = sessionHits;
-            final List<UniversalSearchModel.Result> finalNotes = notes;
-            final List<UniversalSearchModel.Result> finalShared = shared;
-            final boolean finalDegraded = degraded;
-            main.post(() -> {
-                if (closed) return;
-                if (session.acceptRemote(epoch, finalSessions, finalNotes, finalShared, finalDegraded)) {
-                    renderResults();
+                List<UniversalSearchModel.Result> notes = cachedNotes;
+                List<UniversalSearchModel.Result> shared = cachedShared;
+                if (!catalogLoaded) {
+                    CatalogFetch catalog = fetchCatalogSafe();
+                    notes = catalog.notes;
+                    shared = catalog.shared;
+                    if (catalog.degraded) degraded = true;
+                    catalogLoaded = !catalog.degraded;
                 }
+
+                final List<UniversalSearchModel.Result> finalSessions = sessionHits;
+                final List<UniversalSearchModel.Result> finalNotes = notes;
+                final List<UniversalSearchModel.Result> finalShared = shared;
+                final boolean finalDegraded = degraded;
+                main.post(() -> {
+                    if (inFlightEpoch == epoch) inFlightEpoch = -1;
+                    if (closed) return;
+                    if (session.acceptRemote(epoch, finalSessions, finalNotes, finalShared, finalDegraded)) {
+                        renderResults();
+                    }
+                });
             });
-        });
+        } catch (RejectedExecutionException rejected) {
+            if (inFlightEpoch == epoch) inFlightEpoch = -1;
+            session.markRemoteLoading(epoch, false);
+            renderResults();
+        }
     }
 
     private boolean supportsSessionSearch() {
@@ -780,6 +792,7 @@ public final class UniversalSearchSheet implements AutoCloseable {
     private void teardown() {
         if (closed) return;
         closed = true;
+        inFlightEpoch = -1;
         cancelPendingDebounce();
         if (queryField != null) {
             queryField.setText("");
