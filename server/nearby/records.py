@@ -11,7 +11,6 @@ from .config import (
     DEFAULT_CATEGORY,
     DEFAULT_LIMIT,
     DEFAULT_RADIUS_M,
-    InvalidCategory,
     matches_category,
     validate_category,
     validate_limit,
@@ -208,7 +207,6 @@ def places(data, lat, lon, category=DEFAULT_CATEGORY, radius_m=DEFAULT_RADIUS_M,
 
 
 __all__ = [
-    "InvalidCategory",
     "InvalidDataset",
     "OSM_CREDIT",
     "accepted_request",

@@ -28,7 +28,9 @@ class NearbyFixtureTest(unittest.TestCase):
                                          (url, self.query.replace("45.51", "45.5199"), {}),
                                          (url + "?lat=45.51", self.query, {})):
                 with self.subTest(path=path, headers=headers), self.assertRaises(HTTPError) as rejected:
-                    urlopen(Request(path, urlencode({"data": query}).encode(), headers=headers))
-                self.assertEqual(rejected.exception.code, 400)
+                    with urlopen(Request(path, urlencode({"data": query}).encode(), headers=headers)):
+                        pass
+                with rejected.exception:
+                    self.assertEqual(rejected.exception.code, 400)
             self.assertFalse(observed)
             self.assertEqual(len(errors), 3)
