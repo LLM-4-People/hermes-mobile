@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools" tools:locale="en">
     <string name="ambient_listener_label">Hermes notification access</string>
-    <string name="ambient_route_label">Phone context</string>
     <string name="ambient_route_hint">Selected notifications, now playing, and calendar agenda</string>
     <string name="ambient_panel_title">Phone context</string>
     <string name="ambient_panel_intro">Everything is off by default. You choose exactly which local information to share with this profile. Verification codes, banking apps, and password managers are always blocked.</string>

@@ -59,7 +59,7 @@ public final class BrainCapabilitiesAndRoutesTest {
     @Test
     public void registersCerveauDestinationsAndThreadActionsIntoRouteRegistry() {
         List<String> calls = new ArrayList<>();
-        RouteRegistry registry = BrainStudioRoutes.register(new RouteRegistry(), resId -> "res:" + resId, new BrainStudioRoutes.Handlers() {
+        RouteRegistry registry = BrainStudioRoutes.register(new RouteRegistry(), new BrainStudioRoutes.Handlers() {
             @Override public void openMemory() { calls.add("memory"); }
             @Override public void openNotes() { calls.add("notes"); }
             @Override public void openSharedWithMe() { calls.add("shared"); }
@@ -108,7 +108,7 @@ public final class BrainCapabilitiesAndRoutesTest {
                 "pin", "fork", "export", "share"), calls);
 
         try {
-            BrainStudioRoutes.register(registry, resId -> "res:" + resId, new BrainStudioRoutes.Handlers() {
+            BrainStudioRoutes.register(registry, new BrainStudioRoutes.Handlers() {
                 @Override public void openMemory() {}
                 @Override public void openNotes() {}
                 @Override public void openSharedWithMe() {}

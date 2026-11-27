@@ -629,23 +629,23 @@ public final class MainActivity extends Activity implements ThreadWorkspace.Host
         threads.applyAppCustomization(savedCustom);
         LiveRunActionReceiver.setStopHandler(liveStopHandler);
         threadActions.unlock(account, api);
-        featureRoutes = BrainStudioRoutes.register(new RouteRegistry(), this, brainHandlers());
-        DeliveryRouter.registerRoutes(featureRoutes, this,
+        featureRoutes = BrainStudioRoutes.register(new RouteRegistry(), brainHandlers());
+        DeliveryRouter.registerRoutes(featureRoutes,
                 () -> { if (account == unlocked && push != null) push.openInbox(account, deliveryActions(account)); },
                 () -> { if (account == unlocked && push != null) push.openPolicy(account, deliveryActions(account)); });
-        AmbientAccessPanel.registerRoute(featureRoutes, this,
+        AmbientAccessPanel.registerRoute(featureRoutes,
                 () -> { if (account == unlocked) navigate(AmbientAccessPanel.ROUTE_ID); });
-        PresenceSettingsPanel.registerRoute(featureRoutes, this,
+        PresenceSettingsPanel.registerRoute(featureRoutes,
                 () -> { if (account == unlocked) navigate(PresenceSettingsPanel.ROUTE_ID); });
-        ConnectionDoctorPanel.registerRoute(featureRoutes, this,
+        ConnectionDoctorPanel.registerRoute(featureRoutes,
                 () -> { if (account == unlocked) navigate(ConnectionDoctorPanel.ROUTE_ID); });
-        PermissionsPanel.registerRoute(featureRoutes, this,
+        PermissionsPanel.registerRoute(featureRoutes,
                 () -> { if (account == unlocked) navigate(PermissionsPanel.ROUTE_ID); });
-        TemplatesPanel.registerRoute(featureRoutes, this,
+        TemplatesPanel.registerRoute(featureRoutes,
                 () -> { if (account == unlocked) navigate(TemplatesPanel.ROUTE_ID); });
-        UpdatePanel.registerRoute(featureRoutes, this,
+        UpdatePanel.registerRoute(featureRoutes,
                 () -> { if (account == unlocked) navigate(UpdatePanel.ROUTE_ID); });
-        AppearanceSettingsPanel.registerRoute(featureRoutes, this,
+        AppearanceSettingsPanel.registerRoute(featureRoutes,
                 () -> { if (account == unlocked) navigate(AppearanceSettingsPanel.ROUTE_ID); });
         UpdateCheckCoordinator.checkIfDueAsync(this, state -> {
             if (account == unlocked && !isFinishing() && !isDestroyed()) {

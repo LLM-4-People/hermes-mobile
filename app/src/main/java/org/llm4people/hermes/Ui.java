@@ -446,11 +446,13 @@ public final class Ui {
         if (view.getAccessibilityLiveRegion() != View.ACCESSIBILITY_LIVE_REGION_POLITE) {
             view.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
         }
-        if (view.getVisibility() == View.VISIBLE && next.toString().contentEquals(view.getText())) {
+        if (view.getVisibility() != View.VISIBLE) {
+            view.setVisibility(View.VISIBLE);
+        }
+        if (next.toString().contentEquals(view.getText())) {
             view.setText("");
         }
         view.setText(next);
-        view.setVisibility(View.VISIBLE);
     }
 
     /**

@@ -4,7 +4,6 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.Assert.assertEquals;
@@ -26,20 +25,17 @@ public final class RouteRegistryTest {
     }
 
     @Test
-    public void registersCapabilitiesDispatchesAndPreservesOrder() {
+    public void registersAndDispatchesActionsCleanly() {
         RouteRegistry registry = new RouteRegistry();
         AtomicInteger hits = new AtomicInteger();
-        registry.register(new RouteRegistry.Destination(
-                "discussions", RouteRegistry.Section.DISCUSSIONS, "Discussions", "Vos échanges", 0, true, null,
-                hits::incrementAndGet));
-        registry.register(new RouteRegistry.Destination(
-                "memory", RouteRegistry.Section.SETTINGS, "Mémoire", "Souvenirs", 0, true, "memory_api",
-                () -> hits.addAndGet(10)));
+        registry.registerAction("discussions", hits::incrementAndGet);
+        registry.registerAction("brain/memory", () -> hits.addAndGet(10));
 
         assertTrue(registry.dispatch("discussions"));
-        assertTrue(registry.dispatch("memory"));
+        assertTrue(registry.dispatch("brain/memory"));
         assertEquals(11, hits.get());
 
+        assertFalse(registry.dispatch(null));
         assertFalse(registry.dispatch("missing_route"));
         assertTrue(Diagnostics.exportRedacted().contains("route.unknown_action"));
     }
@@ -47,18 +43,16 @@ public final class RouteRegistryTest {
     @Test
     public void rejectsDuplicateOrMalformedIdentifiers() {
         RouteRegistry registry = new RouteRegistry();
-        RouteRegistry.Destination dest = new RouteRegistry.Destination(
-                "apps", RouteRegistry.Section.APPS, "Apps", "", 0, true, null, () -> {});
-        registry.register(dest);
+        registry.registerAction("apps", () -> {});
 
         try {
-            registry.register(dest);
-            fail("Expected duplicate destination rejection");
+            registry.registerAction("apps", () -> {});
+            fail("Expected duplicate action rejection");
         } catch (IllegalStateException expected) {
             // ok
         }
         try {
-            new RouteRegistry.Destination("INVALID ID!", RouteRegistry.Section.APPS, "X", "", 0, false, null, () -> {});
+            registry.registerAction("INVALID ID!", () -> {});
             fail("Expected invalid route id rejection");
         } catch (IllegalArgumentException expected) {
             // ok
@@ -69,16 +63,11 @@ public final class RouteRegistryTest {
         } catch (IllegalArgumentException expected) {
             // ok
         }
-    }
-
-    @Test
-    public void sectionTaxonomyMatchesModernFourTabShell() {
-        assertEquals(
-                List.of(
-                        RouteRegistry.Section.DISCUSSIONS,
-                        RouteRegistry.Section.NOTES_TASKS,
-                        RouteRegistry.Section.APPS,
-                        RouteRegistry.Section.SETTINGS),
-                List.of(RouteRegistry.Section.values()));
+        try {
+            registry.registerAction("valid_id", null);
+            fail("Expected null handler rejection");
+        } catch (NullPointerException expected) {
+            // ok
+        }
     }
 }

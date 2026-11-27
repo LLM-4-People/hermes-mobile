@@ -3,7 +3,6 @@ package org.llm4people.hermes.ambient;
 import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
-import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
@@ -149,19 +148,10 @@ public final class AmbientAccessPanel {
         this.callbacks = callbacks == null ? text -> {} : callbacks;
     }
 
-    /** Register this panel in {@link RouteRegistry} under {@link RouteRegistry.Section#SETTINGS}. */
-    public static RouteRegistry registerRoute(RouteRegistry registry, Context context, Runnable open) {
+    /** Register this panel in {@link RouteRegistry} under Settings. */
+    public static RouteRegistry registerRoute(RouteRegistry registry, Runnable open) {
         Objects.requireNonNull(registry, "registry");
-        Objects.requireNonNull(context, "context");
-        return registry.register(new RouteRegistry.Destination(
-                ROUTE_ID,
-                RouteRegistry.Section.SETTINGS,
-                context.getString(R.string.ambient_route_label),
-                context.getString(R.string.ambient_route_hint),
-                0,
-                false,
-                null,
-                open));
+        return registry.registerAction(ROUTE_ID, open);
     }
 
     /** Build the full scrollable native panel view for mounting in any activity/host container. */

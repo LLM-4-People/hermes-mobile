@@ -1,7 +1,6 @@
 package org.llm4people.hermes.doctor;
 
 import android.app.Activity;
-import android.content.Context;
 import android.content.res.ColorStateList;
 import android.graphics.Typeface;
 import android.os.Handler;
@@ -85,19 +84,10 @@ public final class ConnectionDoctorPanel {
         this.fixHandlers = fixHandlers != null ? fixHandlers : new FixHandlers() {};
     }
 
-    /** Register this panel in {@link RouteRegistry} under {@link RouteRegistry.Section#SETTINGS}. */
-    public static RouteRegistry registerRoute(RouteRegistry registry, Context context, Runnable open) {
+    /** Register this panel in {@link RouteRegistry} under Settings. */
+    public static RouteRegistry registerRoute(RouteRegistry registry, Runnable open) {
         Objects.requireNonNull(registry, "registry");
-        Objects.requireNonNull(context, "context");
-        return registry.register(new RouteRegistry.Destination(
-                ROUTE_ID,
-                RouteRegistry.Section.SETTINGS,
-                context.getString(R.string.doctor_route_label),
-                context.getString(R.string.doctor_route_hint),
-                0,
-                false,
-                null,
-                open));
+        return registry.registerAction(ROUTE_ID, open);
     }
 
     /** Build the scrollable paper/ink/teal TalkBack-accessible Connection Doctor view. */

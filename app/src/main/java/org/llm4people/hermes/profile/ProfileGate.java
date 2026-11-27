@@ -660,7 +660,7 @@ public final class ProfileGate {
         });
 
         screen.section(activity.getString(R.string.profile_lock_section), activity.getString(R.string.profile_lock_detail));
-        TextView stagedSummary = screen.liveNote("");
+        TextView stagedSummary = screen.note("");
         stagedSummary.setVisibility(View.GONE);
         stagedSummaryRef[0] = stagedSummary;
 

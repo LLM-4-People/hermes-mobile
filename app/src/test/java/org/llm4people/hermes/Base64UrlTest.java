@@ -4,6 +4,7 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public final class Base64UrlTest {
@@ -14,16 +15,18 @@ public final class Base64UrlTest {
         assertEquals("", Base64Url.decode(null));
         assertEquals("", Base64Url.decode(""));
 
-        String sample = "Bonjour Montréal — café\nLigne 2\t|émoji";
+        String sample = "Bonjour Montréal — café\nLigne 2\t|émoji >>??!";
         String encoded = Base64Url.encode(sample);
         assertFalse("URL-safe unpadded output must not contain '='", encoded.contains("="));
         assertFalse("URL-safe output must not contain '+' or '/'", encoded.contains("+") || encoded.contains("/"));
+        assertTrue("Sample must exercise URL-safe '-' and '_' substitutions",
+                encoded.contains("-") && encoded.contains("_"));
         assertEquals(sample, Base64Url.decode(encoded));
     }
 
     @Test
     public void rejectsInvalidBase64InputFailClosed() {
-        for (String bad : new String[]{"***not-base64***", "a", "abc=def"}) {
+        for (String bad : new String[]{"***not-base64***", "a", "abc=def", "Pz4+", "Pz8/"}) {
             try {
                 Base64Url.decode(bad);
                 fail("Expected IllegalArgumentException for invalid input: " + bad);

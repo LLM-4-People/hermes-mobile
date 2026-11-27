@@ -24,7 +24,7 @@ public final class AmbientIntelligenceTest extends InstrumentationTestCase {
 
         RouteRegistry registry = new RouteRegistry();
         AtomicBoolean opened = new AtomicBoolean(false);
-        AmbientAccessPanel.registerRoute(registry, context, () -> opened.set(true));
+        AmbientAccessPanel.registerRoute(registry, () -> opened.set(true));
         assertTrue(registry.dispatch(AmbientAccessPanel.ROUTE_ID));
         assertTrue(opened.get());
 

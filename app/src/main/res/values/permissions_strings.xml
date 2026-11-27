@@ -1,6 +1,4 @@
 <resources xmlns:tools="http://schemas.android.com/tools" tools:locale="fr">
-    <string name="perm_route_label">Autorisations</string>
-    <string name="perm_route_hint">Notifications, micro, caméra, position et accès Android</string>
     <string name="perm_panel_title">Autorisations</string>
     <string name="perm_panel_subtitle">Choisissez ce qu’Hermes peut utiliser sur ce téléphone. Chaque accès reste optionnel.</string>
     <plurals name="perm_count_allowed">
