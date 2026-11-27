@@ -69,9 +69,9 @@ public final class SessionPanelWorkerGuardTest {
         assertFalse(SessionPanel.submitWorker(racingPool, executed::incrementAndGet));
         assertTrue(Diagnostics.exportRedacted().contains("panel.worker_submit_rejected"));
 
-        // Post-teardown/unopened SessionPanel (worker == null) returns before touching box or throwing NPE.
+        // Post-teardown/unopened SessionPanel (worker == null) returns false before touching box or throwing NPE.
         SessionPanel panel = new SessionPanel(null, null, null);
-        panel.request(null, () -> "never", v -> executed.incrementAndGet(), e -> executed.incrementAndGet());
+        assertFalse(panel.request(null, () -> "never", v -> executed.incrementAndGet(), e -> executed.incrementAndGet()));
         assertEquals(1, executed.get());
 
         ExecutorService realPool = Executors.newSingleThreadExecutor();

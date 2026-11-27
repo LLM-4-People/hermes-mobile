@@ -143,11 +143,6 @@ public final class ScheduledJobModel {
         return Collections.unmodifiableList(out);
     }
 
-    /** Formats a non-negative duration in seconds concisely (e.g. {@code 14s}, {@code 2m 05s}, {@code 1h 04m}). */
-    public static String formatDuration(long seconds) {
-        return formatDuration(seconds, Locale.getDefault());
-    }
-
     /** Locale-aware duration formatter using the active app locale instead of hardcoded {@link Locale#US}. */
     public static String formatDuration(long seconds, Locale locale) {
         if (seconds < 0L) return "";

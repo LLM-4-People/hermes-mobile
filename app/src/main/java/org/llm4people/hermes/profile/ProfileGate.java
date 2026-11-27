@@ -1849,10 +1849,12 @@ public final class ProfileGate {
                         ? R.string.lock_pin_required : R.string.profile_setup_passphrase_required));
                 return;
             }
-            key.getText().clear();
             phrase.getText().clear();
             cancelProbe(true);
-            run(screen, (Button) view, id, pass, () -> store.replaceBearer(id, pass, bearer), this::opened,
+            run(screen, (Button) view, id, pass, () -> store.replaceBearer(id, pass, bearer), account -> {
+                        wipeVisibleSecrets();
+                        opened(account);
+                    },
                     activity.getString(R.string.profile_setup_rotate_failed));
         });
         screen.action(activity.getString(R.string.profile_setup_cancel), false, view -> {

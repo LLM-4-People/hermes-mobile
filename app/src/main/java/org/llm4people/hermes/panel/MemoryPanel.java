@@ -202,7 +202,7 @@ final class MemoryPanel {
 
             Button pin = Ui.button(panel.activity,
                     panel.t(entry.pinned() ? R.string.brain_memory_unpin : R.string.brain_memory_pin_toggle),
-                    v -> togglePin(bucket.target(), entry));
+                    v -> togglePin(bucket.target(), entry, (Button) v));
             LinearLayout.LayoutParams pinLp = new LinearLayout.LayoutParams(-2, -2);
             pinLp.setMarginEnd(gap);
             actions.addView(pin, pinLp);
@@ -245,6 +245,9 @@ final class MemoryPanel {
         pinBox.setChecked(existing != null && existing.pinned());
         form.addView(pinBox);
 
+        LinearLayout progressSlot = Ui.column(panel.activity);
+        form.addView(progressSlot);
+
         ScrollView formScroll = new ScrollView(panel.activity);
         formScroll.setFillViewport(true);
         formScroll.addView(form);
@@ -256,7 +259,9 @@ final class MemoryPanel {
                 .setPositiveButton(R.string.panel_save, null)
                 .create();
         panel.present(dialog);
-        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+        Button saveBtn = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+        saveBtn.setOnClickListener(v -> {
+            if (!saveBtn.isEnabled()) return;
             String validated;
             try {
                 validated = MemoryModel.validateEntryText(input.getText().toString(), bucket.limit());
@@ -266,10 +271,12 @@ final class MemoryPanel {
                 return;
             }
             boolean pinned = pinBox.isChecked();
-            dialog.dismiss();
             if (existing == null) {
-                commitAdd(bucket.target(), validated, pinned);
+                errorView.setVisibility(View.GONE);
+                saveBtn.setEnabled(false);
+                commitAdd(bucket.target(), validated, pinned, dialog, saveBtn, errorView, progressSlot);
             } else {
+                dialog.dismiss();
                 confirmDiffAndPatch(bucket.target(), existing, validated, pinned);
             }
         });
@@ -306,52 +313,99 @@ final class MemoryPanel {
         afterLp.topMargin = Ui.dp(panel.activity, 10);
         diff.addView(afterCard, afterLp);
 
+        TextView errorView = panel.note(diff, "");
+        errorView.setTextColor(panel.activity.getColor(R.color.danger));
+        errorView.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+        errorView.setVisibility(View.GONE);
+        LinearLayout progressSlot = Ui.column(panel.activity);
+        diff.addView(progressSlot);
+
         scroll.addView(diff, new ScrollView.LayoutParams(-1, -2));
-        panel.present(new AlertDialog.Builder(panel.activity)
+        AlertDialog confirmDialog = new AlertDialog.Builder(panel.activity)
                 .setTitle(R.string.brain_memory_confirm_save_title)
                 .setView(scroll)
                 .setNegativeButton(R.string.panel_cancel, null)
-                .setPositiveButton(R.string.brain_memory_confirm_save_action,
-                        (d, w) -> commitPatch(target, existing.id(), updatedText, pinned))
-                .create());
+                .setPositiveButton(R.string.brain_memory_confirm_save_action, null)
+                .create();
+        panel.present(confirmDialog);
+        Button confirmBtn = confirmDialog.getButton(AlertDialog.BUTTON_POSITIVE);
+        confirmBtn.setOnClickListener(v -> {
+            if (!confirmBtn.isEnabled()) return;
+            errorView.setVisibility(View.GONE);
+            confirmBtn.setEnabled(false);
+            commitPatch(target, existing.id(), updatedText, pinned, confirmDialog, confirmBtn, errorView, progressSlot);
+        });
     }
 
-    private void commitAdd(String target, String text, boolean pinned) {
+    private void commitAdd(String target, String text, boolean pinned, AlertDialog dialog,
+                           Button saveBtn, TextView errorView, LinearLayout progressSlot) {
         String safeTarget = MemoryModel.validateTarget(target);
         JSONObject payload = PanelData.put(PanelData.put(new JSONObject(), "text", text), "pin", pinned);
-        panel.request(body, () -> BrainJson.parseMemorySnapshot(
+        if (!panel.request(progressSlot, () -> BrainJson.parseMemorySnapshot(
                 panel.api.post("/api/memory/" + HermesApi.segment(safeTarget), payload)),
                 updated -> {
+                    if (dialog.isShowing()) dialog.dismiss();
                     Diagnostics.event("memory", "entry_added");
                     snapshot = updated;
                     renderEntries();
-                }, error -> handleMutationError(error));
+                }, error -> showDialogMutationError(dialog, saveBtn, errorView, error))) {
+            saveBtn.setEnabled(true);
+        }
     }
 
-    private void commitPatch(String target, String entryId, String text, boolean pinned) {
+    private void commitPatch(String target, String entryId, String text, boolean pinned, AlertDialog dialog,
+                             Button confirmBtn, TextView errorView, LinearLayout progressSlot) {
         String safeTarget = MemoryModel.validateTarget(target);
         String safeId = MemoryModel.validateEntryId(entryId);
         JSONObject payload = PanelData.put(PanelData.put(new JSONObject(), "text", text), "pinned", pinned);
-        panel.request(body, () -> BrainJson.parseMemorySnapshot(
+        if (!panel.request(progressSlot, () -> BrainJson.parseMemorySnapshot(
                 panel.api.patch("/api/memory/" + HermesApi.segment(safeTarget) + "/" + HermesApi.segment(safeId), payload)),
                 updated -> {
+                    if (dialog.isShowing()) dialog.dismiss();
                     Diagnostics.event("memory", "entry_updated");
                     snapshot = updated;
                     renderEntries();
-                }, error -> handleMutationError(error));
+                }, error -> showDialogMutationError(dialog, confirmBtn, errorView, error))) {
+            confirmBtn.setEnabled(true);
+        }
     }
 
-    private void togglePin(String target, MemoryModel.Entry entry) {
+    private void showDialogMutationError(AlertDialog dialog, Button actionBtn, TextView errorView, Exception error) {
+        String message;
+        if (error instanceof HermesApi.HttpError http) {
+            Diagnostics.warning("memory", "mutation_http_error", "http_" + http.status);
+            message = MemoryModel.describeHttpError(panel.activity, http.status, http.code);
+            if (http.status == 409) load();
+        } else {
+            Diagnostics.warning("memory", "mutation_failed", error);
+            message = panel.describeError(error);
+        }
+        if (dialog.isShowing()) {
+            actionBtn.setEnabled(true);
+            errorView.setText(message);
+            errorView.setVisibility(View.VISIBLE);
+        }
+    }
+
+    private void togglePin(String target, MemoryModel.Entry entry, Button trigger) {
+        if (trigger != null && !trigger.isEnabled()) return;
         String safeTarget = MemoryModel.validateTarget(target);
         String safeId = MemoryModel.validateEntryId(entry.id());
+        if (trigger != null) trigger.setEnabled(false);
         JSONObject payload = PanelData.put(new JSONObject(), "pinned", !entry.pinned());
-        panel.request(body, () -> BrainJson.parseMemorySnapshot(
+        if (!panel.request(body, () -> BrainJson.parseMemorySnapshot(
                 panel.api.patch("/api/memory/" + HermesApi.segment(safeTarget) + "/" + HermesApi.segment(safeId), payload)),
                 updated -> {
+                    if (trigger != null) trigger.setEnabled(true);
                     Diagnostics.event("memory", "entry_pin_toggled");
                     snapshot = updated;
                     renderEntries();
-                }, error -> handleMutationError(error));
+                }, error -> {
+                    if (trigger != null) trigger.setEnabled(true);
+                    handleMutationError(error);
+                })) {
+            if (trigger != null) trigger.setEnabled(true);
+        }
     }
 
     private void confirmDelete(String target, MemoryModel.Entry entry) {

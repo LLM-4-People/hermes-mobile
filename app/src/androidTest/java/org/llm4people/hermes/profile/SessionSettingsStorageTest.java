@@ -127,8 +127,9 @@ public final class SessionSettingsStorageTest extends InstrumentationTestCase {
             Activity activity = getInstrumentation().startActivitySync(launch);
             SessionPanel panel = new SessionPanel(activity, new HermesApi(server.endpoint(), "test", org.llm4people.hermes.net.HermesApi.Limits.defaults()), owner);
             try {
+                runTestOnUiThread(() -> panel.show("thread", "thread"));
+                awaitLoadingDone(activity);
                 runTestOnUiThread(() -> {
-                    panel.show("thread", "thread");
                     View choice = matching(activity.getString(R.string.panel_route)).get(0);
                     while (!choice.isClickable()) choice = (View) choice.getParent();
                     assertTrue(choice.performClick());
@@ -173,6 +174,9 @@ public final class SessionSettingsStorageTest extends InstrumentationTestCase {
                 runTestOnUiThread(() -> {
                     if (landscape == null) panel.show("thread", "thread");
                     else PickerWindow.open(panel, landscape);
+                });
+                awaitLoadingDone(activity);
+                runTestOnUiThread(() -> {
                     View choice = matching(activity.getString(R.string.panel_route)).get(0);
                     while (!choice.isClickable()) choice = (View) choice.getParent();
                     assertTrue(choice.performClick());
@@ -215,6 +219,18 @@ public final class SessionSettingsStorageTest extends InstrumentationTestCase {
         for (View view : list.getRootView().getFocusables(View.FOCUS_FORWARD))
             if (view instanceof EditText field) return field;
         throw new AssertionError("Missing model search field");
+    }
+
+    private void awaitLoadingDone(Activity activity) throws Throwable {
+        String loading = activity.getString(R.string.panel_loading);
+        long deadline = SystemClock.uptimeMillis() + 5000;
+        boolean[] done = {false};
+        while (!done[0] && SystemClock.uptimeMillis() < deadline) {
+            getInstrumentation().waitForIdleSync();
+            runTestOnUiThread(() -> done[0] = matching(loading).isEmpty());
+            if (!done[0]) SystemClock.sleep(20);
+        }
+        assertTrue("Initial settings request did not complete", done[0]);
     }
 
     private CheckedTextView awaitChoice(String label, int count) throws Throwable {

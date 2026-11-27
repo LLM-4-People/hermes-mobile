@@ -256,7 +256,7 @@ public final class ProfileHubSheet implements AutoCloseable {
 
         LinearLayout top = Ui.row(activity);
         top.setGravity(Gravity.CENTER_VERTICAL);
-        top.addView(avatarBadge(activity, Ui.initials(account.label), true));
+        top.addView(Ui.avatarBadge(activity, Ui.initials(account.label), 40, true));
 
         LinearLayout info = Ui.column(activity);
         TextView name = Ui.text(activity, account.label, 17);
@@ -325,7 +325,7 @@ public final class ProfileHubSheet implements AutoCloseable {
         Ui.pad(row, 16, 12);
         row.setBackground(Ui.shape(activity, Ui.CARD_CORNER_DP, R.color.surface, R.color.line, 1));
 
-        row.addView(avatarBadge(activity, Ui.initials(label), false));
+        row.addView(Ui.avatarBadge(activity, Ui.initials(label), 40, false));
 
         TextView name = Ui.text(activity, label, 15);
         name.setTypeface(Ui.mediumTypeface());
@@ -393,7 +393,7 @@ public final class ProfileHubSheet implements AutoCloseable {
 
         LinearLayout header = Ui.row(activity);
         header.setGravity(Gravity.CENTER_VERTICAL);
-        header.addView(avatarBadge(activity, profile.initials(), profile.isAdmin()));
+        header.addView(Ui.avatarBadge(activity, profile.initials(), 40, profile.isAdmin()));
 
         LinearLayout textCol = Ui.column(activity);
         TextView title = Ui.text(activity, profile.displayName() + " (@" + profile.slug() + ")", 15);
@@ -542,10 +542,6 @@ public final class ProfileHubSheet implements AutoCloseable {
             int topGapDp) {
         return ProfileInviteDialogs.labeledDialogField(
                 activity, parent, labelRes, initial, hintRes, InputType.TYPE_CLASS_TEXT, topGapDp);
-    }
-
-    static TextView avatarBadge(Activity activity, String initials, boolean accent) {
-        return Ui.avatarBadge(activity, initials, 40, accent);
     }
 
     private LinearLayout.LayoutParams topMargin(int dp) {

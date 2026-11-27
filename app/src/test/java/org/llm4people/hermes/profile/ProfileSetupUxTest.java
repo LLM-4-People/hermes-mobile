@@ -253,6 +253,15 @@ public class ProfileSetupUxTest {
         }
     }
 
+    @Test public void reannouncesRepeatedDiscreteStatusErrorsWithoutNoiseOnInfo() {
+        assertTrue(ProfileScreen.shouldReannounceStatus("Clé invalide", "Clé invalide", true));
+        assertFalse(ProfileScreen.shouldReannounceStatus("Clé invalide", "Clé invalide", false));
+        assertFalse(ProfileScreen.shouldReannounceStatus("Clé invalide", "Autre erreur", true));
+        assertFalse(ProfileScreen.shouldReannounceStatus("", "", true));
+        assertFalse(ProfileScreen.shouldReannounceStatus("", null, true));
+        assertFalse(ProfileScreen.shouldReannounceStatus(null, "Clé invalide", true));
+    }
+
     private static final class LoopbackStatusServer implements AutoCloseable {
         private final ServerSocket socket;
         private final Thread worker;

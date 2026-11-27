@@ -85,6 +85,12 @@ final class ProfileScreen {
         return current != null && normalized.contentEquals(current) ? null : normalized;
     }
 
+    /** Pure-JVM guard: returns true when a discrete non-empty error repeats identical text and must re-announce. */
+    static boolean shouldReannounceStatus(CharSequence current, String next, boolean error) {
+        String normalized = next == null ? "" : next;
+        return error && !normalized.isEmpty() && current != null && normalized.contentEquals(current);
+    }
+
     void setNote(TextView target, String text, int colorRes) {
         if (target == null) return;
         target.setTextColor(activity.getColor(colorRes));
@@ -327,6 +333,9 @@ final class ProfileScreen {
         String changed = changedNoteText(status.getText(), message);
         if (changed != null) {
             status.setText(changed);
+        } else if (shouldReannounceStatus(status.getText(), message, error)) {
+            status.setText("");
+            status.setText(message);
         }
     }
 

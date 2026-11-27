@@ -468,6 +468,7 @@ final class SkillStudio {
         page.addView(feedback);
 
         Button saveBtn = Ui.filledButton(panel.activity, panel.t(R.string.panel_save), v -> {
+            if (!v.isEnabled()) return;
             feedback.removeAllViews();
             SkillStudioModel.SkillLocation location;
             String content;
@@ -486,17 +487,22 @@ final class SkillStudio {
                 err.setTextColor(panel.activity.getColor(R.color.danger));
                 return;
             }
+            v.setEnabled(false);
             JSONObject payload = PanelData.put(
                     PanelData.put(new JSONObject(), "name", location.name()), "content", content);
             if (!location.category().isEmpty()) PanelData.put(payload, "category", location.category());
-            panel.request(feedback, () -> panel.api.post("/v1/skills", payload),
+            if (!panel.request(feedback, () -> panel.api.post("/v1/skills", payload),
                     created -> {
+                        v.setEnabled(true);
                         Diagnostics.event("skills", "skill_created");
                         show();
                     }, error -> {
+                        v.setEnabled(true);
                         Diagnostics.warning("skills", "create_failed", error);
                         panel.failure(feedback, error, null);
-                    });
+                    })) {
+                v.setEnabled(true);
+            }
         });
         LinearLayout.LayoutParams saveLp = new LinearLayout.LayoutParams(-1, -2);
         saveLp.topMargin = Ui.dp(panel.activity, 12);
@@ -524,6 +530,7 @@ final class SkillStudio {
         page.addView(feedback);
 
         Button saveBtn = Ui.filledButton(panel.activity, panel.t(R.string.panel_save), v -> {
+            if (!v.isEnabled()) return;
             feedback.removeAllViews();
             String content;
             try {
@@ -533,16 +540,21 @@ final class SkillStudio {
                 err.setTextColor(panel.activity.getColor(R.color.danger));
                 return;
             }
+            v.setEnabled(false);
             JSONObject payload = PanelData.put(new JSONObject(), "content", content);
-            panel.request(feedback, () -> panel.api.put(
+            if (!panel.request(feedback, () -> panel.api.put(
                     "/v1/skills/" + HermesApi.relativePath(detail.name()), payload),
                     updated -> {
+                        v.setEnabled(true);
                         Diagnostics.event("skills", "skill_updated");
                         show();
                     }, error -> {
+                        v.setEnabled(true);
                         Diagnostics.warning("skills", "update_failed", error);
                         panel.failure(feedback, error, null);
-                    });
+                    })) {
+                v.setEnabled(true);
+            }
         });
         LinearLayout.LayoutParams saveLp = new LinearLayout.LayoutParams(-1, -2);
         saveLp.topMargin = Ui.dp(panel.activity, 12);

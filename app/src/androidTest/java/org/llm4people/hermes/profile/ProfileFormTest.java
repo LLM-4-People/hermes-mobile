@@ -4,20 +4,25 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.test.InstrumentationTestCase;
+import android.text.Editable;
 import android.text.InputType;
+import android.text.TextWatcher;
 import android.text.method.PasswordTransformationMethod;
 import android.view.View;
 import android.view.inputmethod.EditorInfo;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
+import android.widget.TextView;
 
 import org.llm4people.hermes.ActivityTestLifecycle;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
 
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 @SuppressWarnings("deprecation")
@@ -173,6 +178,50 @@ public final class ProfileFormTest extends InstrumentationTestCase {
             } finally {
                 ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
             }
+        }
+    }
+
+    public void testStatusReannouncesRepeatedDiscreteErrorsAndSuppressesUnchangedInfo() throws Throwable {
+        Context context = getInstrumentation().getTargetContext();
+        Intent launch = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
+        assertNotNull(launch);
+        Activity activity = getInstrumentation().startActivitySync(launch);
+        try {
+            runTestOnUiThread(() -> {
+                try {
+                    ProfileScreen form = new ProfileScreen(activity, "Profil", null);
+                    form.status("Erreur", true);
+                    Field statusField = ProfileScreen.class.getDeclaredField("status");
+                    statusField.setAccessible(true);
+                    TextView statusView = (TextView) statusField.get(form);
+                    assertNotNull(statusView);
+                    assertEquals(View.ACCESSIBILITY_LIVE_REGION_POLITE, statusView.getAccessibilityLiveRegion());
+
+                    AtomicInteger textChanges = new AtomicInteger();
+                    statusView.addTextChangedListener(new TextWatcher() {
+                        @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+                        @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
+                            textChanges.incrementAndGet();
+                        }
+                        @Override public void afterTextChanged(Editable s) {}
+                    });
+
+                    // Repeated discrete error must clear and re-set text so TalkBack re-announces.
+                    form.status("Erreur", true);
+                    assertTrue("Repeated error must fire clear+set text changes", textChanges.get() >= 2);
+                    assertEquals("Erreur", statusView.getText().toString());
+
+                    int afterError = textChanges.get();
+                    form.status("Prêt", false);
+                    assertEquals(afterError + 1, textChanges.get());
+                    form.status("Prêt", false);
+                    assertEquals("Unchanged non-error status must not re-fire", afterError + 1, textChanges.get());
+                } catch (Exception err) {
+                    throw new AssertionError(err);
+                }
+            });
+        } finally {
+            ActivityTestLifecycle.finishAndAwaitDestroyed(this, activity);
         }
     }
 
