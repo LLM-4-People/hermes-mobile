@@ -7,6 +7,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.regex.Pattern;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -259,7 +260,7 @@ public final class UiPolishR10ContractTest {
 
         assertTrue(firstRun.contains("ready.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE)"));
         assertFalse("FirstRunWizard.showManualPasteDialog must not keep dead statusNote param",
-                firstRun.contains("showManualPasteDialog(TextView statusNote)"));
+                Pattern.compile("showManualPasteDialog\\([^)]*(?:TextView|statusNote)").matcher(firstRun).find());
 
         String adminConsole = read("src/main/java/org/llm4people/hermes/profile/AdminConsoleSheet.java");
         assertTrue(adminConsole.contains("R.string.admin_console_users_load_failed"));
@@ -283,5 +284,39 @@ public final class UiPolishR10ContractTest {
                 .contains("v.setEnabled(false);"));
         assertTrue(voiceDrafts.contains("if (handled[0] || recovery != this || paused || !target.visible()) return;"));
         assertTrue(pairingShare.contains("R.string.admin_settings_revoke_failed"));
+
+        // R38.8.3: Widget refresh callers must preserve runActive instead of hardcoding false.
+        for (String rel : new String[]{
+                "src/main/java/org/llm4people/hermes/artifact/HomePinBridge.java",
+                "src/main/java/org/llm4people/hermes/os/HermesWidgetStore.java",
+                "src/main/java/org/llm4people/hermes/presence/DeepAndroidActions.java"
+        }) {
+            String src = read(rel);
+            assertFalse(rel + " must not call HermesWidgetProvider.refresh(app, false)",
+                    src.contains("HermesWidgetProvider.refresh(app, false)"));
+        }
+
+        // R38 PR B contracts: 4dp centered progress/slider tracks, opaque Switch style & ThemePalette controls,
+        // themed Spinner, ReminderPanel/MemoryPanel double-tap guards, SurfaceRenderer/WorkspacePages guards.
+        assertTrue(uiSrc.contains("layers.setLayerHeight(i, trackHeight);"));
+        assertTrue(uiSrc.contains("layers.setLayerGravity(i, Gravity.CENTER_VERTICAL | Gravity.FILL_HORIZONTAL);"));
+        assertTrue(uiSrc.contains("bar.setBackground(centeredTrackDrawable(context, trackColor));"));
+        assertTrue(uiSrc.contains("public static void styleSwitch("));
+        assertTrue(read("src/main/res/values/themes.xml").contains("android:switchStyle"));
+        assertTrue(controlsBlock.contains("Ui.styleSwitch("));
+        assertTrue(controlsBlock.contains("box.setButtonTintList("));
+        String wsForms = read("src/main/java/org/llm4people/hermes/artifact/WorkspaceForms.java");
+        assertTrue(wsForms.contains("choice.setPopupBackgroundDrawable("));
+        assertTrue(wsForms.contains("choice.setBackgroundTintList("));
+        String r38ReminderPanel = read("src/main/java/org/llm4people/hermes/panel/ReminderPanel.java");
+        assertTrue(r38ReminderPanel.contains("if (!v.isEnabled()) return;"));
+        assertTrue(r38ReminderPanel.contains("if (jobId.isEmpty() || !button.isEnabled()) return;"));
+        String r38MemoryPanel = read("src/main/java/org/llm4people/hermes/panel/MemoryPanel.java");
+        assertTrue(r38MemoryPanel.contains("if (lastDeleted != deleted || (trigger != null && !trigger.isEnabled())) return;"));
+        String r38SurfaceRenderer = read("src/main/java/org/llm4people/hermes/artifact/SurfaceRenderer.java");
+        assertTrue(r38SurfaceRenderer.contains("if (handled[0]) return;"));
+        assertTrue(r38SurfaceRenderer.contains("if (resetHandled[0]) return;"));
+        assertTrue(read("src/main/java/org/llm4people/hermes/artifact/WorkspacePages.java")
+                .contains("if (handled[0]) return;"));
     }
 }

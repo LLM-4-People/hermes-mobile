@@ -248,7 +248,11 @@ public final class ReminderPanel {
             boolean enabled = job.optBoolean("enabled", true);
             Button toggleBtn = Ui.outlinedButton(panel.activity,
                     panel.t(enabled ? R.string.panel_pause : R.string.panel_resume),
-                    v -> mutate(() -> panel.api.post(path(job) + (enabled ? "/pause" : "/resume"), new JSONObject())));
+                    v -> {
+                        if (!v.isEnabled()) return;
+                        v.setEnabled(false);
+                        mutate(() -> panel.api.post(path(job) + (enabled ? "/pause" : "/resume"), new JSONObject()));
+                    });
             LinearLayout.LayoutParams tLp = new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
             tLp.setMarginStart(Ui.dp(panel.activity, 8));
@@ -423,6 +427,7 @@ public final class ReminderPanel {
             Button pauseBtn = Ui.outlinedButton(panel.activity,
                     panel.t(enabled ? R.string.panel_pause : R.string.panel_resume),
                     v -> {
+                        if (!v.isEnabled()) return;
                         v.setEnabled(false);
                         mutate(() -> panel.api.post(path + (enabled ? "/pause" : "/resume"), new JSONObject()));
                     });
@@ -473,13 +478,13 @@ public final class ReminderPanel {
 
     private void triggerJobNow(JSONObject job, Button button, TextView feedbackView, Runnable onTriggered) {
         String jobId = PanelData.text(job, "id");
-        if (jobId.isEmpty()) return;
+        if (jobId.isEmpty() || !button.isEnabled()) return;
         button.setEnabled(false);
         String original = button.getText().toString();
         button.setText(panel.t(R.string.panel_jobs_running_now));
         Ui.clearLiveStatus(feedbackView);
         LinearLayout statusSlot = Ui.column(panel.activity);
-        panel.request(statusSlot, () -> panel.api.post(ScheduledJobModel.triggerPath(jobId), new JSONObject()),
+        if (!panel.request(statusSlot, () -> panel.api.post(ScheduledJobModel.triggerPath(jobId), new JSONObject()),
                 ok -> {
                     button.setEnabled(true);
                     button.setText(original);
@@ -498,7 +503,10 @@ public final class ReminderPanel {
                         feedbackView.setTextColor(panel.activity.getColor(R.color.danger));
                         Ui.announceLiveStatus(feedbackView, panel.t(R.string.panel_jobs_trigger_failed));
                     }
-                });
+                })) {
+            button.setEnabled(true);
+            button.setText(original);
+        }
     }
 
     private void loadRecentRuns(LinearLayout container, JSONObject job, ZoneId zone, Locale locale) {

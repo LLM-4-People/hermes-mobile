@@ -22,11 +22,16 @@ final class WorkspacePages {
     static AlertDialog confirmRecovery(Activity activity, PageLayouts.Damaged damaged, ArtifactDesk.Host host) {
         String consequence = activity.getString(damaged.hasReadablePages()
                 ? R.string.ws_pages_repair_partial : R.string.ws_pages_repair_all);
+        boolean[] handled = {false};
         return DeskDialogs.open(activity, new AlertDialog.Builder(activity)
                 .setTitle(R.string.ws_pages_repair_title)
                 .setMessage(activity.getString(R.string.ws_pages_repair_irreversible, consequence))
                 .setNegativeButton(R.string.ws_cancel, null)
-                .setPositiveButton(R.string.ws_repair, (dialog, which) -> SurfaceRenderer.change(activity, host, damaged::recover)));
+                .setPositiveButton(R.string.ws_repair, (dialog, which) -> {
+                    if (handled[0]) return;
+                    handled[0] = true;
+                    SurfaceRenderer.change(activity, host, damaged::recover);
+                }));
     }
 
     static View gallery(Activity a, Account account, ArtifactDesk.Host host) {

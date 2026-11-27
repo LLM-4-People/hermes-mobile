@@ -16,5 +16,12 @@
         <item name="android:statusBarColor">@color/surface</item>
         <item name="android:navigationBarColor">@color/surface</item>
         <item name="android:windowActionModeOverlay">true</item>
+        <item name="android:switchStyle">@style/Widget.Hermes.Switch</item>
+    </style>
+    <style name="Widget.Hermes.Switch" parent="@android:style/Widget.Material.CompoundButton.Switch">
+        <item name="android:track">@drawable/hermes_switch_track</item>
+        <item name="android:thumb">@drawable/hermes_switch_thumb</item>
+        <item name="android:trackTint">@null</item>
+        <item name="android:thumbTint">@null</item>
     </style>
 </resources>
