@@ -1179,7 +1179,7 @@ public final class QrScannerActivity extends Activity {
     }
 
     static TextView createFallbackDetail(Context context) {
-        TextView detail = Ui.text(context, context.getString(R.string.qr_scanner_permission_detail), 14);
+        TextView detail = Ui.text(context, "", 14);
         detail.setTextColor(context.getColor(R.color.muted));
         detail.setGravity(Gravity.CENTER);
         detail.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
@@ -1189,8 +1189,14 @@ public final class QrScannerActivity extends Activity {
     static void applyFallbackDetail(TextView detail, View card, String next) {
         if (detail == null) return;
         String safe = next == null ? "" : next;
-        boolean alreadyVisible = card != null && card.getVisibility() == View.VISIBLE;
-        if (!alreadyVisible || !safe.contentEquals(detail.getText())) {
+        boolean wasVisible = (card == null || card.getVisibility() == View.VISIBLE)
+                && detail.getVisibility() == View.VISIBLE;
+        if (card != null && card.getVisibility() != View.VISIBLE) {
+            card.setVisibility(View.VISIBLE);
+        }
+        if (!wasVisible) {
+            Ui.announceLiveStatus(detail, safe);
+        } else if (!safe.contentEquals(detail.getText())) {
             detail.setText(safe);
         }
     }
@@ -1207,7 +1213,6 @@ public final class QrScannerActivity extends Activity {
     private void showFallback(int titleRes, int detailRes, boolean permissionRecovery) {
         if (isFinishing() || isDestroyed()) return;
         fallbackTitle.setText(titleRes);
-        setFallbackDetail(detailRes);
         if (fallbackPermBtn != null) {
             if (permissionRecovery) {
                 PermissionCenter.State camState = PermissionCenter.state(this, PermissionCenter.Key.CAMERA);
@@ -1219,14 +1224,15 @@ public final class QrScannerActivity extends Activity {
                 fallbackPermBtn.setVisibility(View.GONE);
             }
         }
-        fallbackScroll.setVisibility(View.VISIBLE);
         overlayView.setVisibility(View.GONE);
         bottomBar.setVisibility(View.GONE);
         torchButton.setVisibility(View.GONE);
+        setFallbackDetail(detailRes);
     }
 
     private void hideFallback() {
         fallbackScroll.setVisibility(View.GONE);
+        Ui.clearLiveStatus(fallbackDetail);
         overlayView.setVisibility(View.VISIBLE);
         bottomBar.setVisibility(View.VISIBLE);
     }

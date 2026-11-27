@@ -217,6 +217,29 @@ public final class ProfileFormTest extends InstrumentationTestCase {
                     form.status("Prêt", false);
                     assertEquals("Unchanged non-error status must not re-fire", afterError + 1, textChanges.get());
 
+                    // R33.5.3: Clearing status hides to GONE before clearing text; liveNote starts GONE when empty.
+                    java.util.List<Integer> statusVisOnClear = new java.util.ArrayList<>();
+                    statusView.addTextChangedListener(new TextWatcher() {
+                        @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+                        @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
+                            statusVisOnClear.add(statusView.getVisibility());
+                        }
+                        @Override public void afterTextChanged(Editable s) {}
+                    });
+                    form.status("", false);
+                    assertEquals(View.GONE, statusView.getVisibility());
+                    assertEquals("", statusView.getText().toString());
+                    assertEquals(java.util.List.of(View.GONE), statusVisOnClear);
+
+                    TextView liveNote = form.liveNote("");
+                    assertEquals(View.GONE, liveNote.getVisibility());
+                    form.setNote(liveNote, "Connecté", R.color.accent);
+                    assertEquals(View.VISIBLE, liveNote.getVisibility());
+                    assertEquals("Connecté", liveNote.getText().toString());
+                    form.setNote(liveNote, "", R.color.muted);
+                    assertEquals(View.GONE, liveNote.getVisibility());
+                    assertEquals("", liveNote.getText().toString());
+
                     // R25.5.3: Ui.showInlineError sets POLITE live region, makes visible, and forces
                     // clear+set text-change event when already visible with identical text.
                     TextView inlineErr = Ui.text(activity, "", 13);

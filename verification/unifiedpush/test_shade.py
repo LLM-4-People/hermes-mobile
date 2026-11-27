@@ -1,4 +1,7 @@
 """Only the real notification stack and the enrolled app's visible group may be opened."""
+import contextlib
+import io
+import json
 import unittest
 from unittest.mock import Mock, patch
 from xml.etree.ElementTree import Element, SubElement
@@ -82,3 +85,26 @@ class ShadeTest(unittest.TestCase):
         with patch("verification.unifiedpush.stack.time.sleep"):
             self.assertIs(show_notice(ui, "Hermes a terminé"), title)
         device.shell.assert_any_call("input", "swipe", "360", "1007", "360", "603", "340")
+
+    def test_show_notice_preserves_primary_error_and_emits_counters_when_diag_shell_fails(self):
+        device, controls = Mock(), Mock()
+
+        def shell(*args):
+            if args[:2] in (("dumpsys", "window"), ("dumpsys", "power"), ("cmd", "notification")):
+                raise RuntimeError("adb offline during diagnostics")
+            return ""
+
+        device.shell.side_effect = shell
+        ui = Screen(device, controls)
+        stderr = io.StringIO()
+        with (patch("verification.unifiedpush.shade.eventually", side_effect=TimeoutError("shade timed out")),
+              contextlib.redirect_stderr(stderr),
+              self.assertRaisesRegex(TimeoutError, "shade timed out")):
+            show_notice(ui, "Hermes a terminé")
+        output = stderr.getvalue()
+        self.assertIn("Android notification shade ", output)
+        payload = json.loads(output.split("Android notification shade ", 1)[1].strip())
+        self.assertEqual(payload["panel_open_attempts"], 1)
+        self.assertEqual(payload["native_scrolls"], 0)
+        self.assertEqual(payload["list_swipes"], 0)
+        self.assertEqual(payload["group_expansions"], 0)

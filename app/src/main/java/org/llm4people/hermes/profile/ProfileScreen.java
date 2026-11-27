@@ -76,6 +76,9 @@ final class ProfileScreen {
     TextView liveNote(String text) {
         TextView caption = note(text);
         caption.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+        if (text == null || text.isEmpty()) {
+            caption.setVisibility(View.GONE);
+        }
         return caption;
     }
 
@@ -94,6 +97,15 @@ final class ProfileScreen {
     void setNote(TextView target, String text, int colorRes) {
         if (target == null) return;
         target.setTextColor(activity.getColor(colorRes));
+        if (target.getAccessibilityLiveRegion() != View.ACCESSIBILITY_LIVE_REGION_NONE) {
+            if (text == null || text.isEmpty()) {
+                Ui.clearLiveStatus(target);
+                return;
+            }
+            if (target.getVisibility() != View.VISIBLE) {
+                target.setVisibility(View.VISIBLE);
+            }
+        }
         String changed = changedNoteText(target.getText(), text);
         if (changed != null) {
             target.setText(changed);
@@ -323,17 +335,26 @@ final class ProfileScreen {
     }
 
     void status(String message, boolean error) {
+        if (message == null || message.isEmpty()) {
+            Ui.clearLiveStatus(status);
+            return;
+        }
         if (status == null) {
             status = Ui.text(activity, "", 15);
             status.setLineSpacing(0f, 1.25f);
             status.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+            status.setVisibility(View.GONE);
             card(status, 14);
         }
         status.setTextColor(activity.getColor(error ? R.color.danger : R.color.muted));
+        boolean wasVisible = status.getVisibility() == View.VISIBLE;
+        if (!wasVisible) {
+            status.setVisibility(View.VISIBLE);
+        }
         String changed = changedNoteText(status.getText(), message);
         if (changed != null) {
             status.setText(changed);
-        } else if (shouldReannounceStatus(status.getText(), message, error)) {
+        } else if (!wasVisible || shouldReannounceStatus(status.getText(), message, error)) {
             status.setText("");
             status.setText(message);
         }
