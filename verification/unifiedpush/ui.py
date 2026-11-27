@@ -550,7 +550,10 @@ def process_absent(ui):
         package = device.shell("dumpsys", "package", APP)
         if re.search(r"User 0:.*?\bstopped=false\b", package) is None:
             raise AssertionError("Closed-app check requires the installed package to remain runnable")
-        proc = subprocess.run(device.command + ["shell", "pidof", APP], capture_output=True)
+        try:
+            proc = subprocess.run(device.command + ["shell", "pidof", APP], capture_output=True, timeout=30)
+        except subprocess.TimeoutExpired:
+            raise RuntimeError("adb shell pidof exceeded 30s") from None
         if proc.returncode not in {0, 1}:
             raise RuntimeError("PID verification failed")
         return proc.returncode == 1 and not proc.stdout.strip()

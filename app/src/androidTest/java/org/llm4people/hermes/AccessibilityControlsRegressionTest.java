@@ -2216,9 +2216,21 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
                                 "stepMatch", Context.class, int.class);
                         stepMatch.setAccessible(true);
                         AtomicInteger counterMutations = countTextMutations(searchCounter);
+                        List<Integer> counterVisAtMutation = new ArrayList<>();
+                        searchCounter.addTextChangedListener(new android.text.TextWatcher() {
+                            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+                            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
+                                counterVisAtMutation.add(searchCounter.getVisibility());
+                            }
+                            @Override public void afterTextChanged(android.text.Editable s) {}
+                        });
+                        assertEquals(View.INVISIBLE, searchCounter.getVisibility());
 
                         applySearch.invoke(reader, activity, "zzz");
+                        assertEquals(View.VISIBLE, searchCounter.getVisibility());
                         assertEquals(1, counterMutations.get());
+                        assertEquals("searchCounter must be VISIBLE before setText on query",
+                                List.of(View.VISIBLE), counterVisAtMutation);
                         applySearch.invoke(reader, activity, "zzzz");
                         assertEquals("Repeated zero-match query must not re-fire searchCounter.setText",
                                 1, counterMutations.get());
@@ -2231,6 +2243,14 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
 
                         stepMatch.invoke(reader, activity, 1);
                         assertEquals(3, counterMutations.get());
+
+                        // R33.5.4: Clearing query must set INVISIBLE BEFORE clearing text (preserving weight=1).
+                        counterVisAtMutation.clear();
+                        applySearch.invoke(reader, activity, "");
+                        assertEquals(View.INVISIBLE, searchCounter.getVisibility());
+                        assertEquals("", String.valueOf(searchCounter.getText()));
+                        assertEquals("Clearing searchCounter must set INVISIBLE before setText(\"\")",
+                                List.of(View.INVISIBLE), counterVisAtMutation);
 
                         // R20.5.7: CommandPalette guards countAnnouncement.setText against unchanged counts.
                         CommandRegistry cmdRegistry = new CommandRegistry(java.util.Collections.emptyList());
@@ -2277,26 +2297,41 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
                                 "applyFallbackDetail", TextView.class, View.class, String.class);
                         applyFallbackDetail.setAccessible(true);
                         LinearLayout fallbackCard = Ui.column(activity);
-                        fallbackCard.setVisibility(View.VISIBLE);
+                        fallbackCard.setVisibility(View.GONE);
                         AtomicInteger fallbackMutations = countTextMutations(fallbackDetail);
+                        List<Integer> cardVisAtFallbackMutation = new ArrayList<>();
+                        fallbackDetail.addTextChangedListener(new android.text.TextWatcher() {
+                            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+                            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
+                                cardVisAtFallbackMutation.add(fallbackCard.getVisibility());
+                            }
+                            @Override public void afterTextChanged(android.text.Editable s) {}
+                        });
 
+                        // R33.5.2: Hidden->visible transition makes card VISIBLE BEFORE setting detail text.
                         String permDetail = activity.getString(R.string.qr_scanner_permission_detail);
                         applyFallbackDetail.invoke(null, fallbackDetail, fallbackCard, permDetail);
+                        assertEquals(View.VISIBLE, fallbackCard.getVisibility());
+                        assertEquals(1, fallbackMutations.get());
+                        assertEquals("fallbackCard must be VISIBLE before fallbackDetail text mutates",
+                                List.of(View.VISIBLE), cardVisAtFallbackMutation);
+
+                        applyFallbackDetail.invoke(null, fallbackDetail, fallbackCard, permDetail);
                         assertEquals("Unchanged visible fallbackDetail must not re-fire setText",
-                                0, fallbackMutations.get());
+                                1, fallbackMutations.get());
 
                         String notHermes = activity.getString(R.string.qr_scanner_not_hermes);
                         applyFallbackDetail.invoke(null, fallbackDetail, fallbackCard, notHermes);
-                        assertEquals(1, fallbackMutations.get());
+                        assertEquals(2, fallbackMutations.get());
                         assertEquals(notHermes, String.valueOf(fallbackDetail.getText()));
 
                         applyFallbackDetail.invoke(null, fallbackDetail, fallbackCard, notHermes);
                         assertEquals("Repeated visible error must not re-fire setText",
-                                1, fallbackMutations.get());
+                                2, fallbackMutations.get());
 
                         String noQr = activity.getString(R.string.qr_scanner_image_no_qr);
                         applyFallbackDetail.invoke(null, fallbackDetail, fallbackCard, noQr);
-                        assertEquals(2, fallbackMutations.get());
+                        assertEquals(3, fallbackMutations.get());
                         assertEquals(noQr, String.valueOf(fallbackDetail.getText()));
                     } catch (Exception err) {
                         throw new AssertionError(err);

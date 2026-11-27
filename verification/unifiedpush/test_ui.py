@@ -1,6 +1,7 @@
 """Unit tests for Screen bounds parsing, focus inspection, and verified tap transitions."""
 
 from pathlib import Path
+import subprocess
 import unittest
 from unittest.mock import Mock, call, patch
 from xml.etree.ElementTree import Element, SubElement
@@ -16,6 +17,7 @@ from .ui import (
     enroll,
     focused_window,
     open_notifications_settings,
+    process_absent,
     start_account,
 )
 
@@ -490,6 +492,52 @@ class ScreenUiTest(unittest.TestCase):
         back_calls = [c for c in device.shell.call_args_list if c.args == ("input", "keyevent", "BACK")]
         # 1 BACK for dismiss_ime + 2 debounced BACKs for back_to_topics.
         self.assertEqual(len(back_calls), 3)
+
+    def test_process_absent_handles_exit_retry_error_and_pidof_timeout(self):
+        def make_ui():
+            device = Mock()
+            device.command = ["adb", "-s", "emulator-5554"]
+            device.shell.side_effect = lambda *args: (
+                "    User 0: ceDataInode=1 stopped=false" if args[:2] == ("dumpsys", "package") else ""
+            )
+            return Screen(device, Mock())
+
+        # Positive exit (returncode=1, empty stdout) with timeout=30 verified.
+        with patch("verification.unifiedpush.stack.time.sleep"), patch(
+            "verification.unifiedpush.ui.subprocess.run",
+            return_value=subprocess.CompletedProcess([], 1, b"", b""),
+        ) as run_mock:
+            process_absent(make_ui())
+        run_mock.assert_called_once_with(
+            ["adb", "-s", "emulator-5554", "shell", "pidof", "org.llm4people.hermes"],
+            capture_output=True,
+            timeout=30,
+        )
+
+        # Retry-then-exit (0 -> 1).
+        with patch("verification.unifiedpush.stack.time.sleep"), patch(
+            "verification.unifiedpush.ui.subprocess.run",
+            side_effect=[
+                subprocess.CompletedProcess([], 0, b"12345\n", b""),
+                subprocess.CompletedProcess([], 1, b"", b""),
+            ],
+        ) as run_mock:
+            process_absent(make_ui())
+        self.assertEqual(run_mock.call_count, 2)
+
+        # Unexpected exit code (2 -> RuntimeError).
+        with patch("verification.unifiedpush.stack.time.sleep"), patch(
+            "verification.unifiedpush.ui.subprocess.run",
+            return_value=subprocess.CompletedProcess([], 2, b"", b"err"),
+        ), self.assertRaisesRegex(RuntimeError, "PID verification failed"):
+            process_absent(make_ui())
+
+        # TimeoutExpired -> bounded RuntimeError("adb shell pidof exceeded 30s").
+        with patch("verification.unifiedpush.stack.time.sleep"), patch(
+            "verification.unifiedpush.ui.subprocess.run",
+            side_effect=subprocess.TimeoutExpired(["adb"], 30),
+        ), self.assertRaisesRegex(RuntimeError, "adb shell pidof exceeded 30s"):
+            process_absent(make_ui())
 
 
 if __name__ == "__main__":

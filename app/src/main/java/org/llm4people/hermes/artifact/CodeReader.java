@@ -181,6 +181,7 @@ public final class CodeReader {
         searchCounter = Ui.text(c, "", 14);
         searchCounter.setTextColor(c.getColor(R.color.muted));
         searchCounter.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+        searchCounter.setVisibility(View.INVISIBLE);
         prevMatchButton = Ui.button(c, c.getString(R.string.code_search_previous), v -> stepMatch(c, -1));
         nextMatchButton = Ui.button(c, c.getString(R.string.code_search_next), v -> stepMatch(c, 1));
         nav.addView(searchCounter, new LinearLayout.LayoutParams(0, -2, 1));
@@ -231,12 +232,23 @@ public final class CodeReader {
     private void updateSearchCounter(Context c) {
         boolean hasQuery = !searchQuery.isEmpty();
         boolean hasMatches = !matches.isEmpty();
-        String nextLabel;
-        if (!hasQuery) nextLabel = "";
-        else if (!hasMatches) nextLabel = c.getString(R.string.code_search_none);
-        else nextLabel = c.getString(R.string.code_search_count, activeMatch + 1, matches.size());
-        if (!nextLabel.contentEquals(searchCounter.getText())) {
-            searchCounter.setText(nextLabel);
+        if (!hasQuery) {
+            if (searchCounter.getVisibility() != View.INVISIBLE) {
+                searchCounter.setVisibility(View.INVISIBLE);
+            }
+            if (searchCounter.getText().length() > 0) {
+                searchCounter.setText("");
+            }
+        } else {
+            String nextLabel = !hasMatches
+                    ? c.getString(R.string.code_search_none)
+                    : c.getString(R.string.code_search_count, activeMatch + 1, matches.size());
+            if (searchCounter.getVisibility() != View.VISIBLE) {
+                searchCounter.setVisibility(View.VISIBLE);
+            }
+            if (!nextLabel.contentEquals(searchCounter.getText())) {
+                searchCounter.setText(nextLabel);
+            }
         }
         prevMatchButton.setEnabled(hasMatches);
         nextMatchButton.setEnabled(hasMatches);

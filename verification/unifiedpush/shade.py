@@ -176,17 +176,22 @@ def show_notice(ui, title):
         return eventually("the posted event title inside Android's notification shade", find)[0]
     except (AssertionError, TimeoutError, RuntimeError):
         # Emit only known status flags and counts. Platform windows, labels and notification keys are private.
-        policy = device.shell("dumpsys", "window", "policy")
-        power = device.shell("dumpsys", "power")
         state.update(
-            awake="mWakefulness=Awake" in power,
-            keyguard_showing=bool(re.search(r"(?:mKeyguardShowing|showing)=(?:true|1)\b", policy)),
-            shade_focused=shade_focused(device),
-            hermes_active_notifications=sum(
-                len(parts) >= 5 and parts[1] == APP
-                for parts in (line.split("|") for line in device.shell("cmd", "notification", "list").splitlines())
-            ),
             panel_open_attempts=reopens + 1, native_scrolls=scrolls, list_swipes=gestures, group_expansions=expansions,
         )
+        try:
+            policy = device.shell("dumpsys", "window", "policy")
+            power = device.shell("dumpsys", "power")
+            state.update(
+                awake="mWakefulness=Awake" in power,
+                keyguard_showing=bool(re.search(r"(?:mKeyguardShowing|showing)=(?:true|1)\b", policy)),
+                shade_focused=shade_focused(device),
+                hermes_active_notifications=sum(
+                    len(parts) >= 5 and parts[1] == APP
+                    for parts in (line.split("|") for line in device.shell("cmd", "notification", "list").splitlines())
+                ),
+            )
+        except (RuntimeError, OSError):
+            pass
         print("Android notification shade " + json.dumps(state, sort_keys=True), file=sys.stderr, flush=True)
         raise
