@@ -62,6 +62,27 @@ public final class OsIntentAndLiveRunContractTest {
         } finally {
             runActiveField.setBoolean(null, previous);
         }
+
+        // R38.3.2: HermesWidgetPinning.requestPinShortcut with WIDGET_ACTION + null/invalid widgetId -> INVALID_SPEC.
+        android.content.Context stubContext = new android.content.ContextWrapper(null) {
+            @Override public android.content.pm.PackageManager getPackageManager() { return null; }
+            @Override public Object getSystemService(String name) { throw new RuntimeException("boom"); }
+            @Override public String getSystemServiceName(Class<?> serviceClass) { throw new RuntimeException("boom"); }
+        };
+        assertEquals(
+                HermesWidgetPinning.PinResult.INVALID_SPEC,
+                HermesWidgetPinning.requestPinShortcut(
+                        stubContext, "valid_shortcut", "Label", OsEntryIntent.Target.WIDGET_ACTION, null));
+        assertEquals(
+                HermesWidgetPinning.PinResult.INVALID_SPEC,
+                HermesWidgetPinning.requestPinShortcut(
+                        stubContext, "valid_shortcut", "Label", OsEntryIntent.Target.WIDGET_ACTION, "bad id!"));
+
+        // R38.3.3: PermissionCenter.isPermissionDeclared fails closed when PackageManager is null.
+        assertFalse(PermissionCenter.isPermissionDeclared(stubContext, "android.permission.POST_NOTIFICATIONS"));
+
+        // R38.3.4: DeepAndroidActions.isNudgeChannelEnabled catches RuntimeException and returns false.
+        assertFalse(DeepAndroidActions.isNudgeChannelEnabled(stubContext));
     }
 
     @Test

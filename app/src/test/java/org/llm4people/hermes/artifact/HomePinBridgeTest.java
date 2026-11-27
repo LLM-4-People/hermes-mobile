@@ -156,8 +156,19 @@ public final class HomePinBridgeTest {
             org.llm4people.hermes.os.HermesWidgetSpec osSpec = HomePinBridge.toOsWidgetSpec(spec, "profile-a");
             assertNotNull("Expected toOsWidgetSpec to succeed for " + wid, osSpec);
             assertEquals(wid, osSpec.widgetId);
+            assertEquals(wid, HomePinBridge.widgetShortcutId(osSpec));
+            assertTrue(HomePinBridge.hasValidShortcutTarget(null, wid));
             assertTrue(osSpec.widgetId.length() <= 64);
         }
+
+        // R38.8.2: positive & negative shortcut target / null-spec / null-activity guards.
+        assertNull(HomePinBridge.widgetShortcutId(null));
+        assertTrue(HomePinBridge.hasValidShortcutTarget("page/demo-panel", null));
+        assertFalse(HomePinBridge.hasValidShortcutTarget(null, null));
+        assertFalse(HomePinBridge.hasValidShortcutTarget("", ""));
+        assertFalse(HomePinBridge.hasValidShortcutTarget("invalid-surface", "bad widget id!"));
+        assertFalse(HomePinBridge.hasValidShortcutTarget("invalid-surface", "a".repeat(65)));
+        assertFalse(HomePinBridge.requestPinShortcut(null, "w1", "Status", null, "w1"));
 
         // R37.4.2: dead ACTION_WIDGET_UPDATED and broadcastWidgetUpdated must be absent.
         for (java.lang.reflect.Field f : HomePinBridge.class.getDeclaredFields()) {

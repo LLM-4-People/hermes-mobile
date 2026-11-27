@@ -79,6 +79,9 @@ public final class HermesWidgetPinning {
         if (context == null || !HermesWidgetSpec.validWidgetId(shortcutId) || target == null) {
             return PinResult.INVALID_SPEC;
         }
+        if (target == OsEntryIntent.Target.WIDGET_ACTION && !HermesWidgetSpec.validWidgetId(widgetId)) {
+            return PinResult.INVALID_SPEC;
+        }
         String safeLabel = HermesWidgetSpec.sanitizeHomeText(label, HermesWidgetSpec.MAX_TITLE_CHARS);
         if (safeLabel.isEmpty()) return PinResult.INVALID_SPEC;
         Context app = context.getApplicationContext();
@@ -87,7 +90,7 @@ public final class HermesWidgetPinning {
             Diagnostics.event("shortcut", "pin_unsupported");
             return PinResult.UNSUPPORTED_LAUNCHER;
         }
-        Intent launch = target == OsEntryIntent.Target.WIDGET_ACTION && HermesWidgetSpec.validWidgetId(widgetId)
+        Intent launch = target == OsEntryIntent.Target.WIDGET_ACTION
                 ? OsEntryIntent.widgetActionIntent(app, widgetId, -1)
                 : OsEntryIntent.intent(app, target);
         ShortcutInfo info = new ShortcutInfo.Builder(app, "pinned_" + shortcutId)

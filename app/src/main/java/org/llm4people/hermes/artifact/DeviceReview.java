@@ -14,6 +14,7 @@ import android.widget.Toast;
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
+import org.llm4people.hermes.places.NearbyCategory;
 import org.llm4people.hermes.places.NearbyResult;
 
 import java.util.ArrayList;
@@ -31,6 +32,12 @@ public final class DeviceReview {
 
     public static void placeSource(Activity activity, ArtifactDesk.Host host, View source, NearbyResult.Place place) {
         open(activity, host, source, new DeviceAction.PlaceSource(place));
+    }
+
+    public static void placeRoute(Activity activity, ArtifactDesk.Host host, View source,
+                                  NearbyResult.Place place, NearbyCategory.RouteMode mode) {
+        if (place == null || mode == null) return;
+        open(activity, host, source, new DeviceAction.PlaceRoute(place, mode));
     }
 
     static void open(Activity activity, ArtifactDesk.Host host, View source, DeviceAction request) {
@@ -58,11 +65,11 @@ public final class DeviceReview {
             return;
         }
         AlertDialog.Builder review = new AlertDialog.Builder(activity)
-                .setTitle(request.kind().title(activity))
+                .setTitle(request.title(activity))
                 .setMessage(request.preview(activity))
                 .setNegativeButton(R.string.ws_cancel, (dialog, which) -> fireCancelled.run())
                 .setOnCancelListener(dialog -> fireCancelled.run())
-                .setPositiveButton(request.kind().open(activity), (dialog, which) -> {
+                .setPositiveButton(request.openLabel(activity), (dialog, which) -> {
                     if (!((AlertDialog) dialog).isShowing() || !current.getAsBoolean()) {
                         fireUnavailable.run();
                         return;
@@ -96,8 +103,8 @@ public final class DeviceReview {
                             Diagnostics.warning("device_action", "app_unavailable", unavailable);
                         }
                         DeskDialogs.open(activity, host, new AlertDialog.Builder(activity)
-                                .setTitle(R.string.ws_dev_app_unavailable_title)
-                                .setMessage(R.string.ws_dev_app_unavailable_message)
+                                .setTitle(request.unavailableTitleRes())
+                                .setMessage(request.unavailableMessageRes())
                                 .setPositiveButton(R.string.ws_close, null));
                         fireUnavailable.run();
                     }
