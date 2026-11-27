@@ -71,6 +71,7 @@ public final class NotesTasksPanel implements AutoCloseable {
     private LinearLayout segmentBar;
     private LinearLayout contentSlot;
     private int cachedUnreadCount;
+    private String lastEmptyAnnouncement;
 
     public NotesTasksPanel(
             Activity activity,
@@ -115,6 +116,7 @@ public final class NotesTasksPanel implements AutoCloseable {
     public void selectSegment(NotesTasksModel.Segment segment) {
         if (segment == null || segment == activeSegment) return;
         activeSegment = segment;
+        lastEmptyAnnouncement = null;
         renderSegmentBar();
         loadActiveSegment();
     }
@@ -244,6 +246,7 @@ public final class NotesTasksPanel implements AutoCloseable {
                     callbacks::createNote);
             return;
         }
+        lastEmptyAnnouncement = null;
         LinearLayout group = groupedContainer();
         for (int i = 0; i < notes.size(); i++) {
             NotesTasksModel.NoteRow note = notes.get(i);
@@ -302,6 +305,7 @@ public final class NotesTasksPanel implements AutoCloseable {
                     callbacks::createReminder);
             return;
         }
+        lastEmptyAnnouncement = null;
         SettingsWrapLayout pills = new SettingsWrapLayout(activity, 8, 6);
         pills.addView(Ui.pill(activity,
                 activity.getString(R.string.hub_reminders_active_pill, overview.activeCount()),
@@ -412,6 +416,7 @@ public final class NotesTasksPanel implements AutoCloseable {
                     null, null);
             return;
         }
+        lastEmptyAnnouncement = null;
         if (hasDeliveries) {
             addSectionHeading(slot, activity.getString(R.string.hub_inbox_deliveries_heading), false);
             LinearLayout group = groupedContainer();
@@ -549,6 +554,11 @@ public final class NotesTasksPanel implements AutoCloseable {
         header.addView(Ui.iconCircle(activity, iconRes, 40, 22, false));
         TextView titleView = Ui.text(activity, title, 16);
         titleView.setTypeface(Ui.mediumTypeface());
+        String key = activeSegment.name() + ":" + (title == null ? "" : title);
+        if (!key.equals(lastEmptyAnnouncement)) {
+            titleView.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+            lastEmptyAnnouncement = key;
+        }
         header.addView(titleView, new LinearLayout.LayoutParams(0, -2, 1f));
         card.addView(header);
         if (body != null && !body.isEmpty()) {

@@ -275,6 +275,7 @@ final class MemoryPanel {
                 saveBtn.setEnabled(false);
                 commitAdd(bucket.target(), validated, pinned, dialog, saveBtn, errorView, progressSlot);
             } else {
+                saveBtn.setEnabled(false);
                 dialog.dismiss();
                 confirmDiffAndPatch(bucket.target(), existing, validated, pinned);
             }

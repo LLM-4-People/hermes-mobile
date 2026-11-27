@@ -79,6 +79,7 @@ public final class AdminConsoleSheet implements AutoCloseable {
     private OnboardingModels.AdminSettings settings;
     private List<OnboardingModels.PairingTicket> activeTickets = Collections.emptyList();
     private boolean closed;
+    private String lastAnnouncedSettingsError;
     private final java.util.concurrent.atomic.AtomicBoolean pairingInFlight =
             new java.util.concurrent.atomic.AtomicBoolean();
 
@@ -232,6 +233,7 @@ public final class AdminConsoleSheet implements AutoCloseable {
     private void refreshAll() {
         if (closed || api.isRevoked() || io.isShutdown()) return;
         lastAnnouncedError = null;
+        lastAnnouncedSettingsError = null;
         if (profiles.isEmpty()) {
             usersLoadState = UsersLoadState.LOADING;
             if (activeTab == Tab.USERS) renderActiveTab();
@@ -459,14 +461,20 @@ public final class AdminConsoleSheet implements AutoCloseable {
     private void renderSettingsTab() {
         if (!canRenderSettingsForm(settings)) {
             if (settingsLoadState == UsersLoadState.LOADING) {
+                lastAnnouncedSettingsError = null;
                 TextView loading = Ui.text(activity, activity.getString(R.string.profile_hub_loading), 13);
                 loading.setTextColor(activity.getColor(R.color.muted));
                 contentSlot.addView(loading, topMargin(12));
                 return;
             }
             LinearLayout errorCard = Ui.card(activity);
-            TextView errText = Ui.text(activity, activity.getString(R.string.admin_console_users_load_failed), 14);
+            String errMsg = activity.getString(R.string.admin_console_users_load_failed);
+            TextView errText = Ui.text(activity, errMsg, 14);
             errText.setTextColor(activity.getColor(R.color.danger));
+            if (shouldAnnounceUsersError(usersLoadState != UsersLoadState.ERROR, errMsg, lastAnnouncedSettingsError)) {
+                errText.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+                lastAnnouncedSettingsError = errMsg;
+            }
             errorCard.addView(errText);
             Button retryBtn = Ui.outlinedButton(activity, activity.getString(R.string.instrument_retry),
                     v -> refreshAll());
@@ -474,6 +482,7 @@ public final class AdminConsoleSheet implements AutoCloseable {
             contentSlot.addView(errorCard, topMargin(12));
             return;
         }
+        lastAnnouncedSettingsError = null;
         OnboardingModels.AdminSettings cur = settings;
 
         String[] langHolder = {cur.defaultLanguage()};
@@ -703,34 +712,44 @@ public final class AdminConsoleSheet implements AutoCloseable {
                 10);
 
         dismissChildDialog();
-        childDialog = Ui.secureDialog(new AlertDialog.Builder(activity)
+        AlertDialog dialog = Ui.secureDialog(new AlertDialog.Builder(activity)
                 .setTitle(R.string.profile_hub_edit_title)
                 .setView(scroll)
                 .setNegativeButton(R.string.profile_setup_cancel, null)
-                .setPositiveButton(R.string.profile_save_action, (d, w) -> {
-                    String nextName = nameField.getText().toString().trim();
-                    String nextModel = modelField.getText().toString().trim();
-                    submitIo(() -> {
-                        boolean ok = false;
-                        try {
-                            JSONObject patch = new JSONObject();
-                            if (!nextName.isEmpty()) patch.put("display_name", nextName);
-                            patch.put("default_model", nextModel);
-                            api.updateProfile(profile.slug(), patch);
-                            ok = true;
-                        } catch (Exception err) {
-                            Diagnostics.warning("admin", "edit_user_failed");
-                        }
-                        boolean done = ok;
-                        main.post(() -> {
-                            if (closed || !canAct.getAsBoolean()) return;
-                            Toast.makeText(activity,
-                                    done ? R.string.profile_hub_edit_saved : R.string.profile_hub_edit_failed,
-                                    Toast.LENGTH_SHORT).show();
-                            if (done) refreshAll();
-                        });
+                .setPositiveButton(R.string.profile_save_action, null));
+        childDialog = dialog;
+        Button saveBtn = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+        if (saveBtn != null) {
+            boolean[] submitted = {false};
+            saveBtn.setOnClickListener(v -> {
+                if (submitted[0]) return;
+                submitted[0] = true;
+                saveBtn.setEnabled(false);
+                dialog.dismiss();
+                String nextName = nameField.getText().toString().trim();
+                String nextModel = modelField.getText().toString().trim();
+                submitIo(() -> {
+                    boolean ok = false;
+                    try {
+                        JSONObject patch = new JSONObject();
+                        if (!nextName.isEmpty()) patch.put("display_name", nextName);
+                        patch.put("default_model", nextModel);
+                        api.updateProfile(profile.slug(), patch);
+                        ok = true;
+                    } catch (Exception err) {
+                        Diagnostics.warning("admin", "edit_user_failed");
+                    }
+                    boolean done = ok;
+                    main.post(() -> {
+                        if (closed || !canAct.getAsBoolean()) return;
+                        Toast.makeText(activity,
+                                done ? R.string.profile_hub_edit_saved : R.string.profile_hub_edit_failed,
+                                Toast.LENGTH_SHORT).show();
+                        if (done) refreshAll();
                     });
-                }));
+                });
+            });
+        }
     }
 
     private void showInviteUserDialog() {
@@ -750,11 +769,21 @@ public final class AdminConsoleSheet implements AutoCloseable {
 
     private void confirmRotateKey(OnboardingModels.RemoteProfile profile) {
         dismissChildDialog();
-        childDialog = Ui.secureDialog(new AlertDialog.Builder(activity)
+        AlertDialog dialog = Ui.secureDialog(new AlertDialog.Builder(activity)
                 .setTitle(activity.getString(R.string.profile_hub_rotate_title, profile.displayName()))
                 .setMessage(R.string.profile_hub_rotate_body)
                 .setNegativeButton(R.string.profile_setup_cancel, null)
-                .setPositiveButton(R.string.profile_hub_rotate_confirm, (d, w) -> submitIo(() -> {
+                .setPositiveButton(R.string.profile_hub_rotate_confirm, null));
+        childDialog = dialog;
+        Button rotateBtn = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+        if (rotateBtn != null) {
+            boolean[] handled = {false};
+            rotateBtn.setOnClickListener(v -> {
+                if (handled[0]) return;
+                handled[0] = true;
+                rotateBtn.setEnabled(false);
+                dialog.dismiss();
+                submitIo(() -> {
                     OnboardingModels.RotateKeyResult rotated = null;
                     try {
                         JSONObject body = new JSONObject();
@@ -779,7 +808,9 @@ public final class AdminConsoleSheet implements AutoCloseable {
                         }
                         refreshAll();
                     });
-                })));
+                });
+            });
+        }
     }
 
     private void confirmDeleteProfile(OnboardingModels.RemoteProfile profile) {

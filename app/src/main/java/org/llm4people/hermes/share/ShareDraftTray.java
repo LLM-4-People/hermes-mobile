@@ -34,14 +34,17 @@ public final class ShareDraftTray {
     }
 
     private final Context context;
+    private final LinearLayout root;
     private final HorizontalScrollView scroller;
     private final LinearLayout row;
+    private final TextView liveStatus;
     private final List<CapturedMedia.Item> items = new ArrayList<>();
     private final Listener listener;
 
     public ShareDraftTray(Context context, Listener listener) {
         this.context = context;
         this.listener = listener;
+        root = Ui.column(context);
         scroller = new HorizontalScrollView(context);
         scroller.setHorizontalScrollBarEnabled(false);
         scroller.setVisibility(View.GONE);
@@ -49,9 +52,15 @@ public final class ShareDraftTray {
         row.setGravity(Gravity.CENTER_VERTICAL);
         Ui.pad(row, 14, 6);
         scroller.addView(row);
+        root.addView(scroller, new LinearLayout.LayoutParams(-1, -2));
+
+        liveStatus = new TextView(context);
+        liveStatus.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+        liveStatus.setFocusable(false);
+        root.addView(liveStatus, new LinearLayout.LayoutParams(0, 0));
     }
 
-    public View view() { return scroller; }
+    public View view() { return root; }
 
     public List<CapturedMedia.Item> items() {
         return Collections.unmodifiableList(new ArrayList<>(items));
@@ -91,7 +100,7 @@ public final class ShareDraftTray {
             GradientDrawable bg = new GradientDrawable();
             bg.setCornerRadius(Ui.dp(context, 12));
             bg.setColor(context.getColor(R.color.surface));
-            bg.setStroke(Ui.dp(context, 1), context.getColor(R.color.line));
+            bg.setStroke(Ui.dp(context, 1), context.getColor(R.color.line_strong));
             chip.setBackground(bg);
 
             if (item.kind() == CapturedMedia.Kind.IMAGE && item.thumbnailBase64() != null) {
@@ -132,8 +141,8 @@ public final class ShareDraftTray {
             if (i > 0) cp.setMarginStart(gap);
             row.addView(chip, cp);
         }
-        if (notice != null && !notice.isEmpty() && scroller.isAttachedToWindow()) {
-            scroller.announceForAccessibility(notice);
+        if (notice != null && !notice.isEmpty()) {
+            Ui.announceLiveStatus(liveStatus, notice);
         }
         if (listener != null) listener.onChanged(items());
     }

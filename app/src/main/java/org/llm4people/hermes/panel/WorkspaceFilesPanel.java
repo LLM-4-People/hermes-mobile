@@ -147,7 +147,7 @@ final class WorkspaceFilesPanel {
                     () -> loadTree(WorkspacePathGuard.parentDirectory(currentPath)));
         }
         if (tree.entries().isEmpty()) {
-            panel.note(body, panel.t(R.string.brain_files_empty));
+            BrainUi.liveNote(panel, body, panel.t(R.string.brain_files_empty));
             return;
         }
         for (BrainJson.WorkspaceEntry entry : tree.entries()) {
@@ -300,7 +300,7 @@ final class WorkspaceFilesPanel {
             body.addView(viewAll, btnLp);
         }
         if (diff.files().isEmpty()) {
-            panel.note(body, panel.t(R.string.brain_files_no_changes));
+            BrainUi.liveNote(panel, body, panel.t(R.string.brain_files_no_changes));
             return;
         }
         for (BrainJson.DiffFile file : diff.files()) {

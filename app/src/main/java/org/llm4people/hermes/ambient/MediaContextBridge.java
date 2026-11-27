@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 /**
@@ -200,16 +201,20 @@ public final class MediaContextBridge {
         Objects.requireNonNull(track, "track");
         Objects.requireNonNull(action, "action");
         String actionLabel = actionLabel(activity, action);
+        AtomicBoolean settled = new AtomicBoolean(false);
         AlertDialog.Builder builder = new AlertDialog.Builder(activity)
                 .setTitle(R.string.ambient_media_confirm_title)
                 .setMessage(activity.getString(R.string.ambient_media_confirm_body, actionLabel, track.displayTrack()))
                 .setNegativeButton(R.string.ambient_reply_cancel, (d, w) -> {
+                    if (!settled.compareAndSet(false, true)) return;
                     if (onResult != null) onResult.accept(ControlOutcome.CANCELLED);
                 })
                 .setOnCancelListener(d -> {
+                    if (!settled.compareAndSet(false, true)) return;
                     if (onResult != null) onResult.accept(ControlOutcome.CANCELLED);
                 })
                 .setPositiveButton(R.string.ambient_media_confirm_ok, (d, w) -> {
+                    if (!settled.compareAndSet(false, true)) return;
                     boolean allowed = optInEnabled != null && optInEnabled.getAsBoolean();
                     boolean ok = dispatchConfirmedAction(activity, allowed, track.packageName(), action, true);
                     if (onResult != null) onResult.accept(ok ? ControlOutcome.APPLIED : ControlOutcome.FAILED);

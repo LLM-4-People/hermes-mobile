@@ -74,6 +74,7 @@ public final class ProfileHubSheet implements AutoCloseable {
     private Button inviteButton;
     private boolean isAdmin;
     private boolean closed;
+    private boolean offlineAnnounced;
     private final java.util.concurrent.atomic.AtomicBoolean pairingInFlight =
             new java.util.concurrent.atomic.AtomicBoolean();
 
@@ -392,9 +393,14 @@ public final class ProfileHubSheet implements AutoCloseable {
         if (profiles == null || profiles.isEmpty()) {
             TextView offline = Ui.text(activity, activity.getString(R.string.profile_hub_offline_note), 13);
             offline.setTextColor(activity.getColor(R.color.muted));
+            if (!offlineAnnounced) {
+                offline.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+                offlineAnnounced = true;
+            }
             serverSlot.addView(offline);
             return;
         }
+        offlineAnnounced = false;
         for (OnboardingModels.RemoteProfile profile : profiles) {
             serverSlot.addView(buildRemoteProfileCard(profile), topMargin(8));
         }
@@ -494,35 +500,45 @@ public final class ProfileHubSheet implements AutoCloseable {
                 topMargin(6));
 
         dismissChildDialog();
-        childDialog = Ui.secureDialog(new AlertDialog.Builder(activity)
+        AlertDialog dialog = Ui.secureDialog(new AlertDialog.Builder(activity)
                 .setTitle(R.string.profile_hub_edit_title)
                 .setView(scroll)
                 .setNegativeButton(R.string.profile_setup_cancel, null)
-                .setPositiveButton(R.string.profile_save_action, (d, w) -> {
-                    String nextName = nameField.getText().toString().trim();
-                    String nextModel = modelField.getText().toString().trim();
-                    submitIo(() -> {
-                        boolean ok = false;
-                        try {
-                            JSONObject patch = new JSONObject();
-                            if (!nextName.isEmpty()) patch.put("display_name", nextName);
-                            patch.put("preferred_language", lang[0]);
-                            patch.put("default_model", nextModel);
-                            api.updateProfile(profile.slug(), patch);
-                            ok = true;
-                        } catch (Exception err) {
-                            Diagnostics.warning("profile_hub", "update_profile_failed");
-                        }
-                        boolean saved = ok;
-                        main.post(() -> {
-                            if (closed || !canAct.getAsBoolean()) return;
-                            Toast.makeText(activity,
-                                    saved ? R.string.profile_hub_edit_saved : R.string.profile_hub_edit_failed,
-                                    Toast.LENGTH_SHORT).show();
-                            if (saved) refreshRemoteState();
-                        });
+                .setPositiveButton(R.string.profile_save_action, null));
+        childDialog = dialog;
+        Button saveBtn = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+        if (saveBtn != null) {
+            boolean[] submitted = {false};
+            saveBtn.setOnClickListener(v -> {
+                if (submitted[0]) return;
+                submitted[0] = true;
+                saveBtn.setEnabled(false);
+                dialog.dismiss();
+                String nextName = nameField.getText().toString().trim();
+                String nextModel = modelField.getText().toString().trim();
+                submitIo(() -> {
+                    boolean ok = false;
+                    try {
+                        JSONObject patch = new JSONObject();
+                        if (!nextName.isEmpty()) patch.put("display_name", nextName);
+                        patch.put("preferred_language", lang[0]);
+                        patch.put("default_model", nextModel);
+                        api.updateProfile(profile.slug(), patch);
+                        ok = true;
+                    } catch (Exception err) {
+                        Diagnostics.warning("profile_hub", "update_profile_failed");
+                    }
+                    boolean saved = ok;
+                    main.post(() -> {
+                        if (closed || !canAct.getAsBoolean()) return;
+                        Toast.makeText(activity,
+                                saved ? R.string.profile_hub_edit_saved : R.string.profile_hub_edit_failed,
+                                Toast.LENGTH_SHORT).show();
+                        if (saved) refreshRemoteState();
                     });
-                }));
+                });
+            });
+        }
     }
 
     private void showInviteDialog(boolean allowAdminToggle) {

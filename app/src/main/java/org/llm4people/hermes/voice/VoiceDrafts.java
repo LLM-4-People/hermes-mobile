@@ -229,14 +229,20 @@ public final class VoiceDrafts {
         localeHeading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         content.addView(localeHeading);
 
+        boolean[] handled = {false};
         VoiceLocale[] locales = VoiceLocale.values();
         for (int i = 0; i < locales.length; i++) {
             VoiceLocale option = locales[i];
             boolean current = option == selectedLocale;
             String label = activity.getString(option.labelRes);
             Button choice = Ui.choiceChip(activity, label, v -> {
+                if (handled[0]) return;
+                handled[0] = true;
+                v.setEnabled(false);
+                AlertDialog active = optionsDialog;
+                optionsDialog = null;
+                if (active != null) active.dismiss();
                 setLocale(option);
-                if (optionsDialog != null) optionsDialog.dismiss();
             });
             choice.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
             Ui.styleChoiceChip(choice, current);
@@ -259,7 +265,12 @@ public final class VoiceDrafts {
             Button duplexBtn = Ui.tonalButton(activity,
                     activity.getString(duplexActive ? R.string.voice_duplex_stop : R.string.voice_duplex_start),
                     v -> {
-                        if (optionsDialog != null) optionsDialog.dismiss();
+                        if (handled[0]) return;
+                        handled[0] = true;
+                        v.setEnabled(false);
+                        AlertDialog active = optionsDialog;
+                        optionsDialog = null;
+                        if (active != null) active.dismiss();
                         toggleDuplex.run();
                     });
             LinearLayout.LayoutParams dupLp = new LinearLayout.LayoutParams(-1, -2);

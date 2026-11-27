@@ -692,11 +692,11 @@ public final class AppearanceSettingsPanel {
                     List<AppCustomization.ComposerShortcut> existing = store.current().composerShortcuts;
                     AppCustomization.ComposerShortcut created = AppearanceSettingsModel.createShortcut(
                             existing, labelInput.getText().toString(), draftInput.getText().toString());
-                    submitted[0] = true;
-                    applyBtn.setEnabled(false);
                     List<AppCustomization.ComposerShortcut> updated = new ArrayList<>(existing);
                     updated.add(created);
                     applyCustomization(store.current().withComposerShortcuts(updated));
+                    submitted[0] = true;
+                    applyBtn.setEnabled(false);
                     dialog.dismiss();
                 } catch (IllegalArgumentException | IllegalStateException invalid) {
                     Ui.showInlineError(errorView, activity.getString(R.string.appearance_shortcut_invalid));

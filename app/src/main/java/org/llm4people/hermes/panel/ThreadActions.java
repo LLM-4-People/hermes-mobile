@@ -180,11 +180,14 @@ public final class ThreadActions implements Closeable {
         ScrollView scroll = new ScrollView(activity);
         scroll.addView(content);
 
+        boolean[] handled = {false};
         present(new AlertDialog.Builder(activity)
                 .setTitle(R.string.brain_thread_fork)
                 .setView(scroll)
                 .setNegativeButton(R.string.panel_cancel, null)
                 .setPositiveButton(R.string.brain_thread_fork_create, (d, w) -> {
+                    if (handled[0]) return;
+                    handled[0] = true;
                     int checkedId = group.getCheckedRadioButtonId();
                     int index = checkedId > 0 && checkedId <= turns.size() ? checkedId - 1 : turns.size() - 1;
                     ThreadActionModel.TurnChoice chosen = turns.get(index);
@@ -257,11 +260,16 @@ public final class ThreadActions implements Closeable {
                         activity.getString(R.string.brain_thread_export_md),
                         activity.getString(R.string.brain_thread_export_json)
                 };
+                boolean[] handled = {false};
                 present(new AlertDialog.Builder(activity)
                         .setTitle(R.string.brain_thread_export)
                         .setNegativeButton(R.string.panel_cancel, null)
-                        .setItems(labels, (d, which) -> launchExportPicker(sessionId, threadTitle,
-                                which == 1 ? ThreadActionModel.FORMAT_JSON : ThreadActionModel.FORMAT_MARKDOWN)));
+                        .setItems(labels, (d, which) -> {
+                            if (handled[0]) return;
+                            handled[0] = true;
+                            launchExportPicker(sessionId, threadTitle,
+                                    which == 1 ? ThreadActionModel.FORMAT_JSON : ThreadActionModel.FORMAT_MARKDOWN);
+                        }));
             });
         });
     }

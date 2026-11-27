@@ -524,13 +524,17 @@ public final class FirstRunWizard {
                 .setPositiveButton(R.string.onboarding_paste_confirm_action, null));
         Button confirmBtn = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
         if (confirmBtn != null) {
+            boolean[] submitted = {false};
             confirmBtn.setOnClickListener(v -> {
+                if (submitted[0]) return;
                 String raw = input.getText().toString().trim();
                 PairingLinkParser.ParsedInput parsed = PairingLinkParser.parseOrNull(raw);
                 if (parsed == null) {
                     Ui.showInlineError(inlineError, activity.getString(R.string.onboarding_paste_invalid));
                     return;
                 }
+                submitted[0] = true;
+                confirmBtn.setEnabled(false);
                 input.getText().clear();
                 dialog.dismiss();
                 onParsed.accept(parsed);

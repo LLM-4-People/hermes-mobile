@@ -731,12 +731,20 @@ public final class DeviceBridgeFlow {
                 ? defaultReason(activity, request.actionType()) : request.reason();
         String paramPreview = formatParamPreview(activity, request);
         String detailText = paramPreview.isEmpty() ? reasonText : reasonText + "\n\n" + paramPreview;
+        AtomicBoolean actionDispatched = new AtomicBoolean(false);
         AlertDialog.Builder dialog = new AlertDialog.Builder(activity)
                 .setTitle(title(activity, request.actionType()))
                 .setMessage(activity.getString(org.llm4people.hermes.R.string.share_bridge_consent_footer, detailText))
-                .setNegativeButton(org.llm4people.hermes.R.string.share_bridge_deny, (d, w) -> once.finish(Status.DENIED, null))
-                .setOnCancelListener(d -> once.finish(Status.DENIED, null))
+                .setNegativeButton(org.llm4people.hermes.R.string.share_bridge_deny, (d, w) -> {
+                    if (!actionDispatched.compareAndSet(false, true)) return;
+                    once.finish(Status.DENIED, null);
+                })
+                .setOnCancelListener(d -> {
+                    if (!actionDispatched.compareAndSet(false, true)) return;
+                    once.finish(Status.DENIED, null);
+                })
                 .setPositiveButton(org.llm4people.hermes.R.string.share_bridge_allow_once, (d, w) -> {
+                    if (!actionDispatched.compareAndSet(false, true)) return;
                     if (executor == null) {
                         once.finish(Status.UNAVAILABLE, null);
                     } else {

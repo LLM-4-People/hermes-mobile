@@ -224,7 +224,7 @@ public final class ShareWithUserSheet {
             body.addView(Ui.divider(panel.activity));
             panel.section(body, R.string.brain_share_active_section);
             if (grants.isEmpty()) {
-                panel.note(body, panel.t(R.string.brain_share_none_outgoing));
+                BrainUi.liveNote(panel, body, panel.t(R.string.brain_share_none_outgoing));
                 return;
             }
             for (UniversalShareModel.ShareGrant grant : grants) {
@@ -391,7 +391,7 @@ public final class ShareWithUserSheet {
             body.removeAllViews();
             panel.action(body, R.string.panel_refresh, this::load);
             if (grants.isEmpty()) {
-                panel.note(body, panel.t(R.string.brain_shared_with_me_empty));
+                BrainUi.liveNote(panel, body, panel.t(R.string.brain_shared_with_me_empty));
                 return;
             }
             for (UniversalShareModel.ShareGrant grant : grants) {

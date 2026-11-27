@@ -2847,6 +2847,26 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
                         } finally {
                             if (langDialog.isShowing()) langDialog.dismiss();
                         }
+
+                        // R36.5.1: ShareDraftTray uses a visible POLITE liveStatus TextView instead of announceForAccessibility.
+                        org.llm4people.hermes.share.ShareDraftTray tray =
+                                new org.llm4people.hermes.share.ShareDraftTray(activity, null);
+                        Field trayLiveField = org.llm4people.hermes.share.ShareDraftTray.class
+                                .getDeclaredField("liveStatus");
+                        trayLiveField.setAccessible(true);
+                        TextView trayLive = (TextView) trayLiveField.get(tray);
+                        assertNotNull(trayLive);
+                        assertEquals(View.ACCESSIBILITY_LIVE_REGION_POLITE, trayLive.getAccessibilityLiveRegion());
+                        assertEquals(View.VISIBLE, trayLive.getVisibility());
+                        tray.add(new org.llm4people.hermes.camera.CapturedMedia.Item(
+                                org.llm4people.hermes.camera.CapturedMedia.Kind.DOCUMENT,
+                                "report.pdf", "application/pdf", new byte[]{1, 2, 3}, "abc", null), 5);
+                        assertEquals(activity.getString(R.string.share_tray_added, "report.pdf"),
+                                String.valueOf(trayLive.getText()));
+                        tray.clear();
+                        assertEquals(View.VISIBLE, trayLive.getVisibility());
+                        assertEquals(activity.getString(R.string.share_tray_cleared),
+                                String.valueOf(trayLive.getText()));
                     } catch (Exception err) {
                         throw new AssertionError(err);
                     }

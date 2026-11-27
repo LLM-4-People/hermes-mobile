@@ -225,9 +225,9 @@ public final class PairingShareSheet implements AutoCloseable {
                 long nowSec = System.currentTimeMillis() / 1000L;
                 long remaining = Math.max(0L, expiresAt - nowSec);
                 if (remaining <= 0L) {
-                    countdownView.setText(activity.getString(R.string.profile_hub_qr_expired));
                     countdownView.setTextColor(activity.getColor(R.color.danger));
                     pillBg.setColor(activity.getColor(R.color.danger_surface));
+                    Ui.announceLiveStatus(countdownView, activity.getString(R.string.profile_hub_qr_expired));
                     shareBtn.setEnabled(false);
                     copyBtn.setEnabled(false);
                     return;

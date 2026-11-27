@@ -193,5 +193,47 @@ public final class UiPolishR10ContractTest {
         String appLang = read("src/main/java/org/llm4people/hermes/AppLanguage.java");
         assertTrue("AppLanguage.showPicker must guard single-choice click with if (handled[0]) return;",
                 appLang.contains("if (handled[0]) return;"));
+
+        // R36 PR B contracts: ShareDraftTray live region + line_strong, QrScannerActivity contrast + imageDecodePending,
+        // single-dispatch dialog guards & polite live regions across panels/sheets.
+        String shareTray = read("src/main/java/org/llm4people/hermes/share/ShareDraftTray.java");
+        assertFalse("ShareDraftTray must not use deprecated announceForAccessibility",
+                shareTray.contains("announceForAccessibility"));
+        assertTrue(shareTray.contains("Ui.announceLiveStatus(liveStatus, notice)"));
+        assertTrue(shareTray.contains("R.color.line_strong"));
+
+        String qrScanner = read("src/main/java/org/llm4people/hermes/onboarding/QrScannerActivity.java");
+        assertTrue(qrScanner.contains("0xCC182022"));
+        assertTrue(qrScanner.contains("0xB3FFFFFF"));
+        assertTrue(qrScanner.contains("imageDecodePending"));
+
+        String pairingShare = read("src/main/java/org/llm4people/hermes/onboarding/PairingShareSheet.java");
+        assertTrue(pairingShare.contains("Ui.announceLiveStatus(countdownView, activity.getString(R.string.profile_hub_qr_expired))"));
+
+        String wsFiles = read("src/main/java/org/llm4people/hermes/panel/WorkspaceFilesPanel.java");
+        assertTrue(wsFiles.contains("BrainUi.liveNote(panel, body, panel.t(R.string.brain_files_empty))"));
+        assertTrue(wsFiles.contains("BrainUi.liveNote(panel, body, panel.t(R.string.brain_files_no_changes))"));
+
+        String shareSheet = read("src/main/java/org/llm4people/hermes/panel/ShareWithUserSheet.java");
+        assertTrue(shareSheet.contains("BrainUi.liveNote(panel, body, panel.t(R.string.brain_share_none_outgoing))"));
+        assertTrue(shareSheet.contains("BrainUi.liveNote(panel, body, panel.t(R.string.brain_shared_with_me_empty))"));
+
+        String voiceDrafts = read("src/main/java/org/llm4people/hermes/voice/VoiceDrafts.java");
+        assertTrue(voiceDrafts.contains("if (handled[0]) return;"));
+
+        String notifListener = read("src/main/java/org/llm4people/hermes/ambient/HermesNotificationListener.java");
+        assertTrue(notifListener.contains("if (!settled.compareAndSet(false, true)) return;"));
+
+        String mediaBridge = read("src/main/java/org/llm4people/hermes/ambient/MediaContextBridge.java");
+        assertTrue(mediaBridge.contains("if (!settled.compareAndSet(false, true)) return;"));
+
+        String bridgeFlow = read("src/main/java/org/llm4people/hermes/share/DeviceBridgeFlow.java");
+        assertTrue(bridgeFlow.contains("if (!actionDispatched.compareAndSet(false, true)) return;"));
+
+        String firstRun = read("src/main/java/org/llm4people/hermes/profile/FirstRunWizard.java");
+        assertTrue(firstRun.contains("if (submitted[0]) return;"));
+
+        String nearbyConsent = read("src/main/java/org/llm4people/hermes/thread/NearbyConsent.java");
+        assertTrue(nearbyConsent.contains("if (handled[0] || ticket != generation) return;"));
     }
 }

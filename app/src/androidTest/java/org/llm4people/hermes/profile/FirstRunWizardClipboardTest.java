@@ -109,7 +109,7 @@ public final class FirstRunWizardClipboardTest extends InstrumentationTestCase {
                 nextClip.set(null);
                 pasteBtn.performClick();
                 assertEquals(2, clipboardReads.get());
-                AlertDialog manualDialog = dialogRef.getAndSet(null);
+                AlertDialog manualDialog = dialogRef.get();
                 assertNotNull("Empty clipboard tap must open manual paste dialog", manualDialog);
                 assertTrue(manualDialog.isShowing());
                 View dialogRoot = manualDialog.getWindow().getDecorView();
@@ -126,6 +126,7 @@ public final class FirstRunWizardClipboardTest extends InstrumentationTestCase {
                 assertTrue("Invalid paste must show inline error",
                         hasVisibleText(dialogRoot, activity.getString(R.string.onboarding_paste_invalid)));
                 manualDialog.dismiss();
+                dialogRef.set(null);
             });
             getInstrumentation().waitForIdleSync();
             runTestOnUiThread(() -> assertEquals("Dismissing manual dialog must clear sensitive input",
