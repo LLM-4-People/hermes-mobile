@@ -30,10 +30,6 @@ public final class MobilePush {
         PushConnection.WORK.execute(() -> DistributorEnrollment.reconcile(app, true, null));
     }
 
-    public void settings(Account account) {
-        settings(account, null);
-    }
-
     public void settings(Account account, DeliveryRouter.Actions actions) {
         lock();
         PushSettings flow = new PushSettings(activity, account, actions);
@@ -87,6 +83,10 @@ public final class MobilePush {
     }
 
     private View decor() { return activity.getWindow().getDecorView(); }
+
+    public static boolean notificationsAllowed(Context context) {
+        return PushNotices.allowed(context);
+    }
 
     public static boolean isEnabled(Context context, String profileId) {
         DistributorEnrollment.reconcile(context);
@@ -155,10 +155,6 @@ public final class MobilePush {
 
     public static String deliveryPath(String deliveryId) {
         return DeliveryInbox.DELIVERIES_PATH + "/" + HermesApi.segment(deliveryId);
-    }
-
-    public static JSONObject resolve(Account account, Target target) throws IOException {
-        return resolve(account, null, target);
     }
 
     /**

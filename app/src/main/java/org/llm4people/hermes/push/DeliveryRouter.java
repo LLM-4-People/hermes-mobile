@@ -20,6 +20,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.Diagnostics;
+import org.llm4people.hermes.PlainTextSanitizer;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.RouteRegistry;
 import org.llm4people.hermes.Ui;
@@ -436,6 +437,43 @@ public final class DeliveryRouter {
         }
     }
 
+    static final int MAX_CALENDAR_TITLE_CHARS = 120;
+    static final int MAX_CALENDAR_LOCATION_CHARS = 200;
+    static final int MAX_MAP_QUERY_CHARS = 200;
+    static final int MAX_SHARE_TEXT_CHARS = 2000;
+
+    static boolean isValidSingleLineField(String value, int maxChars) {
+        return value != null
+                && !value.isEmpty()
+                && value.length() <= maxChars
+                && !PlainTextSanitizer.hasUnsafeSingleLineCodePoint(value)
+                && PlainTextSanitizer.hasVisibleText(value);
+    }
+
+    static boolean isValidShareText(String value) {
+        if (value == null || value.isEmpty() || value.length() > MAX_SHARE_TEXT_CHARS
+                || !PlainTextSanitizer.hasVisibleText(value)) {
+            return false;
+        }
+        for (int i = 0; i < value.length(); ) {
+            int cp = value.codePointAt(i);
+            i += Character.charCount(cp);
+            if (Character.isISOControl(cp) && cp != '\n' && cp != '\t') return false;
+            if (cp >= Character.MIN_SURROGATE && cp <= Character.MAX_SURROGATE) return false;
+            int type = Character.getType(cp);
+            if (type == Character.LINE_SEPARATOR || type == Character.PARAGRAPH_SEPARATOR) return false;
+            if (PlainTextSanitizer.isStrippableInvisible(cp)) return false;
+            if (type == Character.FORMAT && cp != 0x200C && cp != 0x200D) return false;
+        }
+        return true;
+    }
+
+    static boolean isValidCalendarYear(OffsetDateTime dt) {
+        if (dt == null) return false;
+        int year = dt.getYear();
+        return year >= 1 && year <= 9999;
+    }
+
     static ReviewedAction parseSafeDeviceAction(Context context, JSONObject payload) {
         if (payload == null) return null;
         Context localized = context == null ? null : AppLanguage.wrapContext(context);
@@ -448,11 +486,16 @@ public final class DeliveryRouter {
                 String startRaw = action.optString("start", "").trim();
                 String endRaw = action.optString("end", "").trim();
                 String location = action.optString("location", "").trim();
-                if (title.isEmpty() || startRaw.isEmpty() || endRaw.isEmpty()) yield null;
+                if (!isValidSingleLineField(title, MAX_CALENDAR_TITLE_CHARS)
+                        || startRaw.isEmpty()
+                        || endRaw.isEmpty()
+                        || (!location.isEmpty() && !isValidSingleLineField(location, MAX_CALENDAR_LOCATION_CHARS))) {
+                    yield null;
+                }
                 try {
                     OffsetDateTime start = OffsetDateTime.parse(startRaw);
                     OffsetDateTime end = OffsetDateTime.parse(endRaw);
-                    if (!end.isAfter(start)) yield null;
+                    if (!isValidCalendarYear(start) || !isValidCalendarYear(end) || !end.isAfter(start)) yield null;
                     Intent intent = new Intent(Intent.ACTION_INSERT, CalendarContract.Events.CONTENT_URI)
                             .putExtra(CalendarContract.Events.TITLE, title)
                             .putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, start.toInstant().toEpochMilli())
@@ -477,7 +520,7 @@ public final class DeliveryRouter {
             }
             case "share_text" -> {
                 String text = action.optString("text", "").trim();
-                if (text.isEmpty() || text.length() > 2000) yield null;
+                if (!isValidShareText(text)) yield null;
                 Intent send = new Intent(Intent.ACTION_SEND).setType("text/plain")
                         .putExtra(Intent.EXTRA_TEXT, text);
                 yield new ReviewedAction(
@@ -488,7 +531,7 @@ public final class DeliveryRouter {
             }
             case "map_search" -> {
                 String query = action.optString("query", "").trim();
-                if (query.isEmpty() || query.length() > 200) yield null;
+                if (!isValidSingleLineField(query, MAX_MAP_QUERY_CHARS)) yield null;
                 Intent map = new Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=" + Uri.encode(query)));
                 yield new ReviewedAction(
                         localized == null ? "" : localized.getString(R.string.push_action_map_title),

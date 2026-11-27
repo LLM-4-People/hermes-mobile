@@ -7,6 +7,7 @@ import android.content.pm.PackageManager;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
+import android.os.Bundle;
 import android.os.Looper;
 
 import org.llm4people.hermes.Diagnostics;
@@ -182,19 +183,7 @@ public final class ContinuousLocationTracker {
                 previous = null;
             }
             preciseMode = effectivePrecise;
-            LocationListener listener = new LocationListener() {
-                @Override
-                public void onLocationChanged(Location location) {
-                    if (location == null) return;
-                    recordFromActiveListener(
-                            this,
-                            location.getLatitude(),
-                            location.getLongitude(),
-                            location.hasAccuracy() ? location.getAccuracy() : COARSE_MIN_ACCURACY_M,
-                            location.hasSpeed() ? location.getSpeed() : -1.0f,
-                            System.currentTimeMillis());
-                }
-            };
+            LocationListener listener = createLocationListener();
             boolean subscribed = false;
             subscribed |= tryRegister(manager, LocationManager.PASSIVE_PROVIDER, listener);
             subscribed |= tryRegister(manager, LocationManager.NETWORK_PROVIDER, listener);
@@ -215,6 +204,33 @@ public final class ContinuousLocationTracker {
             Diagnostics.event("presence", "location_started", effectivePrecise ? "precise" : "coarse");
             return true;
         }
+    }
+
+    /** Creates a LocationListener implementing API 28-29 callbacks to prevent AbstractMethodError. */
+    LocationListener createLocationListener() {
+        return new LocationListener() {
+            @Override
+            public void onLocationChanged(Location location) {
+                if (location == null) return;
+                recordFromActiveListener(
+                        this,
+                        location.getLatitude(),
+                        location.getLongitude(),
+                        location.hasAccuracy() ? location.getAccuracy() : COARSE_MIN_ACCURACY_M,
+                        location.hasSpeed() ? location.getSpeed() : -1.0f,
+                        System.currentTimeMillis());
+            }
+
+            @SuppressWarnings("deprecation")
+            @Override
+            public void onStatusChanged(String provider, int status, Bundle extras) {}
+
+            @Override
+            public void onProviderEnabled(String provider) {}
+
+            @Override
+            public void onProviderDisabled(String provider) {}
+        };
     }
 
     /** Records a validated fix in volatile RAM (also usable directly in host-JVM tests). */

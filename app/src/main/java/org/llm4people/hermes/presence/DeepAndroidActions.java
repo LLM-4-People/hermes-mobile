@@ -724,7 +724,7 @@ public final class DeepAndroidActions {
                     return false;
                 }
                 NotificationManager nm = app.getSystemService(NotificationManager.class);
-                if (nm == null) return false;
+                if (nm == null || !nm.areNotificationsEnabled()) return false;
                 Context localized = AppLanguage.wrapContext(app);
                 NotificationChannel channel = new NotificationChannel(
                         NUDGE_CHANNEL_ID,
@@ -732,6 +732,13 @@ public final class DeepAndroidActions {
                         NotificationManager.IMPORTANCE_DEFAULT);
                 channel.setLockscreenVisibility(Notification.VISIBILITY_PRIVATE);
                 nm.createNotificationChannel(channel);
+                NotificationChannel liveChannel = nm.getNotificationChannel(NUDGE_CHANNEL_ID);
+                int channelImportance = liveChannel != null
+                        ? liveChannel.getImportance()
+                        : NotificationManager.IMPORTANCE_DEFAULT;
+                if (channelImportance == NotificationManager.IMPORTANCE_NONE) {
+                    return false;
+                }
                 Notification publicVersion = new Notification.Builder(app, NUDGE_CHANNEL_ID)
                         .setSmallIcon(R.drawable.ic_push_notification)
                         .setContentTitle(localized.getString(R.string.app_name))
@@ -745,10 +752,29 @@ public final class DeepAndroidActions {
                         .setPublicVersion(publicVersion)
                         .setAutoCancel(true)
                         .build();
-                nm.notify((int) (System.currentTimeMillis() & 0x7FFF) + 5100, notification);
-                return true;
+                return postNudgeIfAllowed(
+                        nm.areNotificationsEnabled(),
+                        channelImportance,
+                        () -> nm.notify((int) (System.currentTimeMillis() & 0x7FFF) + 5100, notification));
             }
         };
+    }
+
+    static boolean postNudgeIfAllowed(
+            boolean notificationsEnabled,
+            int channelImportance,
+            Runnable postNotification) {
+        if (!notificationsEnabled || channelImportance == NotificationManager.IMPORTANCE_NONE
+                || postNotification == null) {
+            return false;
+        }
+        try {
+            postNotification.run();
+            return true;
+        } catch (RuntimeException failed) {
+            Diagnostics.warning("deep_action", "nudge_notify_failed");
+            return false;
+        }
     }
 
     private static boolean startSafely(Context app, Intent intent) {

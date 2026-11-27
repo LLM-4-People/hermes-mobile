@@ -46,7 +46,7 @@ public final class ConnectionDoctorPanelTest extends InstrumentationTestCase {
         Context app = getInstrumentation().getTargetContext();
         Activity activity = getInstrumentation().startActivitySync(
                 app.getPackageManager().getLaunchIntentForPackage(app.getPackageName()));
-        ConnectionDoctor doctor = new ConnectionDoctor(healthyProbes());
+        ConnectionDoctor doctor = new ConnectionDoctor(healthyProbes(), org.llm4people.hermes.HermesConfig.defaults());
         ConnectionDoctorPanel panel = new ConnectionDoctorPanel(activity, doctor, null);
         try {
             View[] rootRef = new View[1];
@@ -119,7 +119,7 @@ public final class ConnectionDoctorPanelTest extends InstrumentationTestCase {
             @Override public void openLanguageSettings() { langClicks.incrementAndGet(); }
         };
 
-        ConnectionDoctor doctor = new ConnectionDoctor(degradedProbes());
+        ConnectionDoctor doctor = new ConnectionDoctor(degradedProbes(), org.llm4people.hermes.HermesConfig.defaults());
         ConnectionDoctorPanel panel = new ConnectionDoctorPanel(activity, doctor, fixes);
         try {
             // Verify RouteRegistry registration contract.

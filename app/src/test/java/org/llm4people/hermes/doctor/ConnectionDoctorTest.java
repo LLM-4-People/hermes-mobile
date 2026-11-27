@@ -150,8 +150,9 @@ public final class ConnectionDoctorTest {
         org.llm4people.hermes.net.HermesApi api = new org.llm4people.hermes.net.HermesApi(
                 "https://home.example.com", "secret-token", org.llm4people.hermes.net.HermesApi.Limits.from(org.llm4people.hermes.HermesConfig.defaults()));
         assertFalse(api.isRevoked());
-        ConnectionDoctor.AndroidProbes androidProbes = new ConnectionDoctor.AndroidProbes(null, null, api);
-        try (ConnectionDoctor doctor = new ConnectionDoctor(androidProbes)) {
+        ConnectionDoctor.AndroidProbes androidProbes = new ConnectionDoctor.AndroidProbes(
+                null, null, api, org.llm4people.hermes.HermesConfig.DEFAULT_EXPECTED_FORK_CAPABILITIES);
+        try (ConnectionDoctor doctor = new ConnectionDoctor(androidProbes, org.llm4people.hermes.HermesConfig.defaults())) {
             assertFalse(api.isRevoked());
         }
         assertTrue("ConnectionDoctor.close() must revoke its dedicated HermesApi", api.isRevoked());
@@ -182,7 +183,7 @@ public final class ConnectionDoctorTest {
             }
             @Override public void close() { closedCalls.incrementAndGet(); }
         };
-        try (ConnectionDoctor doctor = new ConnectionDoctor(probes)) {
+        try (ConnectionDoctor doctor = new ConnectionDoctor(probes, org.llm4people.hermes.HermesConfig.defaults())) {
             DoctorCheck.Report report = doctor.runAll();
             DoctorCheck.Item caps = report.find(DoctorCheck.CheckId.CAPABILITIES);
             assertNotNull(caps);
@@ -192,6 +193,44 @@ public final class ConnectionDoctorTest {
             assertTrue(report.toSafeReportText().contains("count=56/56"));
         }
         assertEquals(1, closedCalls.get());
+    }
+
+    @Test
+    public void pushNotificationsAllowedFailsClosedOnNullContextAndClassifiesPushBlocked() {
+        assertFalse("MobilePush.notificationsAllowed(null) must fail closed",
+                org.llm4people.hermes.push.MobilePush.notificationsAllowed(null));
+        ConnectionDoctor.AndroidProbes nullAppProbes = new ConnectionDoctor.AndroidProbes(
+                null, null, null, org.llm4people.hermes.HermesConfig.DEFAULT_EXPECTED_FORK_CAPABILITIES);
+        ConnectionDoctor.PushProbe blockedProbe = nullAppProbes.probePush();
+        assertFalse(blockedProbe.enabled());
+        assertFalse(blockedProbe.notificationsAllowed());
+
+        ConnectionDoctor.Probes probes = new ConnectionDoctor.Probes() {
+            @Override public String rawEndpoint() { return "https://home.example.com"; }
+            @Override public String appVersion() { return "2.1.0"; }
+            @Override public String languageTag() { return "en-US"; }
+            @Override public ConnectionDoctor.ServerProbe probeServer() {
+                return new ConnectionDoctor.ServerProbe(true, false, false, 10L);
+            }
+            @Override public ConnectionDoctor.CapabilitiesProbe probeCapabilities() {
+                return new ConnectionDoctor.CapabilitiesProbe(true, false, 51, 51, true);
+            }
+            @Override public ConnectionDoctor.PushProbe probePush() { return blockedProbe; }
+            @Override public ConnectionDoctor.UpdateProbe probeUpdates() {
+                return new ConnectionDoctor.UpdateProbe("2.1.0", false, "", true);
+            }
+            @Override public ConnectionDoctor.AmbientProbe probeAmbient() {
+                return new ConnectionDoctor.AmbientProbe(true, true);
+            }
+            @Override public ConnectionDoctor.LanguageProbe probeLanguage() {
+                return new ConnectionDoctor.LanguageProbe("en-US", "en-US", true);
+            }
+        };
+        try (ConnectionDoctor doctor = new ConnectionDoctor(probes, org.llm4people.hermes.HermesConfig.defaults())) {
+            DoctorCheck.Item push = doctor.runAll().find(DoctorCheck.CheckId.PUSH);
+            assertNotNull(push);
+            assertEquals(DoctorCheck.DetailCode.PUSH_BLOCKED, push.detailCode());
+        }
     }
 
     @Test
@@ -247,7 +286,7 @@ public final class ConnectionDoctorTest {
             }
         };
 
-        try (ConnectionDoctor doctor = new ConnectionDoctor(probes)) {
+        try (ConnectionDoctor doctor = new ConnectionDoctor(probes, org.llm4people.hermes.HermesConfig.defaults())) {
             DoctorCheck.Report report = doctor.runAll();
             assertEquals(2, concurrentObserved.get());
             assertEquals(DoctorCheck.Status.OK, report.overallStatus());
@@ -291,7 +330,7 @@ public final class ConnectionDoctorTest {
             }
         };
 
-        try (ConnectionDoctor doctor = new ConnectionDoctor(probes)) {
+        try (ConnectionDoctor doctor = new ConnectionDoctor(probes, org.llm4people.hermes.HermesConfig.defaults())) {
             DoctorCheck.Report report = doctor.runAll();
             assertEquals(DoctorCheck.Status.ERROR, report.overallStatus());
             assertEquals(1, report.count(DoctorCheck.Status.ERROR));

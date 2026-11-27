@@ -241,7 +241,9 @@ public final class UniversalDeliveryTest extends InstrumentationTestCase {
                 assertTrue(store.remember(dev.installation, deliveryId, "briefing"));
                 MobilePush.Target target = MobilePush.target(context, PushNotices.tapIntent(context, dev.installation, deliveryId));
                 assertNotNull(target);
-                JSONObject resolved = MobilePush.resolve(profile.account, target);
+                HermesApi resolveApi = new HermesApi(profile.account.endpoint, profile.account.bearer,
+                        HermesApi.Limits.from(org.llm4people.hermes.HermesConfig.defaults()));
+                JSONObject resolved = MobilePush.resolve(profile.account, resolveApi, target);
                 assertEquals("Briefing complet", resolved.getString("title"));
                 assertTrue(singleExchange.observed().startsWith("GET /p/travail/api/mobile/deliveries/" + deliveryId + " HTTP/1.1"));
             } finally {
@@ -258,6 +260,15 @@ public final class UniversalDeliveryTest extends InstrumentationTestCase {
 
         JSONObject validMap = new JSONObject().put("kind", "map_search").put("query", "Montréal");
         assertNotNull(DeliveryRouter.parseSafeDeviceAction(null, validMap));
+
+        // R24.2.2: hostile bidi/control/invisible/overlong device action payloads fail closed.
+        assertNull(DeliveryRouter.parseSafeDeviceAction(null,
+                new JSONObject().put("kind", "share_text").put("text", "Hello \u202E world")));
+        assertNull(DeliveryRouter.parseSafeDeviceAction(null,
+                new JSONObject().put("kind", "map_search").put("query", "\u3164")));
+        assertNull(DeliveryRouter.parseSafeDeviceAction(null,
+                new JSONObject().put("kind", "calendar_event").put("title", "A".repeat(121))
+                        .put("start", "2026-11-27T10:00:00Z").put("end", "2026-11-27T11:00:00Z")));
 
         JSONObject invertedCal = new JSONObject()
                 .put("kind", "calendar_event")

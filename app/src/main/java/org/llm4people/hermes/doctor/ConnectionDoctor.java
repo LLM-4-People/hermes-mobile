@@ -1,6 +1,5 @@
 package org.llm4people.hermes.doctor;
 
-import android.app.NotificationManager;
 import android.content.Context;
 
 import org.json.JSONObject;
@@ -92,10 +91,6 @@ public final class ConnectionDoctor implements AutoCloseable {
     private final long timeoutMs;
     private final long slowLatencyThresholdMs;
     private final int expectedForkCapabilities;
-
-    public ConnectionDoctor(Probes probes) {
-        this(probes, HermesConfig.defaults());
-    }
 
     public ConnectionDoctor(Probes probes, HermesConfig config) {
         HermesConfig cfg = config == null ? HermesConfig.defaults() : config;
@@ -395,10 +390,6 @@ public final class ConnectionDoctor implements AutoCloseable {
         private final HermesApi api;
         private final int expectedForkCapabilities;
 
-        AndroidProbes(Context app, Account account, HermesApi api) {
-            this(app, account, api, HermesConfig.DEFAULT_EXPECTED_FORK_CAPABILITIES);
-        }
-
         AndroidProbes(Context app, Account account, HermesApi api, int expectedForkCapabilities) {
             this.app = app;
             this.account = account;
@@ -456,11 +447,7 @@ public final class ConnectionDoctor implements AutoCloseable {
 
         @Override
         public PushProbe probePush() {
-            boolean notificationsAllowed = true;
-            NotificationManager nm = app.getSystemService(NotificationManager.class);
-            if (nm != null) {
-                notificationsAllowed = nm.areNotificationsEnabled();
-            }
+            boolean notificationsAllowed = MobilePush.notificationsAllowed(app);
             boolean enabled = account != null && MobilePush.isEnabled(app, account.id);
             return new PushProbe(enabled, notificationsAllowed);
         }
