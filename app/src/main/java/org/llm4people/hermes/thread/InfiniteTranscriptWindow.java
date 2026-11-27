@@ -53,10 +53,6 @@ public final class InfiniteTranscriptWindow<T> {
 
     /** Standard JSON wire adapter compatible with Hermes Mobile's {@link ThreadData} message objects. */
     public static InfiniteTranscriptWindow<JSONObject> forJson() {
-        return forJson(MAX_WINDOW_ROWS);
-    }
-
-    public static InfiniteTranscriptWindow<JSONObject> forJson(int maxWindowRows) {
         return new InfiniteTranscriptWindow<>(new RowIdentity<>() {
             @Override public String stableKey(JSONObject row) {
                 if (row == null) return null;
@@ -67,7 +63,7 @@ public final class InfiniteTranscriptWindow<T> {
             @Override public Long numericId(JSONObject row) {
                 return parsePositiveLong(row == null ? null : row.opt("id"));
             }
-        }, maxWindowRows);
+        }, MAX_WINDOW_ROWS);
     }
 
     public static Long parsePositiveLong(Object raw) {

@@ -56,7 +56,7 @@ public final class DeliveryItemTest {
                 null,
                 0L);
         assertFalse(item.isAcknowledged());
-        assertEquals(org.llm4people.hermes.R.string.push_kind_briefing_action, item.primaryActionRes());
+        assertEquals(org.llm4people.hermes.R.string.push_kind_briefing_action, item.kind.primaryActionRes);
 
         DeliveryItem acked = item.withAcknowledged(1700000099L);
         assertFalse(item.isAcknowledged());

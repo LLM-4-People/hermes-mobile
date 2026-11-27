@@ -3,6 +3,7 @@ package org.llm4people.hermes.artifact;
 import android.content.Context;
 import android.test.InstrumentationTestCase;
 import org.llm4people.hermes.R;
+import java.util.ArrayList;
 import java.util.List;
 
 @SuppressWarnings("deprecation")
@@ -26,10 +27,16 @@ public final class InstrumentComparisonTest extends InstrumentationTestCase {
                 {"version":1,"surface":"page/revue","mode":"replace","title":"Revue","blocks":[%s]}""", blocks));
     }
 
+    private static List<InstrumentChanges.Change> changesBetween(Context c, WorkspaceLayout old, WorkspaceLayout next) {
+        List<InstrumentChanges.Change> out = new ArrayList<>();
+        for (InstrumentChanges.Detail detail : InstrumentChanges.details(c, old, next)) out.add(detail.change());
+        return out;
+    }
+
     public void testWireFormattingAndExplicitDefaultsProduceNoSemanticChanges() throws Exception {
         WorkspaceLayout before = page(form(FIELD));
         WorkspaceLayout after = page(form("{\"required\":true, \"kind\":\"text\", \"id\":\"file\", \"label\":\"Fichier\"}"));
-        assertTrue(InstrumentChanges.between(ctx(), before, after).isEmpty());
+        assertTrue(changesBetween(ctx(), before, after).isEmpty());
     }
 
     public void testChangesExplainPromptInputsAndActionsWithoutFalseReorders() throws Exception {
@@ -37,7 +44,7 @@ public final class InstrumentComparisonTest extends InstrumentationTestCase {
         WorkspaceLayout before = page(form(FIELD) + "," + SECTION);
         WorkspaceLayout after = page(form(CHOICE + "," + FIELD.replace("Fichier","Chemin"))
                 .replace("Relire le fichier.", "Relire le module.") + "," + SECTION.replace("stats", "models"));
-        List<InstrumentChanges.Change> changes = InstrumentChanges.between(c, before, after);
+        List<InstrumentChanges.Change> changes = changesBetween(c, before, after);
         String optChoice = s(R.string.ws_diff_optional_suffix, s(R.string.ws_diff_kind_choice));
         String reqText = s(R.string.ws_diff_required_suffix, s(R.string.ws_diff_kind_text));
         assertEquals(5, changes.size());
@@ -57,14 +64,14 @@ public final class InstrumentComparisonTest extends InstrumentationTestCase {
         Context c = ctx();
         WorkspaceLayout old = page(SECTION + "," + form(FIELD + "," + CHOICE));
         WorkspaceLayout reordered = page(form(CHOICE + "," + FIELD) + "," + SECTION);
-        List<InstrumentChanges.Change> order = InstrumentChanges.between(c, old, reordered);
+        List<InstrumentChanges.Change> order = changesBetween(c, old, reordered);
         assertEquals(2, order.size());
         assertTrue(order.contains(new InstrumentChanges.Change("", s(R.string.ws_diff_section_order),
                 "Outils\nRelecture", "Relecture\nOutils")));
         assertTrue(order.contains(new InstrumentChanges.Change("Relecture", s(R.string.ws_diff_field_order),
                 "Fichier\nPriorité", "Priorité\nFichier")));
         WorkspaceLayout renamed = page(SECTION + "," + form(FIELD).replace("Relecture","Inspection"));
-        List<InstrumentChanges.Change> rename = InstrumentChanges.between(c, old, renamed);
+        List<InstrumentChanges.Change> rename = changesBetween(c, old, renamed);
         assertEquals(2, rename.size());
         assertEquals(s(R.string.ws_diff_section_title), rename.get(0).label());
         assertEquals(s(R.string.ws_diff_field_removed), rename.get(1).label());
@@ -74,7 +81,7 @@ public final class InstrumentComparisonTest extends InstrumentationTestCase {
         Context c = ctx();
         String apple = "{\"title\":\"Rubrique\",\"note\":\"Pomme\"}";
         String pear = apple.replace("Pomme", "Poire");
-        List<InstrumentChanges.Change> changes = InstrumentChanges.between(c, page(apple + "," + pear),
+        List<InstrumentChanges.Change> changes = changesBetween(c, page(apple + "," + pear),
                 page(pear + "," + apple));
         assertEquals(1, changes.size());
         assertEquals(s(R.string.ws_diff_section_order), changes.get(0).label());
@@ -88,15 +95,15 @@ public final class InstrumentComparisonTest extends InstrumentationTestCase {
         String second = first.replace("Avant", "Après");
         String action = ",\"actions\":[\"artifacts\"]}";
         WorkspaceLayout old = page(first + "," + second);
-        List<InstrumentChanges.Change> early = InstrumentChanges.between(c, old, page(first.replace("}", action) + "," + second));
-        List<InstrumentChanges.Change> late = InstrumentChanges.between(c, old, page(first + "," + second.replace("}", action)));
+        List<InstrumentChanges.Change> early = changesBetween(c, old, page(first.replace("}", action) + "," + second));
+        List<InstrumentChanges.Change> late = changesBetween(c, old, page(first + "," + second.replace("}", action)));
         assertEquals(List.of(new InstrumentChanges.Change("Contrôle · Avant livraison", s(R.string.ws_diff_action_added),
                 null, s(R.string.ws_action_artifacts))), early);
         assertEquals(List.of(new InstrumentChanges.Change("Contrôle · Après livraison", s(R.string.ws_diff_action_added),
                 null, s(R.string.ws_action_artifacts))), late);
 
         // The proposed title can become unique while the original title was ambiguous.
-        List<InstrumentChanges.Change> rename = InstrumentChanges.between(c, old, page(first + "," + second.replace("Contrôle", "Vérification")));
+        List<InstrumentChanges.Change> rename = changesBetween(c, old, page(first + "," + second.replace("Contrôle", "Vérification")));
         assertEquals(s(R.string.ws_diff_section_renamed, "Contrôle · Après livraison", "Vérification"),
                 rename.get(0).section());
     }
@@ -108,7 +115,7 @@ public final class InstrumentComparisonTest extends InstrumentationTestCase {
         String multiKind = s(R.string.ws_diff_kind_multiline);
         for (String kind : new String[]{"text", "multiline"}) {
             String b = a.replace("file", "objet").replace("\"text\"", "\"" + kind + "\"");
-            List<InstrumentChanges.Change> changes = InstrumentChanges.between(c, page(form(a + "," + b)),
+            List<InstrumentChanges.Change> changes = changesBetween(c, page(form(a + "," + b)),
                     page(form(b + "," + a)));
             assertEquals(1, changes.size());
             InstrumentChanges.Change change = changes.get(0);
@@ -125,8 +132,8 @@ public final class InstrumentComparisonTest extends InstrumentationTestCase {
         String b = a.replace("contrainte_a", "contrainte-a");
         String optional = ",\"required\":false}";
         WorkspaceLayout both = page(form(a + "," + b));
-        List<InstrumentChanges.Change> editA = InstrumentChanges.between(c, both, page(form(a.replace("}", optional) + "," + b)));
-        List<InstrumentChanges.Change> editB = InstrumentChanges.between(c, both, page(form(a + "," + b.replace("}", optional))));
+        List<InstrumentChanges.Change> editA = changesBetween(c, both, page(form(a.replace("}", optional) + "," + b)));
+        List<InstrumentChanges.Change> editB = changesBetween(c, both, page(form(a + "," + b.replace("}", optional))));
         assertEquals(1, editA.size());
         assertEquals(1, editB.size());
         assertTrue(editA.get(0).before().contains("(contrainte_a)"));
@@ -136,8 +143,8 @@ public final class InstrumentComparisonTest extends InstrumentationTestCase {
 
         // Introducing or losing a name collision doesn't change the surviving field's definition.
         WorkspaceLayout justA = page(form(a));
-        List<InstrumentChanges.Change> added = InstrumentChanges.between(c, justA, both);
-        List<InstrumentChanges.Change> removed = InstrumentChanges.between(c, both, justA);
+        List<InstrumentChanges.Change> added = changesBetween(c, justA, both);
+        List<InstrumentChanges.Change> removed = changesBetween(c, both, justA);
         assertEquals(1, added.size());
         assertEquals(1, removed.size());
         assertTrue(added.get(0).after().contains("(contrainte-a)"));
@@ -149,7 +156,7 @@ public final class InstrumentComparisonTest extends InstrumentationTestCase {
         String a = FIELD.replace("Fichier", "Même");
         String b = a.replace("file", "duplicat");
         String cField = FIELD.replace("file", "autre").replace("Fichier", "Même · " + s(R.string.ws_diff_kind_text) + " (file)");
-        List<InstrumentChanges.Change> changes = InstrumentChanges.between(c, page(form(a + "," + b + "," + cField)),
+        List<InstrumentChanges.Change> changes = changesBetween(c, page(form(a + "," + b + "," + cField)),
                 page(form(cField + "," + b + "," + a)));
         assertEquals(1, changes.size());
         assertFalse(changes.get(0).before().equals(changes.get(0).after()));
@@ -162,12 +169,12 @@ public final class InstrumentComparisonTest extends InstrumentationTestCase {
         WorkspaceLayout added = page(SECTION.replace("\"actions\"", "\"note\":\"" + note + "\",\"actions\""));
         WorkspaceLayout edited = page(SECTION.replace("\"actions\"", "\"note\":\"Confirmé\",\"actions\""));
         assertEquals(List.of(new InstrumentChanges.Change("Outils", s(R.string.ws_diff_text_added), null, note)),
-                InstrumentChanges.between(c, blank, added));
+                changesBetween(c, blank, added));
         assertEquals(List.of(new InstrumentChanges.Change("Outils", s(R.string.ws_diff_text_removed), note, null)),
-                InstrumentChanges.between(c, added, blank));
+                changesBetween(c, added, blank));
         assertEquals(List.of(new InstrumentChanges.Change("Outils", s(R.string.ws_diff_text), note, "Confirmé")),
-                InstrumentChanges.between(c, added, edited));
-        assertTrue(InstrumentChanges.between(c, blank, blank).isEmpty());
+                changesBetween(c, added, edited));
+        assertTrue(changesBetween(c, blank, blank).isEmpty());
     }
 
     public void testFieldComparisonKeepsOptionBoundariesAndSideIdentityForRendering() throws Exception {
@@ -186,7 +193,7 @@ public final class InstrumentComparisonTest extends InstrumentationTestCase {
         assertEquals(addition.afterField(), removal.beforeField());
         assertEquals(removal.beforeField(), revision.beforeField());
         assertEquals(List.of("Normale", "Aujourd’hui · urgent"), revision.afterField().options());
-        assertEquals(InstrumentChanges.between(c, added, edited).get(0), revision.change());
+        assertEquals(changesBetween(c, added, edited).get(0), revision.change());
     }
 
     public void testOnlyChoiceMeaningOrBindingChanged() throws Exception {
@@ -195,7 +202,7 @@ public final class InstrumentComparisonTest extends InstrumentationTestCase {
         WorkspaceLayout old = page(value + "," + form(CHOICE));
         WorkspaceLayout next = page(value.replace("thread.title", "profile.label") + ","
                 + form(CHOICE.replace("Haute", "Urgente").replace("false", "true")));
-        List<InstrumentChanges.Change> diff = InstrumentChanges.between(c, old, next);
+        List<InstrumentChanges.Change> diff = changesBetween(c, old, next);
         assertEquals(2, diff.size());
         assertEquals(s(R.string.ws_source_thread_title), diff.get(0).before());
         assertEquals(s(R.string.ws_source_profile_label), diff.get(0).after());

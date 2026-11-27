@@ -33,7 +33,7 @@ public final class AppPerformanceTest {
         for (int i = 0; i < 1_000; i++) {
             String token = (i % 10 == 0) ? ("\nLigne " + i + ": ") : ("mot" + i + " ");
             expected.append(token);
-            coalescer.offerDelta(token, now);
+            coalescer.offer(expected.toString(), now);
             now += 2L; // 500 tokens/sec fast stream over 2,000 ms
         }
         assertTrue("Expected pending tail before final flush", coalescer.hasPending());

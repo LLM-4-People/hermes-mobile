@@ -157,4 +157,34 @@ public final class PlainTextSanitizerTest {
         assertEquals("", PlainTextSanitizer.collapseBounded("\u3164".repeat(305), 300));
         assertEquals("", PlainTextSanitizer.collapseBounded("\uFE0F".repeat(305), 300));
     }
+
+    @Test
+    public void safeDisplayAndMultilineValidatorsAgreeOnBidiFillersCgjAndLegitimateEmoji() {
+        assertTrue(PlainTextSanitizer.isSafeDisplayCodePoint('A'));
+        assertTrue(PlainTextSanitizer.isSafeDisplayCodePoint('é'));
+        assertTrue(PlainTextSanitizer.isSafeDisplayCodePoint(0x200D)); // ZWJ for emoji sequences
+        assertTrue(PlainTextSanitizer.isSafeDisplayCodePoint(0xFE0F)); // Emoji VS-16
+        assertTrue(PlainTextSanitizer.isSafeDisplayCodePoint(0x1F600)); // 😀
+        assertFalse(PlainTextSanitizer.isSafeDisplayCodePoint('\n'));
+        assertFalse(PlainTextSanitizer.isSafeDisplayCodePoint('\u0000'));
+        assertFalse(PlainTextSanitizer.isSafeDisplayCodePoint(0x202E)); // RLO BiDi override
+        assertFalse(PlainTextSanitizer.isSafeDisplayCodePoint(0x2066)); // LRI BiDi isolate
+        assertFalse(PlainTextSanitizer.isSafeDisplayCodePoint(0x2028)); // Line separator
+        assertFalse(PlainTextSanitizer.isSafeDisplayCodePoint(0x2029)); // Paragraph separator
+        assertFalse(PlainTextSanitizer.isSafeDisplayCodePoint(0x3164)); // Hangul filler
+        assertFalse(PlainTextSanitizer.isSafeDisplayCodePoint(0x034F)); // CGJ
+        assertFalse(PlainTextSanitizer.isSafeDisplayCodePoint(0xD83D)); // Unpaired surrogate
+
+        assertFalse(PlainTextSanitizer.hasUnsafeMultilineCodePoint(null, true));
+        assertFalse(PlainTextSanitizer.hasUnsafeMultilineCodePoint("Ligne 1\nLigne 2\tOK ☕\uFE0F 👨‍👩‍👧‍👦", true));
+        assertTrue(PlainTextSanitizer.hasUnsafeMultilineCodePoint("Ligne 1\tTab", false));
+        assertFalse(PlainTextSanitizer.hasUnsafeMultilineCodePoint("Ligne 1\nLigne 2\nOK", false));
+        assertTrue(PlainTextSanitizer.hasUnsafeMultilineCodePoint("Ligne 1\r\nOK", false));
+        assertTrue(PlainTextSanitizer.hasUnsafeMultilineCodePoint("a\u202Eb", true));
+        assertTrue(PlainTextSanitizer.hasUnsafeMultilineCodePoint("a\u2066b", true));
+        assertTrue(PlainTextSanitizer.hasUnsafeMultilineCodePoint("a\u3164b", true));
+        assertTrue(PlainTextSanitizer.hasUnsafeMultilineCodePoint("a\u034Fb", true));
+        assertTrue(PlainTextSanitizer.hasUnsafeMultilineCodePoint("a\u2028b", true));
+        assertTrue(PlainTextSanitizer.hasUnsafeMultilineCodePoint("a\uD83Db", true));
+    }
 }

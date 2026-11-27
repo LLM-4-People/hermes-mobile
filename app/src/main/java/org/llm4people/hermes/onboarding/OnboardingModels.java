@@ -104,12 +104,9 @@ public final class OnboardingModels {
         public JSONObject toPatchJson() {
             JSONObject obj = new JSONObject();
             try {
-                obj.put("default_language", defaultLanguage);
-                obj.put("default_model", defaultModel);
-                obj.put("max_concurrent_runs", maxConcurrentRuns);
-                obj.put("per_profile_concurrent_limit", perProfileConcurrentLimit);
-                obj.put("pairing_ttl_seconds", pairingTtlSeconds);
-                obj.put("allow_self_device_pairing", allowSelfDevicePairing);
+                for (Map.Entry<String, Object> entry : toPatchMap().entrySet()) {
+                    obj.put(entry.getKey(), entry.getValue());
+                }
             } catch (org.json.JSONException impossible) {
                 throw new IllegalStateException(impossible);
             }

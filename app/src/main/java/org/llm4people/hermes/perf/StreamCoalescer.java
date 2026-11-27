@@ -16,7 +16,6 @@ public final class StreamCoalescer {
 
     private final long frameBudgetMs;
     private final Consumer<String> sink;
-    private final StringBuilder accumulated = new StringBuilder();
     private String pending;
     private String lastFlushed;
     private long lastFlushMs = Long.MIN_VALUE;
@@ -62,16 +61,6 @@ public final class StreamCoalescer {
         return false;
     }
 
-    /**
-     * Append an incremental token delta to the internal buffer and offer the updated snapshot.
-     * Preserves every character in order across arbitrarily fast bursts.
-     */
-    public boolean offerDelta(String delta, long nowMs) {
-        if (delta == null || delta.isEmpty()) return false;
-        accumulated.append(delta);
-        return offer(accumulated.toString(), nowMs);
-    }
-
     /** Remaining milliseconds until a pending update becomes due, or 0 if already due / nothing pending. */
     public long pendingDelayMs(long nowMs) {
         if (pending == null || lastFlushMs == Long.MIN_VALUE) return 0L;
@@ -91,7 +80,6 @@ public final class StreamCoalescer {
 
     /** Clear buffered state between runs. */
     public void reset() {
-        accumulated.setLength(0);
         pending = null;
         lastFlushed = null;
         lastFlushMs = Long.MIN_VALUE;

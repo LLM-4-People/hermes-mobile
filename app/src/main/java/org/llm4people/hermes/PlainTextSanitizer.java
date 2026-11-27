@@ -137,6 +137,36 @@ public final class PlainTextSanitizer {
         return false;
     }
 
+    /**
+     * True when {@code cp} is safe in display text (rejects ISO controls, unpaired surrogates,
+     * Unicode line/paragraph separators, standalone strippable invisibles, and format controls
+     * other than ZWNJ {@code U+200C} and ZWJ {@code U+200D}).
+     */
+    public static boolean isSafeDisplayCodePoint(int cp) {
+        int type = Character.getType(cp);
+        return !Character.isISOControl(cp)
+                && type != Character.SURROGATE
+                && type != Character.LINE_SEPARATOR
+                && type != Character.PARAGRAPH_SEPARATOR
+                && !isStrippableInvisible(cp)
+                && (type != Character.FORMAT || cp == 0x200C || cp == 0x200D);
+    }
+
+    /**
+     * True when {@code raw} contains any code point unsafe for multiline display text
+     * (permits {@code '\n'}, and {@code '\t'} when {@code allowTab} is true).
+     */
+    public static boolean hasUnsafeMultilineCodePoint(String raw, boolean allowTab) {
+        if (raw == null || raw.isEmpty()) return false;
+        for (int i = 0; i < raw.length(); ) {
+            int cp = raw.codePointAt(i);
+            i += Character.charCount(cp);
+            if (cp == '\n' || (allowTab && cp == '\t')) continue;
+            if (!isSafeDisplayCodePoint(cp)) return true;
+        }
+        return false;
+    }
+
     /** True when {@code raw} contains any ISO control, format, unpaired surrogate, line/paragraph separator, or standalone strippable invisible code point. */
     public static boolean hasUnsafeSingleLineCodePoint(String raw) {
         if (raw == null || raw.isEmpty()) return false;

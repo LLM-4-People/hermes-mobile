@@ -9,8 +9,6 @@ import java.util.Queue;
  * Coordinates continuous listen -> send -> sentence-streaming offline TTS -> instant barge-in.
  */
 public final class DuplexVoiceSession {
-    public static final float BARGE_IN_RMS_DB = 6.5f;
-    static final int BARGE_IN_CONSECUTIVE_FRAMES = 2;
     static final int MAX_CONSECUTIVE_SILENCE = 2;
 
     public enum State { OFF, LISTENING, THINKING, SPEAKING }
@@ -32,7 +30,6 @@ public final class DuplexVoiceSession {
     private boolean speakingSentence;
     private boolean replyFinished;
     private boolean bargeInBlocked;
-    private int loudFrames;
     private int consecutiveSilence;
 
     public DuplexVoiceSession(Callbacks callbacks) {
@@ -70,7 +67,6 @@ public final class DuplexVoiceSession {
         sentenceStream.reset();
         speakingSentence = false;
         replyFinished = false;
-        loudFrames = 0;
         consecutiveSilence = 0;
         state = State.OFF;
         callbacks.stopListening();
@@ -91,7 +87,6 @@ public final class DuplexVoiceSession {
         speechQueue.clear();
         speakingSentence = false;
         replyFinished = false;
-        loudFrames = 0;
         ++generation;
         state = State.THINKING;
         callbacks.stateChanged(State.THINKING);
@@ -158,28 +153,9 @@ public final class DuplexVoiceSession {
         sentenceStream.reset();
         speakingSentence = false;
         replyFinished = false;
-        loudFrames = 0;
         consecutiveSilence = 0;
         callbacks.stopSpeaking();
         enterListening();
-    }
-
-    /** Optional energy-based barge-in trigger while Hermes is speaking. */
-    public boolean onRmsDuringSpeech(float rmsdB) {
-        if (state != State.SPEAKING || bargeInBlocked) {
-            loudFrames = 0;
-            return false;
-        }
-        if (!Float.isNaN(rmsdB) && !Float.isInfinite(rmsdB) && rmsdB >= BARGE_IN_RMS_DB) {
-            loudFrames++;
-            if (loudFrames >= BARGE_IN_CONSECUTIVE_FRAMES) {
-                bargeIn();
-                return true;
-            }
-        } else {
-            loudFrames = 0;
-        }
-        return false;
     }
 
     private void enqueueSentences(List<String> sentences) {
@@ -192,7 +168,6 @@ public final class DuplexVoiceSession {
         if (!speechQueue.isEmpty()) {
             if (state != State.SPEAKING) {
                 state = State.SPEAKING;
-                loudFrames = 0;
                 callbacks.stateChanged(State.SPEAKING);
             }
             if (!speakingSentence) pumpSpeech();
@@ -209,7 +184,6 @@ public final class DuplexVoiceSession {
     private void enterListening() {
         int nextGen = ++generation;
         state = State.LISTENING;
-        loudFrames = 0;
         callbacks.stateChanged(State.LISTENING);
         callbacks.startListening(nextGen);
     }

@@ -42,12 +42,14 @@ import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 
 import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.Diagnostics;
 import org.llm4people.hermes.R;
 import org.llm4people.hermes.Ui;
+import org.llm4people.hermes.artifact.ThemePalette;
 import org.llm4people.hermes.os.PermissionCenter;
 import org.llm4people.hermes.settings.AppThemeMode;
 
@@ -208,6 +210,7 @@ public final class QrScannerActivity extends Activity {
     private FrameLayout previewContainer;
     private SurfaceView previewView;
     private ViewfinderOverlay overlayView;
+    private ScrollView fallbackScroll;
     private LinearLayout fallbackCard;
     private TextView fallbackTitle;
     private TextView fallbackDetail;
@@ -301,7 +304,7 @@ public final class QrScannerActivity extends Activity {
         root.addView(previewContainer, new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
 
-        overlayView = new ViewfinderOverlay(this, getColor(R.color.accent));
+        overlayView = new ViewfinderOverlay(this, viewfinderAccentColor(getColor(R.color.accent)));
         root.addView(overlayView, new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
 
@@ -341,7 +344,6 @@ public final class QrScannerActivity extends Activity {
         cardBg.setColor(getColor(R.color.surface));
         cardBg.setStroke(Math.max(1, Ui.dp(this, 1)), getColor(R.color.line));
         fallbackCard.setBackground(cardBg);
-        fallbackCard.setVisibility(View.GONE);
 
         fallbackTitle = Ui.text(this, getString(R.string.qr_scanner_permission_title), 17);
         fallbackTitle.setTypeface(Ui.mediumTypeface());
@@ -374,12 +376,23 @@ public final class QrScannerActivity extends Activity {
         cancelLp.topMargin = Ui.dp(this, 8);
         fallbackCard.addView(fallbackCancelBtn, cancelLp);
 
+        fallbackScroll = new ScrollView(this);
+        fallbackScroll.setFillViewport(false);
+        fallbackScroll.setOverScrollMode(View.OVER_SCROLL_IF_CONTENT_SCROLLS);
+        fallbackScroll.setVisibility(View.GONE);
+        fallbackScroll.addView(fallbackCard, new ScrollView.LayoutParams(
+                ScrollView.LayoutParams.MATCH_PARENT, ScrollView.LayoutParams.WRAP_CONTENT));
+
         FrameLayout.LayoutParams fallbackLp = new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.CENTER);
         int sideMargin = Ui.dp(this, 24);
+        int fallbackTopClearance = Ui.dp(this, 68);
+        int fallbackBottomClearance = Ui.dp(this, 16);
         fallbackLp.leftMargin = sideMargin;
         fallbackLp.rightMargin = sideMargin;
-        root.addView(fallbackCard, fallbackLp);
+        fallbackLp.topMargin = fallbackTopClearance;
+        fallbackLp.bottomMargin = fallbackBottomClearance;
+        root.addView(fallbackScroll, fallbackLp);
 
         // Bottom guidance & 1-tap "Choose QR image" action
         bottomBar = Ui.column(this);
@@ -429,6 +442,12 @@ public final class QrScannerActivity extends Activity {
                     Ui.dp(this, 14),
                     Ui.dp(this, 20) + rightInset,
                     Ui.dp(this, 18) + bottomInset);
+            FrameLayout.LayoutParams fbLp = (FrameLayout.LayoutParams) fallbackScroll.getLayoutParams();
+            fbLp.leftMargin = sideMargin + leftInset;
+            fbLp.rightMargin = sideMargin + rightInset;
+            fbLp.topMargin = topInset + fallbackTopClearance;
+            fbLp.bottomMargin = bottomInset + fallbackBottomClearance;
+            fallbackScroll.setLayoutParams(fbLp);
             return insets;
         });
 
@@ -1168,8 +1187,13 @@ public final class QrScannerActivity extends Activity {
         }
     }
 
+    /** Adapts the accent color for the always-dark camera viewport background (#0E1112). */
+    static int viewfinderAccentColor(int rawAccent) {
+        return ThemePalette.adaptAccentForMode(rawAccent, true);
+    }
+
     private void setFallbackDetail(int detailRes) {
-        applyFallbackDetail(fallbackDetail, fallbackCard, getString(detailRes));
+        applyFallbackDetail(fallbackDetail, fallbackScroll, getString(detailRes));
     }
 
     private void showFallback(int titleRes, int detailRes, boolean permissionRecovery) {
@@ -1187,14 +1211,14 @@ public final class QrScannerActivity extends Activity {
                 fallbackPermBtn.setVisibility(View.GONE);
             }
         }
-        fallbackCard.setVisibility(View.VISIBLE);
+        fallbackScroll.setVisibility(View.VISIBLE);
         overlayView.setVisibility(View.GONE);
         bottomBar.setVisibility(View.GONE);
         torchButton.setVisibility(View.GONE);
     }
 
     private void hideFallback() {
-        fallbackCard.setVisibility(View.GONE);
+        fallbackScroll.setVisibility(View.GONE);
         overlayView.setVisibility(View.VISIBLE);
         bottomBar.setVisibility(View.VISIBLE);
     }

@@ -183,10 +183,6 @@ public final class DeliveryItem {
         return ackedAtEpochSec > 0L;
     }
 
-    public int primaryActionRes() {
-        return kind.primaryActionRes;
-    }
-
     public String primaryActionLabel(Context context) {
         return kind.primaryAction(context);
     }

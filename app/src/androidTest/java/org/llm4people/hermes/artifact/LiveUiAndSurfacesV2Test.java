@@ -473,35 +473,35 @@ public final class LiveUiAndSurfacesV2Test extends InstrumentationTestCase {
     public void testInstrumentChangesDetectsAllV2BlockAndThemeDifferences() throws Exception {
         Context context = getInstrumentation().getTargetContext();
         WorkspaceLayout base = WorkspaceLayout.parse(V2_DASHBOARD);
-        assertTrue(InstrumentChanges.between(context, base, base).isEmpty());
+        assertTrue(InstrumentChanges.details(context, base, base).isEmpty());
 
         // Accent & surface_style diff
         WorkspaceLayout themed = WorkspaceLayout.parse(
                 V2_DASHBOARD.replace("#1B4D89", "#225C50").replace("\"outlined\"", "\"tinted\""));
-        assertFalse(InstrumentChanges.between(context, base, themed).isEmpty());
+        assertFalse(InstrumentChanges.details(context, base, themed).isEmpty());
 
         // Metric grid diff
         WorkspaceLayout metricChanged = WorkspaceLayout.parse(V2_DASHBOARD.replace("\"12\"", "\"18\""));
-        assertFalse(InstrumentChanges.between(context, base, metricChanged).isEmpty());
+        assertFalse(InstrumentChanges.details(context, base, metricChanged).isEmpty());
 
         // Sparkline diff
         WorkspaceLayout sparkChanged = WorkspaceLayout.parse(V2_DASHBOARD.replace("[4, 7, 9, 12]", "[4, 7, 9, 20]"));
-        assertFalse(InstrumentChanges.between(context, base, sparkChanged).isEmpty());
+        assertFalse(InstrumentChanges.details(context, base, sparkChanged).isEmpty());
 
         // Table diff
         WorkspaceLayout tableChanged = WorkspaceLayout.parse(V2_DASHBOARD.replace("\"Courses\"", "\"Achats\""));
-        assertFalse(InstrumentChanges.between(context, base, tableChanged).isEmpty());
+        assertFalse(InstrumentChanges.details(context, base, tableChanged).isEmpty());
 
         // Controls diff
         WorkspaceLayout controlsChanged = WorkspaceLayout.parse(V2_DASHBOARD.replace("\"default\": 45", "\"default\": 60"));
-        assertFalse(InstrumentChanges.between(context, base, controlsChanged).isEmpty());
+        assertFalse(InstrumentChanges.details(context, base, controlsChanged).isEmpty());
 
         // Nearby places category / radius / limit diff
         WorkspaceLayout nearbyA = WorkspaceLayout.parse(
                 "{\"version\":2,\"surface\":\"page/lieux\",\"mode\":\"replace\",\"title\":\"Lieux\",\"blocks\":[{\"type\":\"nearby_places\",\"category\":\"cafe\",\"radius_m\":1500,\"limit\":12}]}");
         WorkspaceLayout nearbyB = WorkspaceLayout.parse(
                 "{\"version\":2,\"surface\":\"page/lieux\",\"mode\":\"replace\",\"title\":\"Lieux\",\"blocks\":[{\"type\":\"nearby_places\",\"category\":\"cafe\",\"radius_m\":3000,\"limit\":20}]}");
-        assertFalse(InstrumentChanges.between(context, nearbyA, nearbyB).isEmpty());
+        assertFalse(InstrumentChanges.details(context, nearbyA, nearbyB).isEmpty());
     }
 
 

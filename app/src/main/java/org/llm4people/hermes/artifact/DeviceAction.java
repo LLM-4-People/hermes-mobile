@@ -67,6 +67,64 @@ public sealed interface DeviceAction {
     }
 
     Kind kind();
+    int MAX_CALENDAR_TITLE_CHARS = 120;
+    int MAX_CALENDAR_LOCATION_CHARS = 200;
+    int MAX_MAP_QUERY_CHARS = 200;
+    int MAX_SHARE_TEXT_CHARS = 2000;
+
+    static boolean isValidCalendarYear(OffsetDateTime dt) {
+        if (dt == null) return false;
+        int year = dt.getYear();
+        return year >= 1 && year <= 9999;
+    }
+
+    static boolean isValidSingleLineField(String value, int maxChars) {
+        return value != null
+                && !value.isEmpty()
+                && value.length() <= maxChars
+                && !PlainTextSanitizer.hasUnsafeSingleLineCodePoint(value)
+                && PlainTextSanitizer.hasVisibleText(value);
+    }
+
+    static boolean isValidShareText(String value) {
+        return value != null
+                && !value.isEmpty()
+                && value.length() <= MAX_SHARE_TEXT_CHARS
+                && PlainTextSanitizer.hasVisibleText(value)
+                && !PlainTextSanitizer.hasUnsafeMultilineCodePoint(value, true);
+    }
+
+    static CalendarEvent parseCalendarEvent(String title, String startRaw, String endRaw, String location) {
+        String cleanTitle = title == null ? "" : title.trim();
+        String cleanStart = startRaw == null ? "" : startRaw.trim();
+        String cleanEnd = endRaw == null ? "" : endRaw.trim();
+        String cleanLoc = location == null ? "" : location.trim();
+        if (!isValidSingleLineField(cleanTitle, MAX_CALENDAR_TITLE_CHARS)
+                || cleanStart.isEmpty()
+                || cleanEnd.isEmpty()
+                || (!cleanLoc.isEmpty() && !isValidSingleLineField(cleanLoc, MAX_CALENDAR_LOCATION_CHARS))) {
+            return null;
+        }
+        try {
+            OffsetDateTime start = OffsetDateTime.parse(cleanStart);
+            OffsetDateTime end = OffsetDateTime.parse(cleanEnd);
+            if (!isValidCalendarYear(start) || !isValidCalendarYear(end) || !end.isAfter(start)) return null;
+            return new CalendarEvent(cleanTitle, start, end, cleanLoc.isEmpty() ? null : cleanLoc);
+        } catch (DateTimeException invalid) {
+            return null;
+        }
+    }
+
+    static ShareText parseShareText(String rawText) {
+        String clean = rawText == null ? "" : rawText.trim();
+        return isValidShareText(clean) ? new ShareText(clean) : null;
+    }
+
+    static MapSearch parseMapSearch(String rawQuery) {
+        String clean = rawQuery == null ? "" : rawQuery.trim();
+        return isValidSingleLineField(clean, MAX_MAP_QUERY_CHARS) ? new MapSearch(clean) : null;
+    }
+
     String preview(Context context);
     Intent target();
     default Intent fallbackTarget() { return null; }
@@ -317,7 +375,7 @@ public sealed interface DeviceAction {
             String value = in.nextString();
             require(value.length() <= max && PlainTextSanitizer.hasVisibleText(value));
             boolean multiline = "text".equals(key) || "message".equals(key) || "body".equals(key);
-            require(value.codePoints().allMatch(cp -> displayable(cp) || (multiline && cp == '\n')));
+            require(value.codePoints().allMatch(cp -> PlainTextSanitizer.isSafeDisplayCodePoint(cp) || (multiline && cp == '\n')));
             values.put(key, value);
         }
         in.endObject();
@@ -445,19 +503,11 @@ public sealed interface DeviceAction {
         return String.join(", ", names);
     }
 
-    private static boolean displayable(int cp) {
-        int type = Character.getType(cp);
-        return !Character.isISOControl(cp) && type != Character.SURROGATE
-                && type != Character.LINE_SEPARATOR && type != Character.PARAGRAPH_SEPARATOR
-                && !PlainTextSanitizer.isStrippableInvisible(cp)
-                && (type != Character.FORMAT || cp == 0x200C || cp == 0x200D);
-    }
-
     private static OffsetDateTime instant(String value) throws IOException {
         require(value != null && (value.length() == 20 || value.length() == 25));
         try {
             OffsetDateTime date = OffsetDateTime.parse(value, CalendarEvent.WIRE);
-            require(date.getYear() >= 1 && date.getYear() <= 9999);
+            require(isValidCalendarYear(date));
             return date;
         } catch (DateTimeException invalidDate) { throw invalid(); }
     }
