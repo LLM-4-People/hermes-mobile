@@ -422,16 +422,26 @@ public final class ReminderPanel {
             boolean enabled = job.optBoolean("enabled", true);
             Button pauseBtn = Ui.outlinedButton(panel.activity,
                     panel.t(enabled ? R.string.panel_pause : R.string.panel_resume),
-                    v -> mutate(() -> panel.api.post(path + (enabled ? "/pause" : "/resume"), new JSONObject())));
+                    v -> {
+                        v.setEnabled(false);
+                        mutate(() -> panel.api.post(path + (enabled ? "/pause" : "/resume"), new JSONObject()));
+                    });
             page.addView(pauseBtn, cardMargins());
         }
         Button deleteBtn = Ui.outlinedButton(panel.activity, panel.t(R.string.panel_delete),
-                v -> panel.present(new AlertDialog.Builder(panel.activity)
-                        .setMessage(panel.t(R.string.panel_confirm_delete, name))
-                        .setNegativeButton(R.string.panel_cancel, null)
-                        .setPositiveButton(R.string.panel_delete, (d, which) -> mutate(() -> {
-                            panel.api.delete(path); return null;
-                        })).create()));
+                v -> {
+                    boolean[] handled = {false};
+                    panel.present(new AlertDialog.Builder(panel.activity)
+                            .setMessage(panel.t(R.string.panel_confirm_delete, name))
+                            .setNegativeButton(R.string.panel_cancel, null)
+                            .setPositiveButton(R.string.panel_delete, (d, which) -> {
+                                if (handled[0]) return;
+                                handled[0] = true;
+                                mutate(() -> {
+                                    panel.api.delete(path); return null;
+                                });
+                            }).create());
+                });
         deleteBtn.setTextColor(Ui.dangerInk(panel.activity));
         page.addView(deleteBtn, cardMargins());
 

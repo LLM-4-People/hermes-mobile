@@ -468,7 +468,7 @@ public final class AdminConsoleSheet implements AutoCloseable {
                 return;
             }
             LinearLayout errorCard = Ui.card(activity);
-            String errMsg = activity.getString(R.string.admin_console_users_load_failed);
+            String errMsg = activity.getString(R.string.admin_console_settings_load_failed);
             TextView errText = Ui.text(activity, errMsg, 14);
             errText.setTextColor(activity.getColor(R.color.danger));
             if (shouldAnnounceUsersError(usersLoadState != UsersLoadState.ERROR, errMsg, lastAnnouncedSettingsError)) {

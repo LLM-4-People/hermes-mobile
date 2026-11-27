@@ -2776,7 +2776,7 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
                         assertEquals("Reading", String.valueOf(qrStatus.getText()));
                         assertEquals(1, qrStatusMutations.get());
 
-                        // R34.6.1: UniversalSearchSheet.dispatchResult is single-fire once closed.
+                        // R34.6.1 / R37.8.1: UniversalSearchSheet.dispatchResult is single-fire once closed.
                         AtomicInteger searchDispatches = new AtomicInteger();
                         UniversalSearchSheet singleFireSearch = UniversalSearchSheet.show(
                                 activity, null, Collections.emptyList(),
@@ -2787,17 +2787,21 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
                                     @Override public void runAction(String actionId) { searchDispatches.incrementAndGet(); }
                                     @Override public void onDismissed() {}
                                 });
-                        Method dispatchResult = UniversalSearchSheet.class.getDeclaredMethod(
-                                "dispatchResult", UniversalSearchModel.Result.class);
-                        dispatchResult.setAccessible(true);
-                        UniversalSearchModel.Result sampleAction = new UniversalSearchModel.Result(
-                                "id1", UniversalSearchModel.Category.SETTINGS, "Settings", "", "", "act-1",
-                                "", "", "", "", false, 1, java.util.Collections.emptyList());
-                        dispatchResult.invoke(singleFireSearch, sampleAction);
-                        dispatchResult.invoke(singleFireSearch, sampleAction);
-                        assertEquals("Second dispatchResult after close must be a no-op", 1, searchDispatches.get());
+                        try {
+                            Method dispatchResult = UniversalSearchSheet.class.getDeclaredMethod(
+                                    "dispatchResult", UniversalSearchModel.Result.class);
+                            dispatchResult.setAccessible(true);
+                            UniversalSearchModel.Result sampleAction = new UniversalSearchModel.Result(
+                                    "id1", UniversalSearchModel.Category.SETTINGS, "Settings", "", "", "act-1",
+                                    "", "", "", "", false, 1, java.util.Collections.emptyList());
+                            dispatchResult.invoke(singleFireSearch, sampleAction);
+                            dispatchResult.invoke(singleFireSearch, sampleAction);
+                            assertEquals("Second dispatchResult after close must be a no-op", 1, searchDispatches.get());
+                        } finally {
+                            singleFireSearch.close();
+                        }
 
-                        // R34.6.2: CommandPalette.executeItem is single-fire once dismissed (dialog == null).
+                        // R34.6.2 / R37.8.1: CommandPalette.executeItem is single-fire once dismissed (dialog == null).
                         AtomicInteger paletteExecs = new AtomicInteger();
                         CommandRegistry r34Reg = new CommandRegistry(java.util.Collections.emptyList());
                         CommandItem r34Item = new CommandItem(
@@ -2806,13 +2810,17 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
                         r34Reg.add(r34Item);
                         CommandPalette r34Palette = new CommandPalette(activity, r34Reg, () -> true);
                         r34Palette.show(null);
-                        Method executeItem = CommandPalette.class.getDeclaredMethod("executeItem", CommandItem.class);
-                        executeItem.setAccessible(true);
-                        executeItem.invoke(r34Palette, r34Item);
-                        executeItem.invoke(r34Palette, r34Item);
-                        assertEquals("Second executeItem after dismiss must be a no-op", 1, paletteExecs.get());
+                        try {
+                            Method executeItem = CommandPalette.class.getDeclaredMethod("executeItem", CommandItem.class);
+                            executeItem.setAccessible(true);
+                            executeItem.invoke(r34Palette, r34Item);
+                            executeItem.invoke(r34Palette, r34Item);
+                            assertEquals("Second executeItem after dismiss must be a no-op", 1, paletteExecs.get());
+                        } finally {
+                            r34Palette.dismiss();
+                        }
 
-                        // R34.6.3: ProfileHubSheet.closeAndRun is single-fire once closed.
+                        // R34.6.3 / R37.8.1: ProfileHubSheet.closeAndRun is single-fire once closed.
                         AtomicInteger hubActions = new AtomicInteger();
                         org.llm4people.hermes.profile.ProfileHubSheet hubSheet =
                                 new org.llm4people.hermes.profile.ProfileHubSheet(
@@ -2824,13 +2832,17 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
                                             @Override public void onOpenAdminConsole() {}
                                             @Override public void onAdminStateResolved(boolean isAdmin) {}
                                         });
-                        Method closeAndRun = org.llm4people.hermes.profile.ProfileHubSheet.class
-                                .getDeclaredMethod("closeAndRun", Runnable.class);
-                        closeAndRun.setAccessible(true);
-                        Runnable hubAction = hubActions::incrementAndGet;
-                        closeAndRun.invoke(hubSheet, hubAction);
-                        closeAndRun.invoke(hubSheet, hubAction);
-                        assertEquals("Second closeAndRun after close must be a no-op", 1, hubActions.get());
+                        try {
+                            Method closeAndRun = org.llm4people.hermes.profile.ProfileHubSheet.class
+                                    .getDeclaredMethod("closeAndRun", Runnable.class);
+                            closeAndRun.setAccessible(true);
+                            Runnable hubAction = hubActions::incrementAndGet;
+                            closeAndRun.invoke(hubSheet, hubAction);
+                            closeAndRun.invoke(hubSheet, hubAction);
+                            assertEquals("Second closeAndRun after close must be a no-op", 1, hubActions.get());
+                        } finally {
+                            hubSheet.close();
+                        }
 
                         // R35.6.6: AppLanguage.showPicker single-choice click is single-fire on rapid double-tap.
                         AtomicInteger langApplies = new AtomicInteger();
@@ -2858,6 +2870,9 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
                         assertNotNull(trayLive);
                         assertEquals(View.ACCESSIBILITY_LIVE_REGION_POLITE, trayLive.getAccessibilityLiveRegion());
                         assertEquals(View.VISIBLE, trayLive.getVisibility());
+                        // R37.5.1: liveStatus stays 1x1 transparent so TalkBack sees it without clipping text.
+                        assertTrue(trayLive.getLayoutParams().width >= 1 && trayLive.getLayoutParams().height >= 1);
+                        assertEquals(android.graphics.Color.TRANSPARENT, trayLive.getCurrentTextColor());
                         tray.add(new org.llm4people.hermes.camera.CapturedMedia.Item(
                                 org.llm4people.hermes.camera.CapturedMedia.Kind.DOCUMENT,
                                 "report.pdf", "application/pdf", new byte[]{1, 2, 3}, "abc", null), 5);
@@ -2867,6 +2882,12 @@ public final class AccessibilityControlsRegressionTest extends InstrumentationTe
                         assertEquals(View.VISIBLE, trayLive.getVisibility());
                         assertEquals(activity.getString(R.string.share_tray_cleared),
                                 String.valueOf(trayLive.getText()));
+
+                        // R37.5.2: Shared horizontal progress/slider track drawable uses background + progress layers.
+                        android.graphics.drawable.LayerDrawable trackDrawable = Ui.horizontalTrackDrawable(
+                                activity, activity.getColor(R.color.line_strong), activity.getColor(R.color.accent));
+                        assertNotNull(trackDrawable.findDrawableByLayerId(android.R.id.background));
+                        assertNotNull(trackDrawable.findDrawableByLayerId(android.R.id.progress));
                     } catch (Exception err) {
                         throw new AssertionError(err);
                     }

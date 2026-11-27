@@ -235,5 +235,53 @@ public final class UiPolishR10ContractTest {
 
         String nearbyConsent = read("src/main/java/org/llm4people/hermes/thread/NearbyConsent.java");
         assertTrue(nearbyConsent.contains("if (handled[0] || ticket != generation) return;"));
+
+        // R37 PR B contracts: ShareDraftTray 1x1 transparent liveStatus, shared horizontal track styling,
+        // live regions + dead param cleanup, localized settings load error, QrScanner generation guard,
+        // destructive delete & picker single-dispatch guards, PairingShareSheet revoke-failure toast.
+        assertTrue(shareTray.contains("new LinearLayout.LayoutParams(1, 1)"));
+        assertTrue(shareTray.contains("Color.TRANSPARENT"));
+
+        String uiSrc = read("src/main/java/org/llm4people/hermes/Ui.java");
+        assertTrue(uiSrc.contains("public static void styleHorizontalProgressBar("));
+        assertTrue(uiSrc.contains("public static LayerDrawable horizontalTrackDrawable("));
+        assertTrue(read("src/main/java/org/llm4people/hermes/update/UpdatePanel.java")
+                .contains("Ui.styleHorizontalProgressBar("));
+        assertTrue(read("src/main/java/org/llm4people/hermes/doctor/ConnectionDoctorPanel.java")
+                .contains("Ui.styleHorizontalProgressBar("));
+        String controlsBlock = read("src/main/java/org/llm4people/hermes/artifact/InteractiveControlsBlock.java");
+        assertTrue(controlsBlock.contains("Ui.horizontalTrackDrawable("));
+        assertTrue(controlsBlock.contains("seek.setThumbTintList("));
+
+        String deliveryRouter = read("src/main/java/org/llm4people/hermes/push/DeliveryRouter.java");
+        assertTrue(deliveryRouter.contains("note.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE)"));
+        assertTrue(deliveryRouter.contains("if (handled[0]) return;"));
+
+        assertTrue(firstRun.contains("ready.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE)"));
+        assertFalse("FirstRunWizard.showManualPasteDialog must not keep dead statusNote param",
+                firstRun.contains("showManualPasteDialog(TextView statusNote)"));
+
+        String adminConsole = read("src/main/java/org/llm4people/hermes/profile/AdminConsoleSheet.java");
+        assertTrue(adminConsole.contains("R.string.admin_console_users_load_failed"));
+        assertTrue(adminConsole.contains("R.string.admin_console_settings_load_failed"));
+
+        assertTrue(qrScanner.contains("imageDecodeGeneration"));
+        assertTrue(qrScanner.contains("if (gen != imageDecodeGeneration) return;"));
+        assertTrue(qrScanner.contains("int effectiveDetailRes = imageDecodePending ? R.string.qr_scanner_reading_image : detailRes;"));
+
+        for (String rel : new String[]{
+                "src/main/java/org/llm4people/hermes/panel/MemoryPanel.java",
+                "src/main/java/org/llm4people/hermes/panel/NotesPanel.java",
+                "src/main/java/org/llm4people/hermes/panel/ReminderPanel.java",
+                "src/main/java/org/llm4people/hermes/panel/SkillStudio.java"
+        }) {
+            String src = read(rel);
+            assertTrue(rel + " must guard destructive delete dialog with if (handled[0]) return;",
+                    src.contains("if (handled[0]) return;"));
+        }
+        assertTrue(read("src/main/java/org/llm4people/hermes/panel/ReminderPanel.java")
+                .contains("v.setEnabled(false);"));
+        assertTrue(voiceDrafts.contains("if (handled[0] || recovery != this || paused || !target.visible()) return;"));
+        assertTrue(pairingShare.contains("R.string.admin_settings_revoke_failed"));
     }
 }

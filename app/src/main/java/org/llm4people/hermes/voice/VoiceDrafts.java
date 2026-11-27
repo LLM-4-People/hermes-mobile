@@ -603,9 +603,11 @@ public final class VoiceDrafts {
                 String[] choices = system ? new String[]{first, activity.getString(R.string.voice_other_service)}
                         : new String[]{first};
                 dismiss();
+                boolean[] handled = {false};
                 dialog = Ui.secureDialog(new AlertDialog.Builder(activity).setTitle(title)
                         .setItems(choices, (view, which) -> {
-                            if (recovery != this || paused || !target.visible()) return;
+                            if (handled[0] || recovery != this || paused || !target.visible()) return;
+                            handled[0] = true;
                             if (which == 0) select.run();
                             else begin(target, VoiceInput.Source.SYSTEM, null, -1);
                         }).setNegativeButton(R.string.voice_cancel_short, null));

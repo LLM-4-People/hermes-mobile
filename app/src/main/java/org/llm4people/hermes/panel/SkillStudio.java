@@ -588,11 +588,14 @@ final class SkillStudio {
 
     private void confirmDelete(LinearLayout feedbackTarget, SkillStudioModel.SkillDetail detail) {
         if (!detail.writable()) return;
+        boolean[] handled = {false};
         panel.present(new AlertDialog.Builder(panel.activity)
                 .setTitle(R.string.panel_delete)
                 .setMessage(panel.t(R.string.brain_skills_delete_confirm, detail.name()))
                 .setNegativeButton(R.string.panel_cancel, null)
                 .setPositiveButton(R.string.panel_delete, (d, w) -> {
+                    if (handled[0]) return;
+                    handled[0] = true;
                     panel.request(feedbackTarget, () -> panel.api.deleteJson(
                             "/v1/skills/" + HermesApi.relativePath(detail.name())),
                             ok -> {

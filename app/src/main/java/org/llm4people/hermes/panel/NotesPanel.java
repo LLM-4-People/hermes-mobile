@@ -475,11 +475,14 @@ final class NotesPanel {
 
     private void confirmDelete(NotesModel.Note note) {
         if (!note.canDelete()) return;
+        boolean[] handled = {false};
         panel.present(new AlertDialog.Builder(panel.activity)
                 .setTitle(R.string.panel_delete)
                 .setMessage(panel.t(R.string.panel_confirm_delete, note.displayTitle(panel.activity)))
                 .setNegativeButton(R.string.panel_cancel, null)
                 .setPositiveButton(R.string.panel_delete, (d, w) -> {
+                    if (handled[0]) return;
+                    handled[0] = true;
                     panel.request(body, () -> panel.api.deleteJson("/api/notes/" + HermesApi.segment(note.id())),
                             ok -> {
                                 Diagnostics.event("notes", "deleted");

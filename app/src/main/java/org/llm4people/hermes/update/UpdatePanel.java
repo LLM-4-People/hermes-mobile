@@ -162,6 +162,7 @@ public final class UpdatePanel {
         card.addView(checksumBadge, badgeLp);
 
         progressBar = new ProgressBar(activity, null, android.R.attr.progressBarStyleHorizontal);
+        Ui.styleHorizontalProgressBar(activity, progressBar);
         progressBar.setMax(100);
         progressBar.setVisibility(View.GONE);
         LinearLayout.LayoutParams progressLp = new LinearLayout.LayoutParams(-1, -2);
