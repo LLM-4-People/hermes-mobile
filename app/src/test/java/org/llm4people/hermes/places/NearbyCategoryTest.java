@@ -45,6 +45,8 @@ public final class NearbyCategoryTest {
         assertEquals(org.llm4people.hermes.R.string.places_tag_24_7, NearbyCategory.tagLabelRes("24/7"));
         assertEquals(org.llm4people.hermes.R.string.places_tag_outdoor_seating, NearbyCategory.tagLabelRes("outdoor_seating"));
         assertEquals(0, NearbyCategory.tagLabelRes("unknown_tag"));
-        assertEquals("", NearbyCategory.tagLabel(null, "unknown_tag"));
+        assertEquals(0, NearbyCategory.tagLabelRes(null));
+        assertEquals(0, NearbyCategory.tagLabelRes("   "));
+        assertEquals(org.llm4people.hermes.R.string.places_tag_wifi, NearbyCategory.tagLabelRes("  WIFI  "));
     }
 }

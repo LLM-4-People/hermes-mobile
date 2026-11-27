@@ -246,13 +246,6 @@ public final class LiveRunNotification {
         if (manager != null) manager.cancel(NOTIFICATION_ID);
     }
 
-    static Notification build(Context context, NotificationManager manager,
-                              Snapshot snapshot, Presentation model) {
-        Context app = context.getApplicationContext() != null ? context.getApplicationContext() : context;
-        Context localized = localizedContext(context);
-        return build(app, localized, manager, snapshot, model, actionLabels(localized));
-    }
-
     static Notification build(Context appContext, Context localizedContext, NotificationManager manager,
                               Snapshot snapshot, Presentation model, ActionLabels labels) {
         PendingIntent open = OsEntryIntent.pendingIntent(appContext, OsEntryIntent.Target.ASK, REQUEST_OPEN);

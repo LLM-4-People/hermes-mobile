@@ -246,8 +246,8 @@ public class HermesOsPrivacyAndWidgetTest {
         assertNotNull(store.specForInstance(102));
 
         // Removing the spec unbinds remaining instances.
-        assertTrue(store.removeSpec("kpi_morning"));
-        assertFalse(store.removeSpec("kpi_morning"));
+        assertTrue(store.removeSpec("kpi_morning", null));
+        assertFalse(store.removeSpec("kpi_morning", null));
         assertNull(store.specForInstance(102));
         assertTrue(store.instancesForWidget("kpi_morning").isEmpty());
 

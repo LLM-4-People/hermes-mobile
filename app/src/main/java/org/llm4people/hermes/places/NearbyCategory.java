@@ -182,11 +182,6 @@ public enum NearbyCategory {
         };
     }
 
-    public static String tagLabel(Context context, String rawTag) {
-        int res = tagLabelRes(rawTag);
-        return res == 0 || context == null ? "" : localized(context, res);
-    }
-
     static String plainCoords(double latitude, double longitude) {
         return BigDecimal.valueOf(latitude).stripTrailingZeros().toPlainString() + ","
                 + BigDecimal.valueOf(longitude).stripTrailingZeros().toPlainString();

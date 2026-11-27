@@ -27,7 +27,6 @@ import org.llm4people.hermes.net.HermesApi;
 import org.llm4people.hermes.profile.Account;
 
 import java.text.DateFormat;
-import java.time.OffsetDateTime;
 import java.util.Date;
 import java.util.List;
 import java.util.Objects;
@@ -432,23 +431,6 @@ public final class DeliveryRouter {
             this.openLabelFr = openLabelFr;
             this.intent = intent;
         }
-    }
-
-    static final int MAX_CALENDAR_TITLE_CHARS = DeviceAction.MAX_CALENDAR_TITLE_CHARS;
-    static final int MAX_CALENDAR_LOCATION_CHARS = DeviceAction.MAX_CALENDAR_LOCATION_CHARS;
-    static final int MAX_MAP_QUERY_CHARS = DeviceAction.MAX_MAP_QUERY_CHARS;
-    static final int MAX_SHARE_TEXT_CHARS = DeviceAction.MAX_SHARE_TEXT_CHARS;
-
-    static boolean isValidSingleLineField(String value, int maxChars) {
-        return DeviceAction.isValidSingleLineField(value, maxChars);
-    }
-
-    static boolean isValidShareText(String value) {
-        return DeviceAction.isValidShareText(value);
-    }
-
-    static boolean isValidCalendarYear(OffsetDateTime dt) {
-        return DeviceAction.isValidCalendarYear(dt);
     }
 
     static ReviewedAction parseSafeDeviceAction(Context context, JSONObject payload) {

@@ -129,7 +129,7 @@ public final class HermesWidgetStore {
         }
     }
 
-    public synchronized boolean removeSpec(String widgetId) {
+    private synchronized boolean removeSpec(String widgetId) {
         if (!HermesWidgetSpec.validWidgetId(widgetId)) return false;
         boolean existed = backing.get(SPEC_PREFIX + widgetId) != null;
         backing.remove(SPEC_PREFIX + widgetId);

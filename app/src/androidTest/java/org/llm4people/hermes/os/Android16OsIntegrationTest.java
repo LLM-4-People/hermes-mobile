@@ -9,9 +9,12 @@ import android.content.pm.PackageManager;
 import android.content.pm.ServiceInfo;
 import android.os.Build;
 import android.test.InstrumentationTestCase;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.Button;
 import android.widget.RemoteViews;
 
-import org.llm4people.hermes.AppLanguage;
 import org.llm4people.hermes.R;
 
 import java.util.List;
@@ -60,13 +63,15 @@ public final class Android16OsIntegrationTest extends InstrumentationTestCase {
         LiveRunNotification.Presentation model = LiveRunNotification.present(context, snapshot);
         assertNotNull(model);
 
-        Notification built = LiveRunNotification.build(context, manager, snapshot, model);
+        Context app = context.getApplicationContext();
+        Context localized = LiveRunNotification.localizedContext(context);
+        Notification built = LiveRunNotification.build(
+                app, localized, manager, snapshot, model, LiveRunNotification.actionLabels(localized));
         assertEquals(Notification.VISIBILITY_PRIVATE, built.visibility);
         assertEquals(Notification.CATEGORY_PROGRESS, built.category);
         assertTrue((built.flags & Notification.FLAG_ONGOING_EVENT) != 0);
         assertNotNull(built.actions);
         assertEquals(2, built.actions.length);
-        Context localized = AppLanguage.wrapContext(context);
         assertEquals(localized.getString(R.string.live_run_working_title), built.extras.getString(Notification.EXTRA_TITLE));
         if (Build.VERSION.SDK_INT >= 36) {
             assertEquals(localized.getString(R.string.live_run_chip_step_of, 2, 4), built.getShortCriticalText());
@@ -147,8 +152,22 @@ public final class Android16OsIntegrationTest extends InstrumentationTestCase {
         } catch (org.json.JSONException unexpected) {
             throw new AssertionError(unexpected);
         } finally {
-            store.removeSpec(id);
+            store.removeSpec(id, "profile-a");
             store.unbindInstance(987654);
+        }
+    }
+
+    public void testWidgetButtonsUseWrapContentWith48dpMinHeight() {
+        Context context = getInstrumentation().getTargetContext();
+        View root = LayoutInflater.from(context).inflate(R.layout.hermes_widget, null);
+        int min48Px = Math.round(48f * context.getResources().getDisplayMetrics().density);
+        for (int buttonId : new int[]{R.id.widget_ask, R.id.widget_dictate}) {
+            Button button = root.findViewById(buttonId);
+            assertNotNull(button);
+            assertEquals(ViewGroup.LayoutParams.WRAP_CONTENT, button.getLayoutParams().height);
+            assertTrue("Widget button must enforce >=48dp minHeight", button.getMinimumHeight() >= min48Px);
+            assertTrue("Widget button must have horizontal padding", button.getPaddingStart() > 0 && button.getPaddingEnd() > 0);
+            assertTrue("Widget button must have vertical padding", button.getPaddingTop() > 0 && button.getPaddingBottom() > 0);
         }
     }
 }
